@@ -9,6 +9,11 @@ implements the [organized desktop browser](desktop-browser.md) with existing ful
 pr 4 investigates an embedded terminal and has no implementation or scaffolding.
 pr 3 is independently useful and does not depend on pr 4 succeeding.
 
+2026-09-22: the [herdr migration plan](herdr-migration.md) pauses the custom
+desktop embedding experiment below. its pr numbers are a separate delivery
+sequence. existing spaces, shells and desktop-browser contracts still describe
+the implemented tmux product until their explicit migration amendments land.
+
 ## goal and approach
 
 make related agent work, ordinary shells, and inspection tools easy to reach.

@@ -5,6 +5,21 @@ accepted feature specifications own detailed product contracts.
 [the codebase map](codebase-map.md) locates their implementation.
 this index records present scope and open work, not a release diary.
 
+## planned herdr migration
+
+[the migration plan](herdr-migration.md) owns the proposed runtime/desktop cutover,
+retained android and cli surfaces, and each pr's scope, requirements and completion
+criteria. delivery is feasibility/contract, one coherent skid cutover, jarvis
+alignment if needed, then deployment and fleet acceptance. all stages remain
+uncompleted; source research is not live acceptance.
+
+[the pr 1 spec](herdr-pr1.md) defines the investigation and contract closure.
+it must resolve [profile/restart behavior](issues/herdr-profile-restore.md),
+[exact worker targeting](issues/herdr-agent-targeting.md), and
+[phone/desktop terminal interaction](issues/herdr-terminal-acceptance.md), plus
+[terminal-only closure](issues/herdr-terminal-closure.md) before
+implementation proceeds. current implemented scope below remains the tmux system.
+
 ## implemented scope
 
 | capability | contract owner |
@@ -56,8 +71,9 @@ sessions retain their original launch policy.
   tests are removed before commit. no retained suite protects the important
   behavior automatically. [testing policy](rules/testing.md) owns the workflow;
   `scripts/check verify` runs engineering checks and builds only.
-- [terminal embedding](spaces-and-shells.md): separate feasibility work; there
-  is no accepted production embedding contract.
+- [terminal embedding](spaces-and-shells.md): custom desktop embedding work is
+  paused while [herdr feasibility](herdr-migration.md) is qualified; there is no
+  accepted production embedding contract.
 
 other unperformed visual/device checks and explicitly waived shipment checks
 remain with their feature owners. a waiver is not a pass. unavailable or
