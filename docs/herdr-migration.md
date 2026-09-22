@@ -1,9 +1,11 @@
 # herdr migration plan
 
-2026-09-22: accepted direction and delivery plan. partial pr 1 proofs found a
-pinned-baseline failure and require `reconsider`; full qualification,
-implementation and fleet acceptance remain unperformed. this document does not
-authorize pr 2.
+2026-09-22: accepted direction and delivery plan. the original pr 1 `reconsider`
+result prompted an [approved scope amendment](herdr-pr1.md#accepted-scope-amendment):
+native herdr closure effects and single-terminal phone interaction without remote
+click/drag parity. qualification can resume at v0.9.1; no new upstream revision
+is required solely for those two former gates. full qualification, implementation
+and fleet acceptance remain incomplete. this document does not authorize pr 2.
 the current [architecture](architecture.md) and feature contracts still describe
 the tmux implementation. pr 1 must specify their exact replacement before pr 2.
 
@@ -44,6 +46,8 @@ retain machine identity, private ingress, authentication, encrypted pairings,
 profile selection, directory browsing, pressure, and the native visual language.
 preserve the provider permission policy unless a separately reviewed change says
 otherwise. credentials and provider history stay on their hosts.
+the accepted amendment retains keys, scrolling and local selection/copy, and
+requires explicit closure-scope disclosure to phone users and cli/jarvis callers.
 
 excluded: a new terminal emulator, generic backend framework, permanent tmux/herdr
 dual support, copied transcripts, chat ui, generalized hook runtime, worker
@@ -58,8 +62,8 @@ spaces/shells delivery sequence.
 
 | pr | repository | dependency | status |
 | --- | --- | --- | --- |
-| 1. feasibility and contract | skid | isolated proof resources and applicable live/device approval | reconsider at v0.9.1: exact closure fails on isolated darwin; public phone tap path absent; other boundaries remain unqualified |
-| 2. complete skid cutover | skid | pr 1 recommends proceeding and closes the required contracts | blocked by pr 1 `reconsider` |
+| 1. feasibility and contract | skid | isolated proof resources and applicable live/device approval | qualification reopened at v0.9.1 under approved scope; historical evidence unchanged; remaining proofs/contracts open |
+| 2. complete skid cutover | skid | pr 1 recommends proceeding and closes the required contracts | awaiting completed pr 1 qualification; no `proceed` yet |
 | 3. jarvis alignment | jarvis | pr 2's final cli contract and runnable candidate | blocked on pr 2; omit if unchanged consumer passes |
 | 4. deployment and fleet acceptance | dev-server, consuming skid release artifacts | pr 2 and pr 3, or recorded jarvis compatibility | blocked on the preceding stages |
 
@@ -97,13 +101,15 @@ deployment change or later-pr scaffolding belongs in this pr.
   the intended lifetime under pre-dispatch revalidation, with no implicit target
   substitution. accepted 2026-09-22: replacement between check and write remains
   possible, as in current skid; no atomic expected-worker guarantee is claimed.
-  terminal destruction still requires the confirmed terminal lifetime.
+  close dispatch revalidates the original terminal; effect scope follows herdr's
+  native closure semantics, not an exact-terminal-only guarantee.
 - define discovery, naming, dwarf metadata lifetime and assignment, workspace
   grouping, cross-host equal labels, unassigned terminals, and regrouping. specify
   create, new-terminal-here, rename, interrupt, stop, kill and detach individually.
-  closing one terminal may remove its emptied tab/workspace but must not destroy
-  another terminal, including linked worktrees. resolve
-  [the closure issue](issues/herdr-terminal-closure.md).
+  close/stop may close the linked git-worktree group. qualify and disclose that
+  effect, preserve upstream refusal and report uncertainty under
+  [the closure contract](herdr-pr1.md#accepted-scope-amendment); resolve
+  [the remaining closure issue](issues/herdr-terminal-closure.md).
 - launch `personal`, `work`, `work2` and `claude-work` with the intended account,
   cwd and permission arguments. distinguish launch profile from proven current
   runtime profile. retain ordinary shells and hosts with zero agent profiles.
@@ -116,7 +122,9 @@ deployment change or later-pr scaffolding belongs in this pr.
   operation budget. prompts are submitted once; lost replies remain uncertain.
 - establish rendered-frame, terminal-reply, input, scrolling, selection, geometry,
   control acquisition/release and reconnect ownership. preserve literal multiline
-  and composed input. direct-controller exclusivity is not a global writer lock.
+  and composed input. attach one terminal, not the herdr ui; remote clicks/drags
+  are excluded, while public mode-aware scrolling and local selection/copy remain.
+  direct-controller exclusivity is not a global writer lock.
 - publish exact gateway/cli/phone schema changes and an operation mapping, plus
   the intended no-argument `skid` and `skid enter` behavior when herdr owns desktop
   navigation. do not invent tmux fields or counts to preserve old schemas.
@@ -130,8 +138,8 @@ deployment change or later-pr scaffolding belongs in this pr.
    disable automatic resume rather than promise account-correct restoration.
 3. replacement, move, rename and restart experiments resolve
    [the targeting issue](issues/herdr-agent-targeting.md) without silently
-   weakening the accepted revalidation contract. exact closure resolves
-   [the linked-workspace issue](issues/herdr-terminal-closure.md).
+   weakening the accepted revalidation contract. disclosed native closure and
+   refusal resolve [the linked-workspace issue](issues/herdr-terminal-closure.md).
 4. codex, claude and a shell work through the phone bridge, including shared
    desktop use and lifecycle cleanup, resolving
    [the terminal issue](issues/herdr-terminal-acceptance.md). qualify the host
@@ -147,11 +155,11 @@ not authorize pr 2. a negative result is a valid completed investigation: record
 the blocking evidence and revise the plan. if a small upstream change is needed,
 scope it separately and qualify a release containing it before proceeding.
 
-the v0.9.1 investigation has reached that negative result. [pr 1's evidence and
-decision](herdr-pr1.md#investigation-result-at-the-pinned-baseline) identify an
-unsafe last-pane closure and a missing public phone tap/mouse path. the smallest
-next decision is an upstream scope for both capabilities and a qualified new
-pin. current tmux contracts and delivery status remain in force.
+[pr 1's original evidence and decision](herdr-pr1.md#investigation-result-at-the-pinned-baseline)
+remain recorded: the old terminal-only assertion failed, and no public remote
+click path exists. the approved amendment changes the requirements, not those
+results. resume the outstanding proofs and wire contract at the same pin;
+current tmux contracts and delivery status remain in force until cutover.
 
 ## pr 2: coherent skid cutover
 
@@ -211,7 +219,7 @@ retirement. no production deletion belongs to pr 1.
 1. the changed candidate passes `scripts/check verify`; record that this covers
    engineering checks/builds only.
 2. host and cli demonstrate inventory, all configured launch choices, bounded
-   reads, literal sends, keys, interrupt, stop, exact terminal close, rename,
+   reads, literal sends, keys, interrupt, stop, disclosed native close/refusal, rename,
    grouping and new-terminal-here under the accepted contract.
 3. android demonstrates fleet inventory, creation and focused attachment; keyboard,
    dictation/composition, paste, scrolling, copy, rotation, backgrounding, sizing
@@ -242,6 +250,9 @@ authority, durable actions, budgets and immutable history.
   metadata reads must not replace the original submitted target implicitly.
 - align readiness, read coverage and status wording with the actual cli. a
   successful herdr wait is not an assignment receipt or task-success record.
+- tool descriptions and schemas disclose that kill/stop closure may end other
+  terminals in the linked workspace group. never imply single-worker effect or
+  native halt of every affected provider; preserve refusal and unknown outcomes.
 - initial delegation uses one outstanding assignment per worker and explicit
   response/work-product inspection. human intervention requires reassessing the
   observation; this convention is not an enforced exclusive-writer mechanism.

@@ -1,10 +1,11 @@
 # herdr pr 1: feasibility and contract closure
 
-2026-09-22 · execution specification with a negative pinned-baseline result.
+2026-09-22 · qualification reopened after an approved scope amendment.
 [the migration plan](herdr-migration.md) owns delivery order. this pr owns the
 evidence and precise contract needed to authorize pr 2. current production
-contracts remain unchanged. an isolated darwin closure proof now fails; other
-runtime/device acceptance remains `NOT_RUN` unless recorded below.
+contracts remain unchanged. the historical terminal-only closure proof failed;
+its requirement is superseded below, not its result. unperformed runtime/device
+acceptance remains `NOT_RUN`; this amendment is not a `proceed` decision.
 
 ## goal, scope and final state
 
@@ -55,7 +56,46 @@ for lessons, not as a required component.
 the existing [targeting issue](issues/herdr-agent-targeting.md) tracks whether the
 accepted revalidation boundary is implementable. current skid also checks then
 writes; its mutex does not prevent independent process exit. terminal destruction
-must still address the confirmed terminal lifetime, never a name-reused replacement.
+must start from the revalidated original terminal, never a name-reused replacement;
+its permitted effect scope follows the amendment below.
+
+## accepted scope amendment
+
+2026-09-22, approved by the user after reviewing the pinned-baseline findings:
+
+- phone attachment displays and controls one exact provider terminal, not herdr's
+  workspace ui. retain keys, ime/dictation, paste, swipe scrolling, phone-local
+  selection/copy, sizing and detach. taps focus input/show the keyboard;
+  clicks and drags into the remote application are out of scope. no public mouse
+  command or private mouse protocol is required.
+- route swipes through public `terminal.scroll`. upstream already owns
+  [mode-aware wheel routing](https://github.com/herdrdev/herdr/blob/065ef9d6a531c49fb8bee7e818ef837065b21ee9/src/server/pane_input.rs#L128),
+  including application mouse-wheel reports. excluding remote clicks does not
+  exclude scrolling or prove that codex/claude history scrolling works.
+- `kill` and the closure step of `stop` adopt herdr's native pane-close semantics.
+  closing the last pane may close its workspace and linked git-worktree group,
+  including their independent terminals. the group relates checkouts, not shared
+  agent processes. closing it does not delete checkout directories or branches.
+  exact-terminal-only closure and an atomic expected-terminal close are no longer
+  migration requirements. original-reference revalidation/no retargeting remain.
+- every phone close/stop confirmation names the selected terminal and machine
+  and warns that herdr may also close the linked workspace group and its running
+  terminals. cli help and jarvis's tool contract disclose the same effect before
+  use; their wire contract must not imply single-terminal scope. this warning
+  describes execution-time group scope, not a frozen preview of group members.
+  results report only observed effects; `stop` does not claim native halt of
+  every provider affected by a cascade. lost replies remain unknown, never retried.
+- respect upstream confirmation policy. a returned `confirmation_required` is a
+  refusal, not success or permission to switch to a broader command, override
+  configuration or retry. phone confirmation does not bypass upstream refusal.
+  qualify both confirmation settings and the exact public operation mapping.
+  detach still releases only the attachment and leaves workers running.
+
+costs: no remote terminal clicks/drags; closing one selected dwarf can end other
+agents in its herdr group; some closes can be refused by upstream policy. these
+are accepted product semantics, not unresolved upstream defects. qualification
+resumes at v0.9.1 without requiring those two upstream additions. the wire table,
+remaining live proofs and other capability-loss decisions still gate pr 2.
 
 ## capability and schema contract to close
 
@@ -120,8 +160,9 @@ forge offers an exact existing workspace or explicit new workspace. qualify
 workspace inventory/creation and root-pane reuse: creating one dwarf must not
 leave an extra shell. reject ambiguous equal-label destinations; retire
 `unassigned` rather than invent a workspace. allow removal of an emptied
-tab/workspace, but reject any close that would destroy another terminal,
-including a linked worktree. see [the closure issue](issues/herdr-terminal-closure.md).
+tab/workspace and native linked-group closure under the
+[accepted scope](#accepted-scope-amendment). see
+[closure disclosure and qualification](issues/herdr-terminal-closure.md).
 
 ## phone boundary and content design
 
@@ -133,7 +174,7 @@ the designer for each slice defines content alongside its schema, before coding:
 | --- | --- |
 | runtime/control — runtime slice | separate creation, readiness, delivery and completion. e.g. `terminal created; startup not confirmed`, `delivery unknown; inspect before sending again`, `interrupt sent; cancellation unconfirmed`. never label inferred status native. |
 | grouping/creation — phone slice | name the machine, exact terminal and actual workspace; say when a new workspace will be created. use `move to workspace` and disclose layout effects. unnamed workspace labels are presentation, not fabricated resources. no dwarf lore in operational errors. |
-| attachment/input — phone slice | `another terminal connection is active`, `take over`, `back`; loss pauses input on this phone, not remote work. disclose that desktop input remains active. destructive copy names target and effect; detach never implies stop. |
+| attachment/input — phone slice | `another terminal connection is active`, `take over`, `back`; loss pauses input on this phone, not remote work. disclose that desktop input remains active. close/stop confirms the terminal and machine and warns that linked workspaces and their running terminals may also close; detach never implies stop. |
 | acceptance — root | concise observed facts, not assurances. state platform/version, boundary, result and limitation without terminal content or account data. |
 
 qualify and write down one owner for each stream behavior:
@@ -145,9 +186,10 @@ qualify and write down one owner for each stream behavior:
   decoded-byte/frame/queue limits and overflow closure. input stays disabled until
   control and initial geometry/frame are established. measure against existing
   bounds; any necessary bound change is an explicit contract delta.
-- herdr owns attached scroll position and modes; prove the route for touch,
-  logical keys, mouse reporting and alternate-screen history. reuse gestures,
-  not assumptions that local xterm scrollback is authoritative.
+- herdr owns attached scroll position and modes; prove public wheel/page scrolling,
+  logical keys and alternate-screen history. no remote click/drag input; upstream
+  may use mouse-wheel reports internally. reuse gestures, not assumptions that
+  local xterm scrollback is authoritative.
 - keep selection/copy phone-local; define redraw/resize invalidation. prove
   geometry handback after detach, takeover, backgrounding and abrupt loss.
   reconnect needs fresh discovery and attachment; never input replay.
@@ -204,11 +246,11 @@ any additional file or test-ingress configuration needs an explicit scope review
 | proof | completion criterion |
 | --- | --- |
 | targeting and orchestration | a headless coordinator lists, reads, sends a literal multiline follow-up and interrupts worker a while desktop focus is on worker b; b is unaffected. an approved provider worker also invokes the same probe surface to control another worker; no special coordinator role. |
-| lifetime | exercise each retained mutation after rename, move, foreground replacement, terminal/name reuse and server restart. already-replaced targets reject. examine and deliberately schedule replacement between check/write; record the accepted race, not a fictitious atomic pass. close only the confirmed terminal; other terminals survive. include last-pane closure of a parent worktree with a live linked workspace under both confirmation settings: refuse a cascading operation. |
+| lifetime | exercise retained mutations after rename, move, foreground replacement, terminal/name reuse and server restart. already-replaced targets reject; record the accepted check/write race. qualify disclosed native close effects, including parent-worktree last-pane cascade or refusal under both confirmation settings; outside-group terminals survive. phone/cli/jarvis contracts must not promise single-terminal closure or native halt of every affected agent. |
 | launch/readiness | all four profiles preserve configured executable/environment/cwd/flags; verify internally and report equality only. shell and zero-profile host work; startup dialog/timeout differs from failed creation. restart the isolated server with resume disabled and prove no unintended provider relaunch. |
 | observation/read | codex and claude working, input wait, idle, unfamiliar screen and unavailable observation have honest source/readiness; reads declare bounded visible/history coverage. no inferred task success or hidden native-capability loss. |
 | uncertainty/lifetime owners | suppress a reply after one real synthetic mutation: caller reports unknown within budget, dispatch count remains one after reconnect. kill the probe client/bridge and gateway separately; workers survive and rediscover. cold server restart is tested separately. |
-| phone/desktop | shell, codex and claude through the physical phone renderer: typing, ime/dictation, multiline paste, keys, touch scroll/history, copy, keyboard resize, rotation, control conflict/takeover, detach, background and abrupt loss. desktop shares the worker and regains sizing. qualify host stream/lifetime behavior on linux and darwin, without multiplying every input case across every profile. |
+| phone/desktop | attach one shell, codex or claude terminal, without herdr chrome: typing, ime/dictation, multiline paste, keys, actual swipe/history movement, local selection/copy, keyboard resize, rotation, conflict/takeover, detach, background and abrupt loss. taps focus input without remote clicks. desktop shares the worker and regains sizing. qualify host stream/lifetime behavior on linux and darwin, without multiplying every input case across every profile. |
 
 no live operations are authorized by this document. obtain explicit current-turn
 approval for live/tmux/device work under [AGENTS.md](../AGENTS.md); use isolated
@@ -241,15 +283,21 @@ retained behavioral regression suite; that is the explicit verification cost.
 
 ## investigation result at the pinned baseline
 
-**reconsider.** the required terminal-only closure contract is impossible through
+historical result: **reconsider under the original requirements.** the table
+below retains its original results. the [approved amendment](#accepted-scope-amendment)
+removes exact-only closure and remote-click parity as gates; it does not turn
+the old failure into a pass or supply missing live evidence.
+
+the former terminal-only closure contract is impossible through
 v0.9.1's public commands. its `pane.close` can remove other terminals when the
 target is the final pane of a parent worktree workspace and `confirm_close=false`.
 `workspace.close(close_group=false)` prevents that group cascade but closes every
 terminal in its workspace. neither command accepts an expected terminal lifetime
 or a predicate that the layout still contains only the confirmed terminal. a
 gateway check before either command cannot constrain a later desktop layout
-change. this is an upstream capability gap, not a request for a skid-side
-preflight. [the closure issue](issues/herdr-terminal-closure.md) remains open.
+change. this is a gap against that former contract, not a request for a skid-side
+preflight. [the closure issue](issues/herdr-terminal-closure.md) now tracks truthful
+disclosure and qualification of the accepted native effect.
 
 the public `herdr terminal session control` stream has a separate phone input
 gap: it accepts text/bytes, resize, scroll and release, but no mode-aware tap or
@@ -257,8 +305,8 @@ mouse command. its ansi frames are rendered cells, without the provider's
 mouse-mode negotiation; forwarding xterm's tap bytes would guess the wrong
 mode. the native herdr client uses an internal mouse message, whose private
 protocol is outside this migration. [the terminal issue](issues/herdr-terminal-acceptance.md)
-remains open. these two failures prevent a `proceed` decision even if the other
-boundaries pass.
+remains open for the retained input/scroll/lifecycle requirements. these findings
+prevented the original `proceed` decision; remote pointer input is now excluded.
 
 the inspected source is [herdr v0.9.1 at
 `065ef9d6a531c49fb8bee7e818ef837065b21ee9`](https://github.com/herdrdev/herdr/tree/065ef9d6a531c49fb8bee7e818ef837065b21ee9).
@@ -318,14 +366,14 @@ composition pattern. its browser, worktree, file, git, push and audit features
 are outside skid's pr 1 contract and do not change the pinned herdr public
 command limitations identified above.
 
-the wire/operation table and affected product-contract amendments required for
-`proceed` cannot be closed at this pin: `kill` and the closure step of `stop`
-have no acceptable upstream effect, and phone tap/mouse has no acceptable
-public input primitive. the smallest next decision is whether to scope and
-qualify an upstream revision with an atomic expected-terminal close and a
-public mode-aware tap/mouse path with typed close reasons. the candidate must
-then repeat the important pr 1 proofs, including both confirmation settings,
-before a new `proceed` decision. pr 2 remains unauthorized by this evidence.
+the next step is resumed qualification at this pin under the approved scope,
+not mandatory upstream closure/mouse changes. close the wire/operation table
+with disclosed native closure/refusal semantics and single-terminal phone input;
+complete the outstanding profile, targeting, uncertainty, lifecycle and actual
+scrolling/input proofs. typed stream outcomes and bounded frame admission still
+need a qualified contract. native claude and metadata-loss decisions remain open.
+pr 2 requires a new evidence-backed `proceed` decision; approval of this scope
+amendment is neither that decision nor permission for live/device operations.
 
 the disposable phone probe's scope review added only
 `LockedTerminalWebView.kt` inside its isolated source copy. that page-port

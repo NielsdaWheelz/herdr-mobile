@@ -17,12 +17,14 @@ uncompleted; source research is not live acceptance.
 it must resolve [profile/restart behavior](issues/herdr-profile-restore.md),
 [exact worker targeting](issues/herdr-agent-targeting.md), and
 [phone/desktop terminal interaction](issues/herdr-terminal-acceptance.md), plus
-[terminal-only closure](issues/herdr-terminal-closure.md) before
+[native closure disclosure and qualification](issues/herdr-terminal-closure.md) before
 implementation proceeds. current implemented scope below remains the tmux system.
-the pinned v0.9.1 source and an isolated darwin binary proof have found a
-terminal-closure failure; the public phone stream also lacks mode-aware tap
-input. pr 1 currently concludes `reconsider`. no herdr product cutover or pr 2
-authorization follows from this investigation.
+the original `reconsider` finding remains historical evidence. the user-approved
+[scope amendment](herdr-pr1.md#accepted-scope-amendment) accepts native group-close
+effects with disclosure and excludes remote clicks/drags; keys, scrolling and
+local selection/copy remain required. pr 1 qualification is reopened at v0.9.1,
+without requiring upstream changes for those former gates. the remaining proofs
+and wire contract are open; no `proceed` or pr 2 authorization is implied.
 
 ## implemented scope
 

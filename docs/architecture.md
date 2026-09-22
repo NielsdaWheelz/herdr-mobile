@@ -17,6 +17,12 @@ reopens the responsible contract.
 [testing policy](rules/testing.md) supersedes retired test recipes in older
 feature plans; those recipes do not recreate removed gates.
 
+2026-09-22 migration target: the approved
+[herdr scope amendment](herdr-pr1.md#accepted-scope-amendment) replaces exact-only
+closure with disclosed native group effects and remote click/drag parity with
+single-terminal keys, scrolling and local selection/copy. it applies to the
+proposed herdr cutover only; the implemented tmux contracts below are unchanged.
+
 ## 1. Philosophy
 
 - **tmux is the database and the process supervisor.** Session list, pane

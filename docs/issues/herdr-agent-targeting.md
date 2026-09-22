@@ -43,11 +43,13 @@ agent-replacement and check/write scheduling remain unproved.
 resolution owner: [migration pr 1](../herdr-migration.md#pr-1-feasibility-and-implementation-contract).
 on isolated resources, capture a target, replace its worker, then exercise each
 retained mutation with the original reference. also move/rename the original
-terminal and recreate the server. confirm no unrelated terminal is affected.
+terminal and recreate the server. non-closure controls must not reach another
+worker; close/stop effects follow the approved native group-closure contract.
 
 resolved when: the [pr 1 contract](../herdr-pr1.md) and real-boundary proof establish
-original-lifetime revalidation, rejection of already-replaced workers, no implicit
-target substitution and exact terminal closure, with upstream support added if
-necessary. characterize the remaining check/write race explicitly; no atomic
+original-lifetime revalidation, rejection of already-replaced workers and no
+implicit target substitution. closure scope is qualified separately in
+[the closure issue](herdr-terminal-closure.md), not an exact-only requirement.
+characterize the remaining check/write race explicitly; no atomic
 claim. do not add a process supervisor or identity database merely to conceal an
 unsupported upstream boundary.

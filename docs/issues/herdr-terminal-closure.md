@@ -1,12 +1,18 @@
-# herdr terminal closure scope
+# herdr native closure disclosure and qualification
 
-problem: closing a pane can close its workspace when that was its last pane.
-for a parent worktree, the inspected upstream path can also close linked
-workspaces when close confirmation is disabled.
+problem: phone confirmations and cli/jarvis contracts have not yet been qualified
+for herdr's native close effects and refusals. closing a pane can close its
+workspace and linked git-worktree group, including other running terminals.
 
-impact: translating skid kill/stop directly to pane close may destroy unrelated
-terminals, including manually created work that skid did not organize.
-excluding skid-managed worktrees does not remove this discovery/control case.
+accepted 2026-09-22: the user approved these native effects with explicit disclosure
+under [the scope amendment](../herdr-pr1.md#accepted-scope-amendment). exact-only
+closure and a new atomic upstream close primitive are no longer requirements.
+this issue tracks the remaining disclosure/mapping/proof work, not a demand to
+remove native group semantics.
+
+impact: preserving old single-terminal wording would misstate what kill/stop can
+do. group members are independent terminals in related git checkouts; the link
+does not mean they are views of the same worker. detach remains non-destructive.
 
 evidence: release `065ef9d6a531c49fb8bee7e818ef837065b21ee9` routes
 [last-pane closure](https://github.com/herdrdev/herdr/blob/065ef9d6a531c49fb8bee7e818ef837065b21ee9/src/app/api/panes.rs#L1862)
@@ -28,22 +34,25 @@ whose linked-worktree guard depends on `confirm_close`. with confirmation off,
 it can remove the parent and linked workspaces. `workspace.close` rejects a
 linked group when `close_group=false`, but closes every terminal in its target
 workspace and has no expected layout or terminal predicate. a gateway preflight
-cannot make either command exact across a concurrent layout change. this is a
-blocking capability gap at the pinned source, not a skid adapter defect.
+cannot make either command exact across a concurrent layout change. the original
+`FAIL` remains evidence against the former exact-only requirement; accepting
+native scope is not a rerun or a new behavioral pass.
 
 resolution owner: [pr 1](../herdr-pr1.md). on isolated resources, close a sole
 ordinary pane and a parent-worktree pane with a live linked workspace, under
 both confirmation settings. test kill and stop's closure step through the
-chosen adapter primitive, including layout change between lookup and dispatch.
+chosen adapter primitive, including layout change between lookup and dispatch;
+confirm terminals outside the native group survive. revalidate the original
+target without implicit substitution. no atomic target/effect-set claim.
 
-resolved when: the accepted primitive closes only the confirmed terminal or
-rejects before wider destruction. removing its resulting empty tab/workspace is
-permitted; destroying another terminal is not. a preflight followed by an
-unguarded cascading command is insufficient. qualify upstream support if needed;
-do not reparent user panes, override user confirmation policy or silently widen
-the confirmation to make the test pass.
+resolved when: the public operation mapping, phone close/stop confirmation and
+cli/jarvis tool contract disclose possible native group effects before dispatch;
+the real-boundary proofs establish those effects or explicit refusal. preserve
+upstream confirmation policy: `confirmation_required` must not trigger a broader
+command, configuration change or retry. returned outcomes distinguish requested
+target closure, provider halt and uncertainty; never claim an exact affected set
+or confirmed halt of every linked worker. checkout directories/branches remain,
+and detach leaves workers running.
 
-smallest next decision: scope an upstream operation that atomically checks the
-expected terminal lifetime and refuses closure if it would remove any other
-terminal, independent of the user's confirmation setting. qualify a revision
-containing that operation before reconsidering pr 2.
+next step: qualify the approved semantics and disclosure at the pinned revision.
+no upstream exact-terminal close is required solely to resolve the former gate.

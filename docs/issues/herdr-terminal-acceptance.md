@@ -1,12 +1,18 @@
 # herdr phone and desktop terminal acceptance
 
 problem: herdr's rendered-frame bridge has not been exercised through skid's
-android renderer/input path. its direct controller owns sizing while desktop
-input can still reach the same terminal.
+complete retained android input/scroll/lifecycle journey. its direct controller
+owns sizing while desktop input can still reach the same terminal.
 
 impact: raw-byte assumptions, scroll routing, automatic terminal replies,
 phone keyboard resizing and desktop handback may need different ownership.
 upstream support alone does not prove the existing phone experience works.
+
+accepted 2026-09-22: [the scope amendment](../herdr-pr1.md#accepted-scope-amendment)
+attaches one exact provider terminal, not herdr's workspace ui. remote application
+clicks/drags are excluded. keys, ime/dictation, paste, public swipe scrolling,
+phone-local input focus and selection/copy remain required. missing general
+mouse input is no longer an adoption blocker.
 
 evidence: the documented
 [terminal bridge](https://herdr.dev/docs/persistence-remote/#direct-terminal-attach)
@@ -21,7 +27,12 @@ ansi frames and discards internal mode events. those frames do not carry the
 provider's mouse-mode negotiation, so the existing xterm tap router cannot
 reconstruct when or how to send mouse input. the native client uses an internal
 `AttachMouse` message; the migration contract forbids implementing that private
-protocol. the bounded physical-phone proof on samsung sm-s906w/android 16
+protocol. this is a limitation of the now-excluded remote pointer interaction,
+not public scrolling: upstream
+[mode-aware wheel routing](https://github.com/herdrdev/herdr/blob/065ef9d6a531c49fb8bee7e818ef837065b21ee9/src/server/pane_input.rs#L128)
+can produce application mouse-wheel reports, alternate-scroll input or host
+scrollback movement. actual provider scrolling still needs proof.
+the bounded physical-phone proof on samsung sm-s906w/android 16
 applied the first full frame before allowing input, delivered one key to the
 same isolated shell as checked by an in-memory visible read, and routed a swipe
 as six public `terminal.scroll` commands. it did not establish scrollback
@@ -47,7 +58,9 @@ resolution owner: [migration pr 1](../herdr-migration.md#pr-1-feasibility-and-im
 use test-owned codex, claude and shell terminals on isolated linux/darwin servers.
 exercise the existing phone renderer with typing, composition/dictation, multiline
 paste, keys, alternate-screen history, touch scroll, selection/copy, rotation and
-keyboard resize. attach desktop concurrently, then detach/background/disconnect
+keyboard resize. prove actual codex/claude history movement, not just receipt of
+scroll commands. taps focus input without remote clicks; selection stays local.
+attach desktop concurrently, then detach/background/disconnect
 the phone and verify sizing handback and continued worker execution.
 
 resolved when: a bounded approved live/device journey proves the bridge is usable
@@ -56,7 +69,8 @@ migration contract. pr 2 must repeat the important cases through the implemented
 product. if basic operation requires rebuilding substantial terminal machinery,
 record that negative result and reconsider adoption before pr 2.
 
-smallest next decision: qualify an upstream public, mode-aware tap/mouse route
-and typed closure reasons in the terminal-session command, then repeat the
-phone journey on that revision. decide frame admission bounds from measured
-full frames rather than silently inheriting the upstream maximum.
+next step: complete the retained phone journey at the pinned revision. do not
+require a new mouse command. qualify typed stream outcomes and decide frame
+admission bounds from measured full frames rather than silently inheriting the
+upstream maximum. those open contract questions and release/geometry handback
+are not resolved by accepting the narrower interaction scope.
