@@ -99,3 +99,29 @@ raw fixed csi is therefore insufficient. this is a real red at the retained
 input boundary. keep this issue open for the
 key-deck, provider and linux stream boundaries; pr 2 must repeat release
 through its actual websocket bridge.
+
+## pr 2 input contract review
+
+problem: the earlier stream key set described only the phone deck; it omitted
+enter/backspace and desktop control/function/editing keys. `skid enter` currently
+forwards raw tty chunks, which cannot become committed text without decoding.
+the candidate now defines one shared semantic key vocabulary. upstream
+[`parse_key_combo`](https://github.com/herdrdev/herdr/blob/065ef9d6a531c49fb8bee7e818ef837065b21ee9/src/config/keybinds.rs#L1231)
+also lacks insert/delete/page names at v0.9.1. extend the public mode-aware path
+for retained desktop input in the same qualification; do not fix phone home/end
+while leaving desktop controls unspecified.
+
+reuse candidate: the existing ultraviolet dependency offers a terminal input
+reader with key/paste/reply events. its
+[pinned source](https://github.com/charmbracelet/ultraviolet/blob/f5a850f9c2b7/terminal_reader.go#L334)
+discards valid replacement characters in paste and accumulates paste without a
+size limit. this is source evidence, not an executed failure. accepting that pin
+would contradict literal input and bounded buffering. qualify an upstream repair
+or suitable revision; do not copy its parser into skid.
+
+resolved when: temporary decoder proofs preserve fragmented utf-8 (including
+`U+FFFD`), multiline/bracketed paste and detach-looking paste literally, reject
+oversize input without unbounded accumulation, and cancel cleanly. then prove
+the named key/modifier mapping through actual `skid enter` and gateway/herdr on
+linux and darwin. the [pr 2 spec](../herdr-pr2.md#attached-terminal) owns integration;
+these checks do not waive the physical-phone gaps above.

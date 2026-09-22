@@ -79,8 +79,8 @@ spaces/shells delivery sequence.
 | --- | --- | --- | --- |
 | 1. feasibility and contract | skid | isolated proof resources and applicable live/device approval | qualification reopened at v0.9.1 under approved scope; historical evidence unchanged; remaining proofs/contracts open |
 | 2. complete skid cutover | skid | pr 1 recommends proceeding and closes the required contracts | awaiting completed pr 1 qualification; no `proceed` yet |
-| 3. jarvis alignment | jarvis | pr 2's final cli contract and runnable candidate | blocked on pr 2; omit if unchanged consumer passes |
-| 4. deployment and fleet acceptance | dev-server, consuming skid release artifacts | pr 2 and pr 3, or recorded jarvis compatibility | blocked on the preceding stages |
+| 3. jarvis alignment | jarvis | pr 2's final cli contract and runnable candidate | required by the changed strict consumer schema; blocked on pr 2 |
+| 4. deployment and fleet acceptance | dev-server, consuming skid release artifacts | pr 2 and pr 3 | blocked on the preceding stages |
 
 pr 2 changes gateway, cli and android together. use reviewable commits inside that
 pr; do not release an intermediate schema that its consumers cannot read. pr 3
@@ -177,6 +177,10 @@ results. resume the outstanding proofs and wire contract at the same pin;
 current tmux contracts and delivery status remain in force until cutover.
 
 ## pr 2: coherent skid cutover
+
+[the pr 2 spec](herdr-pr2.md) owns the bounded implementation design, exclusive
+file slices, content responsibilities, entry gates and red/green/refactor plan.
+it does not authorize implementation while pr 1 remains incomplete.
 
 ### scope
 
@@ -288,9 +292,9 @@ authority, durable actions, budgets and immutable history.
    cannot cause an implicit retry or target substitution.
 3. the changed repository's required checks pass, and the actual cli integration
    is qualified separately from fixtures. deployment stays coordinated with pr 4.
-4. if the existing consumer requires no change and passes these checks, record
-   compatibility against the exact candidate and omit this pr. do not create an
-   empty change merely to preserve the planned count.
+4. align the strict consumer with `terminals`, separate agent refs, removed
+   client counts, new status/readiness and dispatch/partial outcomes. the current
+   candidate makes this pr required; do not claim unchanged compatibility.
 
 ## pr 4: deployment and fleet acceptance
 

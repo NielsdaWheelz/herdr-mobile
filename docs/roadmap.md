@@ -35,6 +35,13 @@ application-cursor mode at the pinned public api. disposable heartbeat proof
 restored geometry after abrupt loss, but pr 2's actual bridge is absent. there is no `proceed`
 or pr 2 authorization.
 
+[the pr 2 spec](herdr-pr2.md) now defines the conditional implementation, exact
+ownership slices and acceptance. desktop input decoding remains explicit
+contract-closure work. accepted 2026-09-22: ordinary send requires recognized
+idle; `--terminal` remains an explicit readiness override. readiness detection
+still needs qualification; the policy decision is not proof.
+jarvis alignment is required under the changed candidate wire format.
+
 ## implemented scope
 
 | capability | contract owner |
