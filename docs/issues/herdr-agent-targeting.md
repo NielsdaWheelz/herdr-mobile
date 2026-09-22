@@ -22,6 +22,24 @@ carries a target string; the
 resolves it and checks the current agent. this does not establish a caller-supplied
 expected prior occupant. no failing live reproduction has been run.
 
+pr 1 source review found a possible reference owner within upstream metadata.
+`PaneInfo.terminal_id` stays with a terminal across pane moves, while its
+workspace-qualified pane id changes. a gateway-owned random, nonexpiring
+`pane.report_metadata` token could distinguish the same terminal after gateway
+restart from a cold-restored terminal, which receives empty tokens. the gateway
+must verify the token after assignment, never restamp an old reference, and
+revalidate the original terminal and observed foreground process before
+dispatch. this does not make the separate terminal write atomic. gateway-process
+restart and worker-replacement proofs remain open; no reference encoding is
+accepted from source inspection alone.
+
+an isolated darwin v0.9.1 binary probe preserved the same terminal id through
+rename and workspace movement. the public pane id changed, and its old alias
+still resolved the original after another pane reused the old display name.
+`pane.process_info` exposes foreground pids but no process start identity;
+reuse skid's host process observer to distinguish replacement and pid reuse.
+agent-replacement and check/write scheduling remain unproved.
+
 resolution owner: [migration pr 1](../herdr-migration.md#pr-1-feasibility-and-implementation-contract).
 on isolated resources, capture a target, replace its worker, then exercise each
 retained mutation with the original reference. also move/rename the original

@@ -19,6 +19,10 @@ it must resolve [profile/restart behavior](issues/herdr-profile-restore.md),
 [phone/desktop terminal interaction](issues/herdr-terminal-acceptance.md), plus
 [terminal-only closure](issues/herdr-terminal-closure.md) before
 implementation proceeds. current implemented scope below remains the tmux system.
+the pinned v0.9.1 source and an isolated darwin binary proof have found a
+terminal-closure failure; the public phone stream also lacks mode-aware tap
+input. pr 1 currently concludes `reconsider`. no herdr product cutover or pr 2
+authorization follows from this investigation.
 
 ## implemented scope
 

@@ -1,7 +1,9 @@
 # herdr migration plan
 
-2026-09-22: accepted direction and delivery plan; feasibility, implementation,
-and live acceptance remain unperformed. this document does not complete pr 1.
+2026-09-22: accepted direction and delivery plan. partial pr 1 proofs found a
+pinned-baseline failure and require `reconsider`; full qualification,
+implementation and fleet acceptance remain unperformed. this document does not
+authorize pr 2.
 the current [architecture](architecture.md) and feature contracts still describe
 the tmux implementation. pr 1 must specify their exact replacement before pr 2.
 
@@ -56,10 +58,10 @@ spaces/shells delivery sequence.
 
 | pr | repository | dependency | status |
 | --- | --- | --- | --- |
-| 1. feasibility and contract | skid | isolated proof resources and applicable live/device approval | planned; source research only |
-| 2. complete skid cutover | skid | pr 1 recommends proceeding and closes the required contracts | planned |
-| 3. jarvis alignment | jarvis | pr 2's final cli contract and runnable candidate | planned; omit if unchanged consumer passes |
-| 4. deployment and fleet acceptance | dev-server, consuming skid release artifacts | pr 2 and pr 3, or recorded jarvis compatibility | planned |
+| 1. feasibility and contract | skid | isolated proof resources and applicable live/device approval | reconsider at v0.9.1: exact closure fails on isolated darwin; public phone tap path absent; other boundaries remain unqualified |
+| 2. complete skid cutover | skid | pr 1 recommends proceeding and closes the required contracts | blocked by pr 1 `reconsider` |
+| 3. jarvis alignment | jarvis | pr 2's final cli contract and runnable candidate | blocked on pr 2; omit if unchanged consumer passes |
+| 4. deployment and fleet acceptance | dev-server, consuming skid release artifacts | pr 2 and pr 3, or recorded jarvis compatibility | blocked on the preceding stages |
 
 pr 2 changes gateway, cli and android together. use reviewable commits inside that
 pr; do not release an intermediate schema that its consumers cannot read. pr 3
@@ -145,6 +147,12 @@ not authorize pr 2. a negative result is a valid completed investigation: record
 the blocking evidence and revise the plan. if a small upstream change is needed,
 scope it separately and qualify a release containing it before proceeding.
 
+the v0.9.1 investigation has reached that negative result. [pr 1's evidence and
+decision](herdr-pr1.md#investigation-result-at-the-pinned-baseline) identify an
+unsafe last-pane closure and a missing public phone tap/mouse path. the smallest
+next decision is an upstream scope for both capabilities and a qualified new
+pin. current tmux contracts and delivery status remain in force.
+
 ## pr 2: coherent skid cutover
 
 ### scope
@@ -184,6 +192,19 @@ delegated, assign exact non-overlapping files before edits.
   only after checking their consumers. preserve unrelated provider services and
   shared account wrappers. remove installed assets through pr 4's deployment owner.
 - no legacy protocol decoder, backend switch or fake compatibility fields remain.
+
+pr 1 caller audit adds explicit pr 2 review targets before deletion:
+`internal/terminalclient` and `internal/terminal/protocol.go` own existing
+attachment and failure handling; `internal/space` owns cosmetic-label validation
+and grouping; `internal/logging` names tmux routes/events;
+`cmd/skidbladnir/terminal_exec.go` and the main command own tmux version,
+configuration and agent-hook entry. on android, review `Spaces.kt`,
+`DashboardEntryState.kt`, `SkidbladnirController.kt`, `DashboardScreen.kt`,
+`WorkingDirectoryPicker.kt`, `FleetPersistence.kt`, `TerminalScreen.kt` and
+`TerminalSelection.kt` for old identity, grouping, scroll and attachment
+assumptions. this is a caller audit, not a commitment to edit every file.
+pr 4 also audits `scripts/fleet` and installed hook/config references before
+retirement. no production deletion belongs to pr 1.
 
 ### completion criteria
 
