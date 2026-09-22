@@ -5,6 +5,11 @@ implemented: standalone terminal and new terminal here, following [spaces](space
 real-phone journeys passed on their recorded sources; [hands-on acceptance](issues/spaces-shells-hands-on.md)
 remains `NOT_RUN`.
 
+2026-09-22 future herdr target: [the pr 1 candidate contract](herdr-pr1.md#candidate-pr-2-contract-proposed-not-implemented)
+creates one root pane for each new terminal and makes new-terminal-here an
+independent tab in the source's real workspace/current directory. it does not
+copy the source launch profile. the tmux session behavior below remains current.
+
 2026-09-17: [pr 3](desktop-browser.md) changes only desktop presentation and the
 shortcut to `T` (shift+t); detach retains the newly created shell selection.
 historical pr 2 evidence uses its original `t` binding and proves no pr 3 layout.

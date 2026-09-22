@@ -37,3 +37,19 @@ and a live proof shows correct explicit launches plus restart without unintended
 provider relaunch. alternatively, qualify an upstream path that preserves the
 correct profile. adopting the explicit no-resume contract resolves this migration
 issue without requiring an upstream restore feature.
+
+2026-09-22 isolated v0.9.1 darwin arm64 and linux x86_64 proof: all four
+actual configured command rows were launched through test-owned servers. a
+content-free verifier compared absolute executable, argv, provider-home
+environment and physical cwd before executing each; shell-only and zero-profile
+cases passed with one root pane. disabling automatic resume then cold-restarting
+only those servers removed the old terminal ids and relaunched no provider. the
+user accepted the resulting new shell lifetimes without prior launch profile,
+objective or dwarf metadata. interactive readiness remains `NOT_RUN`: configured
+providers showed startup/update/form blockers or default-idle fallback within
+ten seconds; no account/configuration was changed. the sole content-free claude
+`SessionStart` runtime-profile identity registration is unproved on herdr.
+v0.9.1's `pane.process_info.tty` is always absent; inherited `HERDR_PANE_ID`
+and foreground-process identity offer a source-supported route. keep this issue
+open until that retained capability and interactive readiness are qualified, or
+their loss receives separate explicit acceptance.

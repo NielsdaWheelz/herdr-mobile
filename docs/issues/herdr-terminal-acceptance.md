@@ -74,3 +74,28 @@ require a new mouse command. qualify typed stream outcomes and decide frame
 admission bounds from measured full frames rather than silently inheriting the
 upstream maximum. those open contract questions and release/geometry handback
 are not resolved by accepting the narrower interaction scope.
+
+2026-09-22 physical samsung sm-s906w/android 16 proof, separate
+`dev.niels.skidbladnir.herdrproof` package and pinned darwin herdr v0.9.1:
+one shell swipe moved host history; no-takeover acquisition gave a coarse
+pre-frame error; explicit takeover displaced the test cli controller. public
+`pane.send_input` and direct bracketed-paste recognition carried synthetic
+multiline input exactly. clean detach returned geometry to a test desktop in
+under 0.8 seconds, preserving the terminal/shell. without a heartbeat, abrupt
+app loss left the adb-reversed tcp connection and phone geometry held; a
+disposable two-second heartbeat with a six-second unanswered deadline restored
+desktop geometry after about five seconds, preserving the worker. two later
+home/background runs returned desktop geometry within one second, also without
+ending the worker; one earlier home/background attempt kept phone geometry
+after five seconds, so release is inconsistent and still open. adb typing
+emitted nine input events but no exact in-memory host match, so typing is
+unproved. user-skipped dictation, gboard paste, local
+selection/copy and rotation remain `NOT_RUN`. real codex/claude phone use is
+`NOT_RUN` because the isolated provider sessions were startup-blocked.
+v0.9.1's public logical-key parser rejects home/end/page keys, including
+modified forms. a physical key-deck probe against a test-owned
+application-cursor-mode worker failed home/end while page-up/down passed;
+raw fixed csi is therefore insufficient. this is a real red at the retained
+input boundary. keep this issue open for the
+key-deck, provider and linux stream boundaries; pr 2 must repeat release
+through its actual websocket bridge.

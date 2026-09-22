@@ -5,6 +5,11 @@ creation under [the composition plan](spaces-and-shells.md).
 [the roadmap](roadmap.md) indexes delivery; [spaces/shells hands-on acceptance](issues/spaces-shells-hands-on.md)
 remains `NOT_RUN`. automated phone results do not establish that human review.
 
+2026-09-22 future herdr target: [the pr 1 candidate contract](herdr-pr1.md#candidate-pr-2-contract-proposed-not-implemented)
+replaces cosmetic session labels with actual host workspaces and exact workspace
+references. a move may change desktop layout or remove an empty workspace;
+there is no `unassigned` resource. this is not the implemented tmux grouping below.
+
 [architecture.md](architecture.md) incorporates this scope and acceptance;
 [roadmap.md](roadmap.md) owns delivery. this document owns the detailed spaces
 contract. [agent-control.md](agent-control.md) and

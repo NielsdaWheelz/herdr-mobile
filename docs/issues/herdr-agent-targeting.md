@@ -49,7 +49,18 @@ worker; close/stop effects follow the approved native group-closure contract.
 resolved when: the [pr 1 contract](../herdr-pr1.md) and real-boundary proof establish
 original-lifetime revalidation, rejection of already-replaced workers and no
 implicit target substitution. closure scope is qualified separately in
-[the closure issue](herdr-terminal-closure.md), not an exact-only requirement.
+[the native closure qualification](../herdr-pr1.md#2026-09-22-reopened-qualification-at-the-accepted-scope), not an exact-only requirement.
 characterize the remaining check/write race explicitly; no atomic
 claim. do not add a process supervisor or identity database merely to conceal an
 unsupported upstream boundary.
+
+2026-09-22 isolated v0.9.1 darwin/linux proof: terminal id and metadata token
+survived rename, move, display-name reuse and new gateway client processes;
+cold restart changed the terminal id and cleared pane/workspace tokens. a
+synthetic same-pid/start `exec` changed the observed command signature, so the
+proposed agent ref also carries a protected executable/argv signature. a raw
+stale-worker write reached a successor as a negative control; the proposed
+gateway must reject it before dispatch. headless control of two workers kept
+the unfocused worker unchanged; a real ephemeral codex worker invoked the same
+test-owned controller on darwin. the accepted check/write gap remains. pr 2
+must repeat the original-ref matrix and one-dispatch behavior in product code.

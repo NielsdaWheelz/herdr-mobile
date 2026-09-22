@@ -10,21 +10,29 @@ this index records present scope and open work, not a release diary.
 [the migration plan](herdr-migration.md) owns the proposed runtime/desktop cutover,
 retained android and cli surfaces, and each pr's scope, requirements and completion
 criteria. delivery is feasibility/contract, one coherent skid cutover, jarvis
-alignment if needed, then deployment and fleet acceptance. all stages remain
-uncompleted; source research is not live acceptance.
+alignment, then deployment and fleet acceptance. all stages remain uncompleted.
+isolated v0.9.1 darwin/linux and proof-phone results now supplement source
+research; each boundary keeps its own result in the pr 1 record.
 
 [the pr 1 spec](herdr-pr1.md) defines the investigation and contract closure.
 it must resolve [profile/restart behavior](issues/herdr-profile-restore.md),
 [exact worker targeting](issues/herdr-agent-targeting.md), and
 [phone/desktop terminal interaction](issues/herdr-terminal-acceptance.md), plus
-[native closure disclosure and qualification](issues/herdr-terminal-closure.md) before
+[native closure disclosure and qualification](herdr-pr1.md#2026-09-22-reopened-qualification-at-the-accepted-scope) before
 implementation proceeds. current implemented scope below remains the tmux system.
 the original `reconsider` finding remains historical evidence. the user-approved
 [scope amendment](herdr-pr1.md#accepted-scope-amendment) accepts native group-close
 effects with disclosure and excludes remote clicks/drags; keys, scrolling and
 local selection/copy remain required. pr 1 qualification is reopened at v0.9.1,
 without requiring upstream changes for those former gates. the remaining proofs
-and wire contract are open; no `proceed` or pr 2 authorization is implied.
+and wire contract are open. the user accepted terminal-only claude observation
+and new shell lifetimes without metadata after cold restart, even if unlabeled;
+upstream may retain the pane label. manual phone interaction was
+explicitly skipped and remains `NOT_RUN`; provider startup/readiness and the
+full phone key deck is unresolved: physical home/end failed in
+application-cursor mode at the pinned public api. disposable heartbeat proof
+restored geometry after abrupt loss, but pr 2's actual bridge is absent. there is no `proceed`
+or pr 2 authorization.
 
 ## implemented scope
 

@@ -7,7 +7,14 @@ click/drag parity. qualification can resume at v0.9.1; no new upstream revision
 is required solely for those two former gates. full qualification, implementation
 and fleet acceptance remain incomplete. this document does not authorize pr 2.
 the current [architecture](architecture.md) and feature contracts still describe
-the tmux implementation. pr 1 must specify their exact replacement before pr 2.
+the tmux implementation. the [candidate pr 2 contract](herdr-pr1.md#candidate-pr-2-contract-proposed-not-implemented)
+records the proposed replacement; unresolved live input and lifecycle proofs
+still prevent a `proceed` decision. the physical phone proof found a real
+home/end failure in application-cursor mode at pinned v0.9.1; its public
+logical-key parser lacks those keys. a qualified public mode-aware key
+primitive is now required to retain the deck, unless the user separately
+accepts losing it. interactive provider readiness and the skipped human phone
+actions remain `NOT_RUN`; no pr 2 code has begun.
 
 ## outcome and scope
 
@@ -38,7 +45,9 @@ proposed defaults for pr 1 to close:
 - phone grouping follows herdr workspaces; tabs and splits remain herdr layout.
   specify the change from skid's current independent space labels explicitly.
 - automatic provider resume is disabled initially. cold restart creates new
-  terminal lifetimes; this migration requires no persistent dwarf registry.
+  shell lifetimes without prior profile, objective or dwarf metadata; the user
+  accepted even an unlabeled result on 2026-09-22. herdr may retain a native
+  pane label, but never the old worker/reference. no persistent dwarf registry.
 - phone entry acquires terminal control and detach/backgrounding releases it.
   specify takeover and geometry handback from actual observed behavior.
 
@@ -48,6 +57,10 @@ preserve the provider permission policy unless a separately reviewed change says
 otherwise. credentials and provider history stay on their hosts.
 the accepted amendment retains keys, scrolling and local selection/copy, and
 requires explicit closure-scope disclosure to phone users and cli/jarvis callers.
+the user also accepted weaker terminal-only claude status/history/interrupt on
+2026-09-22: sampled herdr status and bounded reads replace native claude history,
+status and confirmed halt. jarvis must treat delivery and stop as unconfirmed
+until it observes the actual work or exit.
 
 excluded: a new terminal emulator, generic backend framework, permanent tmux/herdr
 dual support, copied transcripts, chat ui, generalized hook runtime, worker
@@ -109,7 +122,7 @@ deployment change or later-pr scaffolding belongs in this pr.
   close/stop may close the linked git-worktree group. qualify and disclose that
   effect, preserve upstream refusal and report uncertainty under
   [the closure contract](herdr-pr1.md#accepted-scope-amendment); resolve
-  [the remaining closure issue](issues/herdr-terminal-closure.md).
+  [the native closure qualification](herdr-pr1.md#2026-09-22-reopened-qualification-at-the-accepted-scope).
 - launch `personal`, `work`, `work2` and `claude-work` with the intended account,
   cwd and permission arguments. distinguish launch profile from proven current
   runtime profile. retain ordinary shells and hosts with zero agent profiles.
@@ -139,7 +152,7 @@ deployment change or later-pr scaffolding belongs in this pr.
 3. replacement, move, rename and restart experiments resolve
    [the targeting issue](issues/herdr-agent-targeting.md) without silently
    weakening the accepted revalidation contract. disclosed native closure and
-   refusal resolve [the linked-workspace issue](issues/herdr-terminal-closure.md).
+   refusal qualify [native linked-workspace closure](herdr-pr1.md#2026-09-22-reopened-qualification-at-the-accepted-scope).
 4. codex, claude and a shell work through the phone bridge, including shared
    desktop use and lifecycle cleanup, resolving
    [the terminal issue](issues/herdr-terminal-acceptance.md). qualify the host
@@ -211,6 +224,11 @@ configuration and agent-hook entry. on android, review `Spaces.kt`,
 `WorkingDirectoryPicker.kt`, `FleetPersistence.kt`, `TerminalScreen.kt` and
 `TerminalSelection.kt` for old identity, grouping, scroll and attachment
 assumptions. this is a caller audit, not a commitment to edit every file.
+also inspect `SessionRename.kt`, `TerminalKeyDeck.kt` and
+`LockedTerminalWebView.kt` before replacing their terminal contracts. the
+`internal/agenthook` tmux binding is a deletion target, but its process-bound
+identity role must first be judged against the pr 1 runtime-profile contract;
+deleting a caller cannot manufacture proof of a current account profile.
 pr 4 also audits `scripts/fleet` and installed hook/config references before
 retirement. no production deletion belongs to pr 1.
 

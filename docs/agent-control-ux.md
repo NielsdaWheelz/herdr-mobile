@@ -7,6 +7,12 @@ this document supersedes only the cli, attachment, and grouped-kill contracts in
 implementation must replace their affected normative sections; historical release
 evidence remains historical. no compatibility path survives the cutover.
 
+2026-09-22 future herdr target: [the pr 1 candidate contract](herdr-pr1.md#candidate-pr-2-contract-proposed-not-implemented)
+makes bare `skid` open the local herdr client and `skid enter` attach one exact
+terminal through its host gateway. it changes names, workspace selection,
+closure disclosure and typed connection outcomes. the tmux client contract
+below remains implemented; pr 1 has no `proceed` decision.
+
 2026-09-15 accepted target amendment: [spaces](spaces.md) adds optional session
 labels, one exact membership route, grouped human collections, machine/space
 filters, and space-aware creation/return. source is implemented; [spaces/shells hands-on acceptance](issues/spaces-shells-hands-on.md)

@@ -47,10 +47,11 @@ for lessons, not as a required component.
 | --- | --- |
 | worker targeting — accepted by user | revalidate the original terminal and foreground-worker lifetime immediately before dispatch; reject observed replacement and never substitute a refreshed target. replacement between check and terminal write remains possible. no atomic compare-and-write or exclusive-writer claim. |
 | terminal granularity | one dwarf per live terminal, including manually created terminals, independent of selected pane. rename preserves identity; process replacement preserves the dwarf but invalidates its old agent reference. more cards than today's one-active-pane-per-session view. |
-| runtime restart | one shared herdr server per host; disable automatic provider resume. client/gateway loss preserves workers; cold runtime restart ends their old lifetimes. restoration is not live process migration. |
+| runtime restart — metadata loss accepted by user 2026-09-22 | one shared herdr server per host; disable automatic provider resume. client/gateway loss preserves workers; cold runtime restart ends their old lifetimes. restored shells are new terminal lifetimes without the prior launch profile, objective or dwarf identity. upstream may retain a pane label, but it never carries the old reference or worker. the user accepted even an unlabeled result. restoration is not live process migration. |
 | grouping — proposed replacement | use actual host-bound herdr workspaces. equal labels group visually across hosts, never identify mutations. moving a terminal can change desktop layout; retire cosmetic space assignment and clearing, not conceal them behind the old command. |
-| provider capabilities — proposed replacement | herdr observations and bounded terminal reads for both providers; no second skid detector. this loses native claude history/status/halt confirmation. document and obtain explicit acceptance of that loss before proceeding; otherwise reconsider adoption. |
+| provider capabilities — accepted by user 2026-09-22 | herdr observations and bounded terminal reads for both providers; no second skid detector. native claude history, status and halt confirmation are lost. jarvis must inspect bounded terminal output and treat stop as unconfirmed without an observed exit. |
 | phone control | opening acquires direct control without takeover; conflict offers explicit takeover or back. no observe-first mode or fallback. phone sets geometry while connected; desktop/api input can still occur. |
+| stop after uncertain interrupt — proposed | do not issue close after the interrupt reply is lost; report `terminal:not_attempted` and let the caller inspect before a deliberate kill. current codex stop may attempt close despite interrupt error, so this is a conservative behavior change, not transparent parity. |
 | desktop entry — proposed replacement | no-argument `skid` opens the configured local herdr desktop; `skid enter` retains exact fleet-target attachment through the gateway stream. no inference from gateway origins to ssh hosts; native herdr remote navigation remains upstream-owned. qualify both paths. |
 
 the existing [targeting issue](issues/herdr-agent-targeting.md) tracks whether the
@@ -162,7 +163,348 @@ leave an extra shell. reject ambiguous equal-label destinations; retire
 `unassigned` rather than invent a workspace. allow removal of an emptied
 tab/workspace and native linked-group closure under the
 [accepted scope](#accepted-scope-amendment). see
-[closure disclosure and qualification](issues/herdr-terminal-closure.md).
+[closure disclosure and qualification](#2026-09-22-reopened-qualification-at-the-accepted-scope).
+
+## candidate pr 2 contract (proposed, not implemented)
+
+this section is the sole candidate wire contract. the preceding requirements
+state its acceptance tests. the original tmux contract remains implemented until
+pr 2. facts below refer only to pinned v0.9.1; proposed skid mappings are not
+live product claims. [the evidence](#investigation-result-at-the-pinned-baseline)
+and subsequent results determine whether this candidate can be authorized.
+
+### identity, inventory and metadata
+
+all `/v1` calls retain the current bearer and pinned `Skidbladnir-Machine`
+header, strict json, peer-oriented partial results, observation timestamps,
+64-kib http request/control-response caps, 1-mib inventory cap and 15-second
+client deadline. host operations spend at most ten seconds. no upstream error
+text, terminal content, cwd, argv, provider home or token value enters logs.
+
+three opaque refs are unpadded canonical base64url of strict json, at most 4096
+characters, with no null or extra fields:
+
+```json
+{"kind":"terminal","machine":"mh-…","terminalId":"term_…","identityToken":"…"}
+{"kind":"agent","machine":"mh-…","terminalId":"term_…","identityToken":"…","agent":{"pid":1,"startIdentity":"…","processSignature":"…","provider":"Codex"}}
+{"kind":"workspace","machine":"mh-…","workspaceId":"w1","identityToken":"…"}
+```
+
+the gateway generates each 128-bit random base64url `identityToken` once per
+observed terminal/workspace lifetime using upstream `pane.report_metadata` or
+`workspace.report_metadata` (`source:"user:skidbladnir"`, token key
+`skid_lifetime`, no `ttl_ms`). it rereads the token after assignment. `pane.list`
+supplies `terminal_id`, current `pane_id`, `workspace_id`, label, cwd and metadata;
+`workspace.list` supplies actual host-bound workspace ids and labels. the gateway
+finds exactly one current pane by the original terminal id and checks its token
+before each operation. if a manual pane has exhausted upstream's 32 metadata-token
+keys, inventory reports it as unaddressable and the host result as partial; it
+never overwrites another source's keys or invents a ref. name and pane id never
+resolve an old ref. the agent ref
+additionally matches the current foreground pid and start identity using
+`pane.process_info` plus the existing linux/darwin `internal/process` observer.
+`processSignature` is an hmac-sha256 over length-prefixed executable and argv,
+keyed by the existing stable host bearer; raw account arguments never enter a
+ref. provider classification must still agree. this defines an observed
+kernel-process/command lifetime; a same-pid `exec` with identical executable
+and argv is indistinguishable, while mutable process titles can conservatively
+stale a ref. neither case warrants substituting a fresh worker.
+an unobservable worker is unknown/stale, never a guessed profile. a separate
+process exit or layout change between this check and herdr's command remains
+possible. gateway restart rereads tokens; cold herdr restart clears pane and
+workspace tokens and allocates new terminal ids. a restored workspace may keep
+its upstream id but is a new skid reference. no registry, expiry, restamping of old refs, atomic
+compare-and-write or implicit replacement target exists.
+
+`GET /v1/terminals` returns exactly
+`{machine:{handle,platform},observedAt,partial,unaddressableTerminals,
+unaddressableWorkspaces,profiles:[{key,label,provider}],
+workspaces:[{ref,label}],terminals:[terminal]}`. the counts include metadata
+claim failures, without exposing their contents. a pane whose workspace token
+cannot be claimed also counts as an unaddressable terminal: it has no truthful
+`workspaceRef`. fleet `skid list --json` wraps
+this as `{ok:true,result:{partial,peers:[peer]}}`: a successful peer is
+`{label,machine,ok:true,observedAt,partial,unaddressableTerminals,
+unaddressableWorkspaces,profiles,workspaces,terminals}`; an unavailable peer is
+`{label,machine,ok:false,error:{code,message}}`. global `partial` is true if
+any peer fails or reports partial. each `terminal` is
+`{ref,name?,character:{key,displayName},workspaceRef,cwd?,
+launchProfile?,objective?,agent?}`. an absent pane label stays absent; clients
+display `unnamed terminal` plus a short id and require a ref to mutate it.
+`character` is a deterministic catalogue selection from the machine and terminal
+lifetime, so manual panes need no stored persona. a cold-restored new lifetime
+gets a new assignment, as accepted. `agent` is
+`{ref,provider,provenRuntimeProfile?,providerSession?,status,readiness,methods}`;
+`providerSession` is `{id?,name?}` only when the process-bound claude
+registration proves it; `methods` is
+`{read,send,interrupt}` with each value `terminal | unavailable`. `status` is
+`{state,source,reason?}`; `state` is
+`working | blocked | idle | unknown`, `source` is `herdr | unavailable`, and
+`reason` is `default_idle | unrecognized | observation_failed`
+when known. `readiness` is `ready | blocked | unconfirmed` and is independent of
+state. a terminal without a proven provider foreground has no `agent`.
+
+map `agent.get.agent_status` `working/blocked/idle` directly, `done` to `idle`
+(unseen idle, never successful task completion), and every other or failed
+observation to `unknown`. sample `agent.explain` separately: a matched visible
+idle rule permits `ready` only if the foreground worker still matches and no
+newer contradictory sample is known; upstream `visible_blocker` plus a
+consistent blocked sample gives `blocked`; a
+default-known-agent idle fallback, skipped screen detection, or disagreement
+between samples gives `unconfirmed`. `reason:default_idle` applies only when
+the explain fallback actually names that condition. unknown rule ids omit
+reason. wrapper launches cannot use upstream `interactive_ready`, which is
+specific to managed `agent.start`. no local screen detector
+upgrades uncertainty into readiness. `agent.explain` may contain screen previews;
+the gateway consumes only rule, visible-idle, fallback and skip fields. it never
+forwards or logs previews.
+
+upstream pane label owns the name, including a manual pane's native label and
+a surviving label on a cold-restored new shell. its presence never revives an
+old ref, launch profile, objective or worker. an unlabeled native pane has no
+name and remains selectable by exact ref. upstream workspace identity/label owns grouping, and
+`skid_launch_profile` owns only the selected launch row. it does
+not prove the current worker's account. `provenRuntimeProfile` is omitted unless
+a process-bound registration is independently proven; `agent_session` is not
+account identity. the sole allowed `SessionStart` registration must be retargeted
+to inherited `HERDR_PANE_ID` and `HERDR_SOCKET_PATH`, with public pane identity
+and existing host process observation checking the provider ancestor and current
+foreground pid/start. v0.9.1's `pane.process_info.tty` is always absent, so it
+cannot replace the old tty proof. without a live registration proof the field
+stays omitted;
+dropping the capability altogether has not been accepted. optional objective
+metadata uses canonical padding-free
+base64url of utf-8, split into consecutive 80-character `skid_objective_00`
+through `_15` values. write `skid_objective_count` first; decode only the exact
+declared count and a valid original objective. missing or extra chunks make it
+absent. one report can carry at most 16 keys, so a maximal 240-scalar objective
+needs a second report and complete readback before publication. partial metadata is omitted, never
+presented as complete. metadata tokens, objective and launch profile do not
+survive cold herdr restart; a restored shell is a new terminal lifetime.
+
+product terminal names preserve today's 1–64 ascii letter/digit/underscore/hyphen grammar,
+starting with a letter or digit. generated names follow the same grammar;
+duplicate upstream labels are permitted. skid may precheck a generated name,
+but cannot promise uniqueness against native desktop edits. exact refs remain
+decisive; name selection fails as ambiguous if multiple terminals match.
+workspace labels retain today's 1–64 nfc-scalar, 256-byte, ordinary-space and
+display-control rules. equal labels on different hosts group only visually.
+within a host, `workspaceRef` identifies one real workspace; name-based
+destination selection rejects duplicate labels. no `unassigned` resource or cosmetic membership
+exists. `workspace.create`/`tab.create` already supply one root pane; gateway
+uses that pane for a new dwarf, never creates a second shell. moving a pane via
+`pane.move` may change layout and remove an emptied source tab/workspace.
+
+### retained gateway operations
+
+`R` below means an original opaque ref in the path; the server decodes and
+revalidates it. every mutating result includes `dispatch: not_sent | sent |
+unknown`. `not_sent` requires proof that no upstream mutation was issued;
+`sent` means an upstream response was received, not that the worker acted;
+`unknown` covers a deadline or lost reply after possible dispatch and never
+authorizes automatic retry. typed errors retain `{code,message,dispatch?}`:
+`Unauthenticated`, `MachineIdentityMismatch`, `InvalidRequest`,
+`RequestTooLarge`, `TerminalNotFound`, `TerminalStale`, `AgentStale`,
+`WorkspaceStale`, `MetadataUnavailable`, `ProfileUnknown`, `WorkingDirectoryInvalid`,
+`NameInvalid`, `NameAmbiguous`, `ObjectiveInvalid`, `ReadinessUnconfirmed`,
+`MethodUnavailable`, `ClosureConfirmationRequired`, `HerdrUnavailable`,
+`UpstreamRejected`, `OutcomeUnknown`. upstream prose is sanitized. a positive
+upstream refusal is `dispatch:sent` with no claimed effect; transport loss after
+dispatch is `OutcomeUnknown` or a partial result. downstream clients do not
+infer safety to retry from http status or process exit.
+
+create and shell are ordered multi-step mutations. a non-201 response is the
+same error shape with optional `partial:{stage,terminal?}`. `stage` is
+`resource_created | identified | launch_submitted`; `terminal` appears only
+after token readback produced a valid ref. an unknown create reply has
+`OutcomeUnknown,dispatch:unknown` and no partial ref. a known create followed
+by failed token claim has `stage:resource_created` and no ref; inventory counts
+the unaddressable pane. failed launch after identification returns
+`stage:identified,terminal` even if its dispatch is unknown. no stage claims
+readiness or permits a second launch. cli wraps host errors as
+`{ok:false,error:{code,message,dispatch},partial?}` and exits 1. pre-dispatch
+validation is `dispatch:not_sent`; upstream refusal is `dispatch:sent` with
+no claimed effect; deadline or lost reply after dispatch is `unknown`.
+for kill, an upstream `confirmation_required` is http 409
+`{code:"ClosureConfirmationRequired",message,dispatch:"sent",
+partial:{terminal:"refused"}}`; stop uses the same error with
+`partial:{agent:"interrupt_sent"|"exited"|"unconfirmed",
+terminal:"refused"}`. a lost close reply is http 504 `OutcomeUnknown`
+with the known agent step, if any, and `terminal:"unconfirmed"` in partial.
+unknown interrupt reply returns `terminal:"not_attempted"`. these are
+errors, never successful close results; cli wraps them as `ok:false` and exits
+1. the phone and jarvis show the partial outcome, not a success toast.
+
+for every selected-host cli command below except `list`, the successful
+`--json` result is the named host success shape plus `label` (fleet peer label)
+and `machine` (pinned handle), with no renamed or omitted host fields. thus
+`info` returns `{label,machine,observedAt,terminal}`, start/shell add
+`launch,dispatch`, read adds `text,source,scope,truncated`, and mutation results
+add their shown outcome and `dispatch`. `list` alone returns the fleet shape
+above. human output renders the same facts; read text goes to stdout and its
+coverage/truncation to stderr. a selected-host failure retains the same
+`{ok:false,error,partial?}` cli envelope with the peer label/machine only when
+known. every noninteractive command has `--json`, exact `--ref` or
+case-sensitive name with optional `--machine` selectors, and `--stdin` only for
+literal send text. unqualified name selection refuses a partial fleet result.
+
+| route / cli operation | exact request and success | target, effect boundary, failure and upstream primitive |
+| --- | --- | --- |
+| `GET /v1/terminals`; `skid list` | empty request; inventory above; `partial` fleet projection includes unavailable peers or unaddressable resources | `workspace.list`, `pane.list`, `agent.list`, `pane.process_info`, plus one-time metadata token claim/readback on newly seen manual resources. that claim mutates upstream metadata and may fail or have an unknown reply; report the resource unaddressable, never replace an unknown token. any failed host is explicit, never an empty inventory |
+| `GET /v1/terminals/R`; `skid info` | no body; `{observedAt,terminal}` with a fresh current agent ref | terminal lifetime only; missing/stale ref fails rather than refreshing a mutation target |
+| `POST /v1/terminals`; `skid start` | `{kind:"agent",profile,cwd,name,objective?,destination?}` or `{kind:"terminal",cwd,name,destination?}`; `destination` is `{kind:"existing",workspaceRef}` or `{kind:"new",label?}`; omitted means a new workspace labelled with the terminal name; `201 {observedAt,terminal,launch:"submitted"|"not_requested",dispatch:"sent"}` | validate cwd/profile/destination before create. `workspace.create` or `tab.create` with `focus:false`, chosen `cwd` and profile `env` allocates one root pane, then metadata/name and one shell-quoted `exec` of the configured absolute command plus `agentruntime.LaunchArguments` through `pane.send_input`: claude-work prepends `--name` and the terminal name; codex uses configured arguments. objective is never a prompt. creation success precedes readiness and does not assert startup. if create succeeds but a later step fails, return the new terminal and partial stage when known; unknown create reply leaves the effect unknown, never a second launch or compensating close |
+| `POST /v1/terminals/R/shell`; `skid shell` | `{}`; same `201` terminal envelope with `launch:"not_requested",dispatch:"sent"` | revalidate original source terminal, sample its `foreground_cwd` when available or `cwd` and exact workspace, then `tab.create` with `focus:false` for one independent shell there. unreadable cwd fails before create; no split, source replacement or profile inheritance |
+| `PATCH /v1/terminals/R`; `skid rename` | `{name}`; `{observedAt,terminal,dispatch:"sent"}` | original terminal; one `pane.rename` on the current pane id after revalidation. a later competing native rename can win; client confirms by inventory |
+| `PUT /v1/terminals/R/workspace`; `skid move` | `{destination}` in the create union; `{observedAt,terminal,dispatch:"sent"}` | original terminal and exact destination workspace ref, or explicit new workspace; `pane.move` to `new_tab` or `new_workspace`. no label-based upstream mutation, no exact-layout lock; report current workspace after response |
+| `POST /v1/agents/R/read`; `skid read` | `{coverage?:"recent"|"visible",maxBytes?}`; coverage defaults `recent`, bytes default 16384, max 32768; `{text,source:"terminal",scope:"visible"|"terminal_history",truncated}` | original agent; `recent` maps to upstream `pane.read` `recent_unwrapped`, max 1000 lines, and scope `terminal_history`; `visible` maps to `pane.read` `visible` and scope `visible`. keep the newest complete-utf-8-codepoint suffix under the byte limit for either scope and mark truncation; upstream line truncation also marks it. `truncated:false` never means complete provider history; failed read returns typed failure |
+| `POST /v1/agents/R/send`; `skid send` | `{text,mode:"auto"|"terminal"}` (mode defaults auto); `{method:"terminal",outcome:"written"|"unknown",dispatch}` | original agent; 1–32768 utf-8 bytes. auto requires independently recognized readiness; terminal mode deliberately addresses a dialog/unclassified screen. one `pane.send_input{text,keys:["enter"]}` queues paste plus submit. `written` means accepted into the upstream pty queue, not provider processing or task success |
+| `POST /v1/agents/R/keys`; `skid keys` | `{keys:[logicalKey]}` with 1–16 keys; same write result | original agent; `enter,escape,ctrl-c,up,down,left,right,tab,backspace` use mode-aware `pane.send_input`. page-up/down send fixed CSI `5~`/`6~` through `pane.send_text`; mixed primitive lists may be partial, never retried. invalid key fails before dispatch |
+| `POST /v1/agents/R/interrupt`; `skid interrupt` | `{}`; same write result | original agent; one `pane.send_input` key: codex `escape`, claude `ctrl-c`; `written` does not prove cancellation |
+| `POST /v1/agents/R/stop`; `skid stop` | `{}`; success `{agent:"interrupt_sent"|"exited",terminal:"closed",dispatch:"sent"}`; other outcomes use the partial error above | original agent; send one interrupt, then revalidate original terminal. `exited` requires observing the original pid/start absent through `internal/process`, not merely no longer foreground; a live replacement rejects closure. unknown interrupt reply stops before closure. one `pane.close` follows; `confirmation_required` is a partial refusal, never a broader command. closure does not confirm descendant or linked-provider halt |
+| `DELETE /v1/terminals/R`; `skid kill` | `{}`; success `{terminal:"closed",dispatch:"sent"}`; other outcomes use the partial error above | original terminal; one `pane.close` after revalidation. final-pane closure may remove its workspace and linked worktree group; no exact affected-set or halt claim. `confirmation_required` remains a refusal; no `workspace.close` fallback |
+| `GET /v1/terminals/R/stream`; `skid enter` / phone attach | authenticated websocket; header `Skidbladnir-Terminal-Takeover: false|true`; `true` only after explicit user action | original terminal, control via `herdr terminal session control <terminal_id>`, never workspace ui. controller acquisition and first full frame gate input. disconnect/release owns only child/socket, not worker/server; reattach starts from fresh discovery |
+
+the following host operations do not dispatch to herdr and retain their current
+strict codecs, authentication, limits, deadline and typed errors. their schemas
+are imported unchanged into this candidate; pr 2 must leave those DTOs and
+clients untouched except route-composition changes:
+
+| route | request and success | boundary |
+| --- | --- | --- |
+| `POST /v1/pairing-invites` | authenticated empty body; `201 {pairingInviteToken,expiresAt,machine}` | current in-memory five-minute slot, replaced on new invite; [pairing wire](public-fleet-distribution.md#4-capability-contract) |
+| `POST /v1/pairings` | invite authorization and expected machine, empty body; `200 {machine,bearer}` | atomic one-use slot redemption; invalid/expired token is `PairingInviteRejected`; [pairing wire](public-fleet-distribution.md#4-capability-contract) |
+| `POST /v1/directory-listings` | `{directory}`; `200 {machine,directory,parentDirectory?,children:[{directory,kind}],omitted}` | immediate canonical-home directory listing, no herdr cwd inference; [directory wire](working-directory-chooser.md#http-api) |
+| `GET /v1/pressure` | empty request; `200 {unsupported,current,history}` with the unchanged closed metric/signal variants | host pressure sampler, independent of terminal runtime; [pressure contract](architecture.md#4-product-behavior) |
+
+these routes retain `Unauthenticated`, `MachineIdentityMismatch`,
+`InvalidRequest`, `RequestTooLarge` and their route-specific errors; each
+failure is before any herdr mutation. pairing slot effects are governed by the
+existing pairing contract, not by `dispatch` for terminal writes.
+
+`skid` without operands and with a tty execs the configured local pinned
+`herdr client` against its existing server socket; absent server fails without
+autostart. `skid enter` keeps exact cross-host attachment through the selected
+gateway stream, irrespective of desktop focus. no-tty bare `skid` exits with
+usage status 2. explicit name selection remains exact, case-sensitive and
+fleet-complete; machine qualification or a ref resolves ambiguity. `--json`
+keeps one `{ok,result|error}` envelope and exits 0 for confirmed complete
+results, 1 for partial/unknown/refusal, 2 for usage. `skid space`, `--unassigned`,
+`--space` and `--clear` are retired; `skid move` names the real destination and
+reports layout effects. `skid read --terminal` becomes `skid read --coverage
+visible`; omitted coverage reads recent terminal history. `skid send --terminal`
+remains the deliberate input override. jarvis keeps the original returned ref
+through its metadata read and revises strict peer, terminal, workspace, status,
+read, write, error and partial-closure models. pr 3 changes
+`src/jarvis/agent_tools.py`, `agent_control.py`, `write_policy.py`,
+`write_dispatch.py`, `definitions.py` and `session-compatibility.json`
+together: list/info projections and start destination,
+read coverage, `dispatch:sent`, refused/partial outcome staging, effect-target
+projection, fallback start receipts, owner/tool wording and existing binding
+revision strings. a jarvis start with no selected workspace
+uses the new named-workspace default above. tool descriptions disclose possible
+linked-group closure before invoking stop/kill. no jarvis adapter gains herdr
+access or retries an unknown write.
+
+the phone maps inventory `terminal.ref` and `workspaceRef` to exact targets;
+forge chooses one existing workspace or explicitly creates one. move and close
+copy names the selected terminal and machine, with `linked workspaces and their
+running terminals may also close`. the close/stop button cannot override an
+upstream `confirmation_required`; detach says `leave terminal running`. terminal
+attachment reports `control_unavailable` before the first complete frame,
+`stream_lost` afterward, `detached` after local release, and `protocol_error`
+for invalid/oversized frames. its conflict copy says `another connection may be
+active; take over or go back` because upstream v0.9.1 exposes only a free-text
+close reason. takeover always revalidates the same original ref; it is never
+an automatic reconnect or input retry. desktop/api input can still reach the
+same terminal while the phone owns the direct controller.
+
+the proposed websocket uses strict json text messages, one envelope per message.
+server `{"kind":"Frame","seq":uint64,"columns":uint16,"rows":uint16,
+"full":bool,"ansiBase64":string}` projects upstream `terminal.frame`
+`seq,width,height,full,encoding:"ansi",bytes`; `{"kind":"End","code":
+"control_unavailable"|"stream_lost"|"detached"|"protocol_error"}` is final.
+`terminal.closed.reason` remains sanitized diagnostic prose, never a typed
+conflict code. before a first full frame, any upstream refusal is
+`control_unavailable`; after one, unexpected closure is `stream_lost`.
+the first full frame resets xterm, sets geometry and enables input; later frames
+must have increasing contiguous sequence numbers. a gap or malformed frame
+closes this attachment, not its worker.
+
+client messages are `{"kind":"Text","text":string}`,
+`{"kind":"Paste","text":string}`, `{"kind":"Key","key":logicalKey,
+"modifiers":["ctrl"|"alt"]}`. `logicalKey` is the closed deck set
+`escape|slash|hyphen|home|up|end|page-up|tab|left|down|right|page-down`;
+modifiers are sorted, unique and may be empty. ctrl/alt toggles are phone-local
+state and never standalone remote keys. other client messages are
+`{"kind":"Scroll","direction":"up"|"down","lines":uint16,
+"column"?:uint16,"row"?:uint16}`, `{"kind":"Resize","columns":uint16,
+"rows":uint16,"cellWidthPx"?:uint32,"cellHeightPx"?:uint32}` and
+`{"kind":"Detach"}`. the gateway serializes text, paste and supported keys
+through one ordered public json-socket queue: `pane.send_text` for typed utf-8,
+`pane.send_input{text}` for paste, `pane.send_input{keys:[...]}` for mode-aware
+logical keys. for supported deck keys, prefix upstream's `parse_key_combo`
+names with `ctrl+` then `alt+` when armed; use `slash` and `minus` for those
+punctuation buttons. `Scroll` maps to upstream `terminal.scroll` with `source:"wheel"`
+and original coordinates when present, with zero modifiers; unmodified page keys use
+`source:"page_key"` there. touch scroll has no modifiers; modified page keys
+remain an unresolved key-deck requirement. `Resize` maps to `terminal.resize`; `Detach` to
+`terminal.release` and child cleanup. keyboard ordering holds within that one
+queue; concurrent desktop input or direct scroll has no total order with it.
+the existing phone key deck also offers home/end and modified navigation keys.
+v0.9.1 `pane.send_input` rejects them, and direct raw csi lacks public
+application-mode encoding. the physical proof deck failed home/end against a
+test-owned application-cursor-mode worker while page-up/down passed. this is a
+failed retained-input requirement, not an accepted loss. the smallest responsible
+remedy is to extend upstream's public key parser/encoder, qualify a release
+containing it, then map the same `Key` messages to that public primitive.
+do not forward xterm's emulator-generated replies as user text: herdr already
+emulates the provider terminal. selection/copy stay in the phone's rendered
+viewport and invalidate on full redraw/resize; neither becomes remote selection.
+phone text/paste is at most 32768 utf-8 bytes, one key per message, scroll
+lines 1–512, and geometry uses the current 20–1024 columns/5–512 rows. proposed
+admission caps are 2 mib websocket/upstream json line, 1 mib decoded ansi frame
+and 2 mib encoded outbound queue (large enough for one maximal valid frame);
+overflow ends this attachment with `protocol_error`
+and leaves the worker alive. these bounds are larger than today's 64-kib tmux
+frame and require a pr 2 stress check; observed proof frames are much smaller.
+server websocket ping/pong every two seconds with a six-second unanswered
+deadline must close its controller child so upstream returns geometry to the
+desktop even when adb reverse retains a dead tcp connection. backgrounding
+releases deliberately; reconnect discovers a fresh terminal ref and never
+replays input. the exact handback deadline remains under live proof.
+
+### subsystem boundaries for pr 2
+
+`internal/herdr` alone owns the json socket codec, upstream error mapping,
+bounded terminal-session child and framing. `internal/sessions` owns inventory,
+metadata, workspace/terminal refs and creation; `internal/agentcontrol` owns
+foreground revalidation and readiness/control policy, depending on sessions,
+never the reverse. `internal/gateway` owns auth/routes and connection-scoped
+stream processes; `internal/fleetclient` owns peer routing and opaque refs;
+`internal/agentcli` owns command parsing/help. android's `ProductModel.kt` and
+`GatewayClient.kt` own strict wire types, `SkidbladnirController.kt` owns
+attachment/action lifetime, and `TerminalConnection.kt`,
+`LockedTerminalWebView.kt` plus `terminal.js` own input/frame presentation.
+`dev-server` adds the pinned herdr service/socket/binary and profile launch
+configuration in pr 4; no gateway request owns that service. jarvis changes
+only its cli consumer/tool descriptions in pr 3 if its candidate cannot pass.
+
+pr 2 removes `internal/tmux`, `internal/sessionui`, obsolete tmux
+`internal/terminalclient`/`internal/terminal` attachment code,
+`internal/space`, tmux-specific parts of `internal/agenthook`, duplicate status
+detectors and native claude helper only after their callers are changed. retain
+the sole process-bound claude `SessionStart` identity registration by adapting
+its target proof to `HERDR_PANE_ID`/socket and foreground process identity; do not infer a runtime
+profile from `skid_launch_profile`. this adaptation needs a live claude proof
+before cutover, and no status/history hook is added. inspect imports,
+`cmd/skidbladnir/{main,terminal_exec}.go`, `internal/logging`, gateway and
+fleet codecs, `go.mod`, android `Spaces.kt`, `DashboardEntryState.kt`,
+`SessionRename.kt`, `TerminalKeyDeck.kt`, `TerminalSelection.kt` and the
+dashboard/forge/persistence callers before deletion. preserve shared
+`internal/process`, `internal/agentruntime` profile validation,
+`internal/strictjson`, auth/pairing, pressure, directory, catalogue and
+provider account wrappers where their contracts still apply. no legacy reader,
+dual backend or generic bridge framework remains.
 
 ## phone boundary and content design
 
@@ -174,7 +516,7 @@ the designer for each slice defines content alongside its schema, before coding:
 | --- | --- |
 | runtime/control — runtime slice | separate creation, readiness, delivery and completion. e.g. `terminal created; startup not confirmed`, `delivery unknown; inspect before sending again`, `interrupt sent; cancellation unconfirmed`. never label inferred status native. |
 | grouping/creation — phone slice | name the machine, exact terminal and actual workspace; say when a new workspace will be created. use `move to workspace` and disclose layout effects. unnamed workspace labels are presentation, not fabricated resources. no dwarf lore in operational errors. |
-| attachment/input — phone slice | `another terminal connection is active`, `take over`, `back`; loss pauses input on this phone, not remote work. disclose that desktop input remains active. close/stop confirms the terminal and machine and warns that linked workspaces and their running terminals may also close; detach never implies stop. |
+| attachment/input — phone slice | `another connection may be active; take over or go back`; the pre-frame error is coarse, so never assert a conflict was identified. loss pauses input on this phone, not remote work. disclose that desktop input remains active. close/stop confirms the terminal and machine and warns that linked workspaces and their running terminals may also close; detach never implies stop. |
 | acceptance — root | concise observed facts, not assurances. state platform/version, boundary, result and limitation without terminal content or account data. |
 
 qualify and write down one owner for each stream behavior:
@@ -271,7 +613,7 @@ table without placeholders, explicit acceptance of capability losses, and
 resolution of the [targeting](issues/herdr-agent-targeting.md),
 [profile](issues/herdr-profile-restore.md) and
 [terminal interaction](issues/herdr-terminal-acceptance.md), plus
-[closure](issues/herdr-terminal-closure.md) issues. accepted limitations belong
+closure contract. accepted limitations belong
 in the contract; delete resolved issue records. negative findings mean
 `reconsider`, with the responsible blocker and smallest next decision stated.
 
@@ -296,7 +638,7 @@ terminal in its workspace. neither command accepts an expected terminal lifetime
 or a predicate that the layout still contains only the confirmed terminal. a
 gateway check before either command cannot constrain a later desktop layout
 change. this is a gap against that former contract, not a request for a skid-side
-preflight. [the closure issue](issues/herdr-terminal-closure.md) now tracks truthful
+preflight. the [new qualification](#2026-09-22-reopened-qualification-at-the-accepted-scope) tracks truthful
 disclosure and qualification of the accepted native effect.
 
 the public `herdr terminal session control` stream has a separate phone input
@@ -383,3 +725,61 @@ the proof still cannot provide a mouse command absent from upstream.
 the proof package was uninstalled and absent after testing; the adb reverse
 mapping was removed, and the installed skid package remained present. these
 are cleanup observations, not phone behavior acceptance.
+
+## 2026-09-22 reopened qualification at the accepted scope
+
+this appended record does not relabel any historical `FAIL` or `NOT_RUN` above.
+all host probes used source `065ef9d6a531c49fb8bee7e818ef837065b21ee9`
+and herdr v0.9.1: darwin 26.4.1 arm64 binary sha256
+`5fc7a7e7adfaca56fa80aa89dcb025693357268dab8285b9ce2d08a2313c89de`,
+arch linux 7.2.3 x86_64 binary sha256
+`2a02fed16beb651ef006e1d43f048f652ca4dc58ad053cd2d44450563d5c54b7`.
+only isolated servers, terminals, workers and synthetic input were used. the
+phone was samsung sm-s906w/android 16 with a separate temporary proof package
+0.1.0/code 1, built from git archive `ff114c8` plus disposable edits in the
+approved android slice.
+
+| boundary | result | content-free observation and limit |
+| --- | --- | --- |
+| configured launch, darwin and linux | `PASS` | all four actual rows: verifier compared absolute command, argv including claude name, provider-home environment and physical cwd before exec; foreground provider appeared. shell and zero-profile cases used one root pane. this proves launch, not readiness. |
+| interactive readiness, darwin and linux | `NOT_RUN` | startup/update/form blockers or default-idle fallback remained at the ten-second budget. no recognized interactive idle/working/input-wait journey was available without changing account/configuration. no prompts were submitted. |
+| disabled resume and references, darwin and linux | `PASS` | cold restart ended old ids/agents, made fresh shell lifetimes and cleared pane/workspace metadata. rename, move, name reuse and fresh client processes preserved live terminal identity. synthetic same-pid exec changed command signature. remaining check/write race is accepted. |
+| headless control, darwin and linux | `PASS` | two synthetic shell workers were controlled independently of desktop focus; the other worker stayed unchanged. darwin additionally passed an ephemeral real codex worker invoking the same test-owned controller against another shell. interactive provider readiness was separate and unproved. |
+| bounded reads and uncertainty, darwin and linux | `PASS` | recent/visible reads were bounded; a one-line recent read returned only an empty trailing line with `truncated:true`, so absence of content is not absence of work. a temporary bridge withheld one mutation reply past ten seconds: caller saw unknown, effect count was one after rediscovery, no replay. a lost create reply left one terminal; a deliberate second create showed why blind retry duplicates. this proves the probe design, not an unimplemented product gateway. |
+| closure and layout change, darwin and linux | `PASS` | ordinary sole-pane close succeeded under both confirmation settings. linked parent close cascaded only with confirmation off; confirmation on refused and kept the group. an unrelated workspace and checkout dirs survived. removing a second pane between preflight and close changed the effect as disclosed; no atomic affected-set guarantee. |
+| local desktop client | darwin `PASS`; linux existing-server attach `NOT_RUN` | darwin client attached to isolated existing server and an absent server failed without autostart. linux absent-server refusal passed; the existing-server test pty exited early without a trustworthy product diagnosis. |
+| phone shell stream, scroll and takeover | darwin host/physical phone `PASS` | a swipe moved actual host scrollback; no-takeover acquisition gave a coarse pre-frame outcome; explicit takeover displaced only the test controller. synthetic two-line paste reached a test worker through public input. no provider phone journey is inferred. |
+| phone key deck | `FAIL` | in a test-owned application-cursor-mode worker, physical home/end were wrong and page-up/down worked. public `pane.send_input` rejects those named keys; fixed raw csi cannot meet the retained mode-aware requirement. |
+| phone clean detach and abrupt loss | darwin host/physical phone `PASS` with disposable heartbeat for abrupt loss | desktop 29 rows became phone 33; clean detach returned 29 in under 0.8 seconds, and force-stop plus a two-second heartbeat/six-second unanswered deadline in about five seconds. the same terminal/shell survived. without heartbeat, adb reverse kept a dead tcp relay and phone geometry held: a genuine initial failure repaired only in the temporary adapter, not in product code. |
+| phone background release | `FAIL` on one run; later `PASS` twice | one home/background attempt kept phone geometry after five seconds. two later runs returned desktop geometry in under one second and observed local stop/detach. the intermittent failure is not explained, so background acceptance remains open. |
+| manual phone interaction and provider terminals | `NOT_RUN` | user skipped dictation, gboard paste, local selection/copy and rotation. adb typing produced nine input events but no exact in-memory host match, so typing remains unproved. configured codex/claude sessions were startup-blocked, so their phone typing/history journey was unavailable. linux phone stream was not exercised. |
+| process-bound claude identity | `NOT_RUN` | source permits a content-free `SessionStart` route using inherited herdr pane identity and host process observation, but no hook was installed or live registration proved. runtime profile/provider session must not be inferred from launch metadata. |
+
+the temporary adapters supplied real red/green evidence for input mode and
+abrupt-loss release; no assertion was deliberately broken to manufacture red.
+the reviewer challenged assertion sensitivity, partial creates, source versus
+product boundaries, conflict wording, frame caps and the retained key deck.
+the decoded full/incremental phone frames measured at most 1,617/1,019 bytes
+in the sampled shell session, and the largest observed json line was 2,382
+bytes. these are lower-bound samples, not proof that the proposed 1-mib decoded
+cap admits every upstream-valid frame (upstream permits 32 mib). exceeding the
+cap deliberately disconnects the phone and leaves the worker alive; pr 2 needs
+a largest-intended-geometry/output stress check before fixing the cap.
+
+cleanup was verified: both hosts' isolated servers, workers, sockets and
+temporary probe files were removed; the proof package and test-owned adb
+forwarding were removed; the installed skid package remained present. during
+phone diagnostics, one `adb logcat -c` cleared the device-wide diagnostic
+buffer despite a tag filter on the command. no skid data or pairings were
+changed, and no further log clears were used. this was an investigation mistake,
+not part of the accepted proof procedure.
+
+the user accepted terminal-only claude observation and cold-restart metadata
+loss, including an unlabeled result where no native label survives, in addition
+to the earlier pointer/closure amendment. the
+full key deck, consistent background release, phone typing, interactive
+provider readiness, process-bound claude identity, provider phone journey and
+skipped human phone actions have no acceptance or
+proof. at pinned v0.9.1 the home/end failure alone prevents `proceed`; a
+qualified public mode-aware key addition is the smallest responsible remedy.
+pr 1 status is **incomplete**, with no pr 2 implementation authorization.

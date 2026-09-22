@@ -22,6 +22,11 @@ feature plans; those recipes do not recreate removed gates.
 closure with disclosed native group effects and remote click/drag parity with
 single-terminal keys, scrolling and local selection/copy. it applies to the
 proposed herdr cutover only; the implemented tmux contracts below are unchanged.
+the [pr 1 candidate contract](herdr-pr1.md#candidate-pr-2-contract-proposed-not-implemented)
+further proposes one dwarf per herdr terminal, real host workspaces, sampled
+herdr observations and bounded reads for both providers, disabled provider
+resume, and separate direct terminal control. these are future targets, not
+implemented architecture; remaining phone/launch/identity proofs block cutover.
 
 ## 1. Philosophy
 

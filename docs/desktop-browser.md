@@ -7,6 +7,11 @@ desktop table/picker layout and affected navigation rules in [spaces](spaces.md)
 and [agent-control ux](agent-control-ux.md). phone behavior is unchanged.
 [pr 4](spaces-and-shells.md) separately investigates terminal embedding.
 
+2026-09-22 future herdr target: native herdr owns desktop navigation if the
+[pr 1 candidate](herdr-pr1.md#candidate-pr-2-contract-proposed-not-implemented)
+passes and pr 2 lands. the browser described below remains the implemented
+tmux path; pr 1 has not replaced it.
+
 ## 1. outcome and limits
 
 one keyboard-only browser: spaces above agents in a left sidebar, session tabs

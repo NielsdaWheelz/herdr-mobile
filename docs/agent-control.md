@@ -9,6 +9,12 @@ engineering contract. the existing jarvis → native codex → tmux → phone
 flow is manually confirmed by the user. that is baseline evidence, not evidence
 for the new cross-provider controls.
 
+2026-09-22 future herdr target: [the pr 1 candidate contract](herdr-pr1.md#candidate-pr-2-contract-proposed-not-implemented)
+would replace native claude status/history/confirmed halt with sampled herdr
+status, bounded terminal reads and unconfirmed interrupt/close. the user accepted
+that capability loss. the tmux/native contract below remains implemented until
+pr 2; current results do not establish the target's phone or startup gates.
+
 2026-09-15 pr 2 amendment: [shells.md](shells.md) owns terminal launch and
 source-session creation. its explicit deltas permit zero launch profiles and
 extend the create schema. source is implemented; [the roadmap](roadmap.md) indexes delivery and
