@@ -45,9 +45,11 @@ proposed defaults for pr 1 to close:
 - phone grouping follows herdr workspaces; tabs and splits remain herdr layout.
   specify the change from skid's current independent space labels explicitly.
 - automatic provider resume is disabled initially. cold restart creates new
-  shell lifetimes without prior profile, objective or dwarf metadata; the user
-  accepted even an unlabeled result on 2026-09-22. herdr may retain a native
-  pane label, but never the old worker/reference. no persistent dwarf registry.
+  unnamed shell lifetimes without prior profile, objective or dwarf metadata.
+  per the user's 2026-09-22 decision, a surviving native pane label is shown
+  only as a hint; the same rule applies to newly discovered manual panes.
+  actions require a fresh reference until named through skid. no persistent
+  dwarf registry.
 - phone entry acquires terminal control and detach/backgrounding releases it.
   specify takeover and geometry handback from actual observed behavior.
 

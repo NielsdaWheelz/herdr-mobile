@@ -12,6 +12,8 @@ makes bare `skid` open the local herdr client and `skid enter` attach one exact
 terminal through its host gateway. it changes names, workspace selection,
 closure disclosure and typed connection outcomes. the tmux client contract
 below remains implemented; pr 1 has no `proceed` decision.
+restored and newly discovered manual terminals show any native pane label only
+as a hint until named through skid; a fresh ref selects either for actions.
 
 2026-09-15 accepted target amendment: [spaces](spaces.md) adds optional session
 labels, one exact membership route, grouped human collections, machine/space

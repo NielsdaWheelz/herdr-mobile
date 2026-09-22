@@ -47,7 +47,8 @@ for lessons, not as a required component.
 | --- | --- |
 | worker targeting — accepted by user | revalidate the original terminal and foreground-worker lifetime immediately before dispatch; reject observed replacement and never substitute a refreshed target. replacement between check and terminal write remains possible. no atomic compare-and-write or exclusive-writer claim. |
 | terminal granularity | one dwarf per live terminal, including manually created terminals, independent of selected pane. rename preserves identity; process replacement preserves the dwarf but invalidates its old agent reference. more cards than today's one-active-pane-per-session view. |
-| runtime restart — metadata loss accepted by user 2026-09-22 | one shared herdr server per host; disable automatic provider resume. client/gateway loss preserves workers; cold runtime restart ends their old lifetimes. restored shells are new terminal lifetimes without the prior launch profile, objective or dwarf identity. upstream may retain a pane label, but it never carries the old reference or worker. the user accepted even an unlabeled result. restoration is not live process migration. |
+| runtime restart — metadata loss accepted by user 2026-09-22 | one shared herdr server per host; disable automatic provider resume. client/gateway loss preserves workers; cold runtime restart ends their old lifetimes. restored shells are new unnamed terminal lifetimes without the prior launch profile, objective or dwarf identity. upstream's surviving pane label is a secondary hint, never the old name/ref/worker; actions require a fresh ref. restoration is not live process migration. |
+| manual native labels — accepted by user 2026-09-22 | a newly discovered manual pane's native label is also hint-only until named through skid. it remains discoverable and actionable by fresh ref; name selection deliberately does not use an unmarked native label. |
 | grouping — proposed replacement | use actual host-bound herdr workspaces. equal labels group visually across hosts, never identify mutations. moving a terminal can change desktop layout; retire cosmetic space assignment and clearing, not conceal them behind the old command. |
 | provider capabilities — accepted by user 2026-09-22 | herdr observations and bounded terminal reads for both providers; no second skid detector. native claude history, status and halt confirmation are lost. jarvis must inspect bounded terminal output and treat stop as unconfirmed without an observed exit. |
 | phone control | opening acquires direct control without takeover; conflict offers explicit takeover or back. no observe-first mode or fallback. phone sets geometry while connected; desktop/api input can still occur. |
@@ -228,9 +229,11 @@ this as `{ok:true,result:{partial,peers:[peer]}}`: a successful peer is
 unaddressableWorkspaces,profiles,workspaces,terminals}`; an unavailable peer is
 `{label,machine,ok:false,error:{code,message}}`. global `partial` is true if
 any peer fails or reports partial. each `terminal` is
-`{ref,name?,character:{key,displayName},workspaceRef,cwd?,
-launchProfile?,objective?,agent?}`. an absent pane label stays absent; clients
-display `unnamed terminal` plus a short id and require a ref to mutate it.
+`{ref,name?,nativeLabel?,character:{key,displayName},workspaceRef,cwd?,
+launchProfile?,objective?,agent?}`. `nativeLabel` is the observed upstream pane
+label, when present; it is a secondary hint and never a name selector. without
+an eligible `name`, clients display `unnamed terminal` plus a short id and,
+if present, `herdr label: <nativeLabel>`; actions require a fresh ref.
 `character` is a deterministic catalogue selection from the machine and terminal
 lifetime, so manual panes need no stored persona. a cold-restored new lifetime
 gets a new assignment, as accepted. `agent` is
@@ -259,12 +262,21 @@ upgrades uncertainty into readiness. `agent.explain` may contain screen previews
 the gateway consumes only rule, visible-idle, fallback and skip fields. it never
 forwards or logs previews.
 
-upstream pane label owns the name, including a manual pane's native label and
-a surviving label on a cold-restored new shell. its presence never revives an
-old ref, launch profile, objective or worker. an unlabeled native pane has no
-name and remains selectable by exact ref. upstream workspace identity/label owns grouping, and
-`skid_launch_profile` owns only the selected launch row. it does
-not prove the current worker's account. `provenRuntimeProfile` is omitted unless
+upstream pane label remains the sole stored name text. a nonexpiring
+`pane.report_metadata` token (`source:"user:skidbladnir"`, key `skid_named`,
+value `1`) says skid deliberately named this terminal. `name` projects the
+current pane label only when the marker is present and that label satisfies
+skid's name grammar; an invalid native rename leaves `name` absent and the
+observed label as a hint. valid native renames update the product name without
+a duplicate name store. `skid start`, `skid shell` and `skid rename` set/read
+back that marker. cold restore clears it but may
+retain the pane label, so the new shell is unnamed with `nativeLabel` as a hint.
+a newly discovered manual pane also has no marker; its native label is hint-only
+until named through skid. the user accepted this manual-name-selection cost on
+2026-09-22. both kinds remain selectable by fresh exact ref. upstream
+workspace identity/label owns grouping. `skid_launch_profile` owns only the
+selected launch row; it does not prove the current worker's account.
+`provenRuntimeProfile` is omitted unless
 a process-bound registration is independently proven; `agent_session` is not
 account identity. the sole allowed `SessionStart` registration must be retargeted
 to inherited `HERDR_PANE_ID` and `HERDR_SOCKET_PATH`, with public pane identity
@@ -287,6 +299,8 @@ starting with a letter or digit. generated names follow the same grammar;
 duplicate upstream labels are permitted. skid may precheck a generated name,
 but cannot promise uniqueness against native desktop edits. exact refs remain
 decisive; name selection fails as ambiguous if multiple terminals match.
+`nativeLabel` never participates in name resolution, even if it matches one
+terminal uniquely.
 workspace labels retain today's 1–64 nfc-scalar, 256-byte, ordinary-space and
 display-control rules. equal labels on different hosts group only visually.
 within a host, `workspaceRef` identifies one real workspace; name-based
@@ -352,9 +366,9 @@ literal send text. unqualified name selection refuses a partial fleet result.
 | --- | --- | --- |
 | `GET /v1/terminals`; `skid list` | empty request; inventory above; `partial` fleet projection includes unavailable peers or unaddressable resources | `workspace.list`, `pane.list`, `agent.list`, `pane.process_info`, plus one-time metadata token claim/readback on newly seen manual resources. that claim mutates upstream metadata and may fail or have an unknown reply; report the resource unaddressable, never replace an unknown token. any failed host is explicit, never an empty inventory |
 | `GET /v1/terminals/R`; `skid info` | no body; `{observedAt,terminal}` with a fresh current agent ref | terminal lifetime only; missing/stale ref fails rather than refreshing a mutation target |
-| `POST /v1/terminals`; `skid start` | `{kind:"agent",profile,cwd,name,objective?,destination?}` or `{kind:"terminal",cwd,name,destination?}`; `destination` is `{kind:"existing",workspaceRef}` or `{kind:"new",label?}`; omitted means a new workspace labelled with the terminal name; `201 {observedAt,terminal,launch:"submitted"|"not_requested",dispatch:"sent"}` | validate cwd/profile/destination before create. `workspace.create` or `tab.create` with `focus:false`, chosen `cwd` and profile `env` allocates one root pane, then metadata/name and one shell-quoted `exec` of the configured absolute command plus `agentruntime.LaunchArguments` through `pane.send_input`: claude-work prepends `--name` and the terminal name; codex uses configured arguments. objective is never a prompt. creation success precedes readiness and does not assert startup. if create succeeds but a later step fails, return the new terminal and partial stage when known; unknown create reply leaves the effect unknown, never a second launch or compensating close |
-| `POST /v1/terminals/R/shell`; `skid shell` | `{}`; same `201` terminal envelope with `launch:"not_requested",dispatch:"sent"` | revalidate original source terminal, sample its `foreground_cwd` when available or `cwd` and exact workspace, then `tab.create` with `focus:false` for one independent shell there. unreadable cwd fails before create; no split, source replacement or profile inheritance |
-| `PATCH /v1/terminals/R`; `skid rename` | `{name}`; `{observedAt,terminal,dispatch:"sent"}` | original terminal; one `pane.rename` on the current pane id after revalidation. a later competing native rename can win; client confirms by inventory |
+| `POST /v1/terminals`; `skid start` | `{kind:"agent",profile,cwd,name,objective?,destination?}` or `{kind:"terminal",cwd,name,destination?}`; `destination` is `{kind:"existing",workspaceRef}` or `{kind:"new",label?}`; omitted means a new workspace labelled with the terminal name; `201 {observedAt,terminal,launch:"submitted"|"not_requested",dispatch:"sent"}` | validate cwd/profile/destination before create. `workspace.create` or `tab.create` with `focus:false`, chosen `cwd` and profile `env` allocates one root pane; `pane.rename` sets its validated label before `pane.report_metadata` sets/readbacks `skid_named` and other metadata, then one shell-quoted `exec` of the configured absolute command plus `agentruntime.LaunchArguments` goes through `pane.send_input`: claude-work prepends `--name` and the terminal name; codex uses configured arguments. objective is never a prompt. creation success precedes readiness and does not assert startup. if create succeeds but a later step fails, return the new terminal and partial stage when known; unknown create reply leaves the effect unknown, never a second launch or compensating close |
+| `POST /v1/terminals/R/shell`; `skid shell` | `{}`; same `201` terminal envelope with `launch:"not_requested",dispatch:"sent"` | revalidate original source terminal, sample its `foreground_cwd` when available or `cwd` and exact workspace, then `tab.create` with `focus:false` for one independent shell there. `pane.rename` sets its generated label before `pane.report_metadata` sets/readbacks `skid_named`. unreadable cwd fails before create; no split, source replacement or profile inheritance |
+| `PATCH /v1/terminals/R`; `skid rename` | `{name}`; `{observedAt,terminal,dispatch:"sent"}` | original terminal; one `pane.rename` on the current pane id after revalidation. if `skid_named` is absent, set/read back that marker; a known marker refusal returns http 502 `{code:"MetadataUnavailable",message,dispatch:"sent",partial:{terminal}}`, whose current projection has the new native hint but no product name. a lost reply remains `OutcomeUnknown`, never retried. a later competing native rename can win; client confirms by inventory |
 | `PUT /v1/terminals/R/workspace`; `skid move` | `{destination}` in the create union; `{observedAt,terminal,dispatch:"sent"}` | original terminal and exact destination workspace ref, or explicit new workspace; `pane.move` to `new_tab` or `new_workspace`. no label-based upstream mutation, no exact-layout lock; report current workspace after response |
 | `POST /v1/agents/R/read`; `skid read` | `{coverage?:"recent"|"visible",maxBytes?}`; coverage defaults `recent`, bytes default 16384, max 32768; `{text,source:"terminal",scope:"visible"|"terminal_history",truncated}` | original agent; `recent` maps to upstream `pane.read` `recent_unwrapped`, max 1000 lines, and scope `terminal_history`; `visible` maps to `pane.read` `visible` and scope `visible`. keep the newest complete-utf-8-codepoint suffix under the byte limit for either scope and mark truncation; upstream line truncation also marks it. `truncated:false` never means complete provider history; failed read returns typed failure |
 | `POST /v1/agents/R/send`; `skid send` | `{text,mode:"auto"|"terminal"}` (mode defaults auto); `{method:"terminal",outcome:"written"|"unknown",dispatch}` | original agent; 1–32768 utf-8 bytes. auto requires independently recognized readiness; terminal mode deliberately addresses a dialog/unclassified screen. one `pane.send_input{text,keys:["enter"]}` queues paste plus submit. `written` means accepted into the upstream pty queue, not provider processing or task success |
@@ -775,8 +789,10 @@ changed, and no further log clears were used. this was an investigation mistake,
 not part of the accepted proof procedure.
 
 the user accepted terminal-only claude observation and cold-restart metadata
-loss, including an unlabeled result where no native label survives, in addition
-to the earlier pointer/closure amendment. the
+loss. the user further chose to show any surviving native pane label only as a
+hint on a new unnamed terminal, and likewise for newly discovered manual panes,
+with a fresh ref required for actions, in
+addition to the earlier pointer/closure amendment. the
 full key deck, consistent background release, phone typing, interactive
 provider readiness, process-bound claude identity, provider phone journey and
 skipped human phone actions have no acceptance or

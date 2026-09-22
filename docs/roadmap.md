@@ -26,10 +26,11 @@ effects with disclosure and excludes remote clicks/drags; keys, scrolling and
 local selection/copy remain required. pr 1 qualification is reopened at v0.9.1,
 without requiring upstream changes for those former gates. the remaining proofs
 and wire contract are open. the user accepted terminal-only claude observation
-and new shell lifetimes without metadata after cold restart, even if unlabeled;
-upstream may retain the pane label. manual phone interaction was
+and new unnamed shell lifetimes without metadata after cold restart; a
+surviving native pane label is only a hint, as is an unmarked manual pane label;
+actions need a fresh reference until named through skid. manual phone interaction was
 explicitly skipped and remains `NOT_RUN`; provider startup/readiness and the
-full phone key deck is unresolved: physical home/end failed in
+full phone key deck are unresolved: physical home/end failed in
 application-cursor mode at the pinned public api. disposable heartbeat proof
 restored geometry after abrupt loss, but pr 2's actual bridge is absent. there is no `proceed`
 or pr 2 authorization.
