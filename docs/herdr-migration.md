@@ -80,8 +80,8 @@ spaces/shells delivery sequence.
 | --- | --- | --- | --- |
 | 1. feasibility and contract | skid | isolated proof resources and applicable live/device approval | candidate contract accepted for implementation; remaining live proofs open |
 | 2. complete skid cutover | skid | user-authorized candidate scope | merged as pr 134 at `9999033`; named remaining gaps accepted as non-blocking; not deployed |
-| 3. jarvis alignment | jarvis | pr 2's final cli contract and runnable candidate | [implementation spec](herdr-pr3.md) written; implementation pending |
-| 4. deployment and fleet acceptance | dev-server, consuming skid release artifacts | pr 2 and pr 3 | blocked on the preceding stages |
+| 3. jarvis alignment | jarvis | pr 2's final cli contract and runnable candidate | merged at `fb5e4a9`; boundary proofs recorded; unmodified live journey remains `NOT_RUN` |
+| 4. deployment and fleet acceptance | dev-server, skid, jarvis | merged candidates, exact artifacts and applicable execution approval | [implementation spec](herdr-pr4.md) written; installation, qualification and activation pending |
 
 pr 2 changes gateway, cli and android together. use reviewable commits inside that
 pr; do not release an intermediate schema that its consumers cannot read. pr 3
@@ -307,6 +307,12 @@ authority, durable actions, budgets and immutable history.
 
 ## pr 4: deployment and fleet acceptance
 
+[the pr 4 spec](herdr-pr4.md) owns exact prerequisites, installation/lifetime
+contracts, non-overlapping repository slices, durable-work handling, rollback
+and acceptance. it carries the unmodified isolated-host proof, truthful stop
+partials and removal of the unemitted start stage. it supersedes any broader
+phone journey language below under the existing waivers.
+
 ### scope
 
 dev-server owns herdr installation, service/configuration changes, matching skid
@@ -325,8 +331,10 @@ qualified candidate through its existing owner.
 - stage all artifacts and matching consumers before activation. first qualify on
   one isolated host instance, then switch the three-host fleet in a bounded window.
   use explicit per-host cli probes during staging; add no smaller-fleet phone mode.
-- drain in-flight old jarvis agent actions before replacing their execution
-  contract. do not treat previously issued refs as new herdr references.
+- handle all nonterminal jarvis actions and incompatible unfinished model/read
+  scopes under the old release before replacing their execution contract,
+  including approvals and future reminders. preserve history and charged work;
+  no restamping, silent cancellation or reinterpretation of old refs.
 - preserve machine handles, bearers, phone pairings, signing identity and unrelated
   private ingress. remove only inventoried owned assets whose callers are gone.
 - leave existing user tmux sessions running and accessible through tmux while they
@@ -343,13 +351,15 @@ qualified candidate through its existing owner.
    unchanged apply and gateway restart preserve runtime state and credentials.
 2. arch, devbox and macbook advertise the intended runtime/profile configuration
    and successfully launch their configured profiles in approved test resources.
-3. the signed phone and native desktop share the same test workers; jarvis uses
-   the installed cli to complete the pr 3 journey across the fleet.
+3. the signed phone installs in place with pairing continuity; the accepted phone
+   journey waivers remain closed. native desktop and gateway share workers;
+   jarvis's unmodified linux provider journey and installed fleet routing pass.
 4. one unavailable machine does not block observation/control of available peers.
    no mixed-version fleet is declared complete.
-5. rollback is exercised on isolated resources, including the phone package/data
-   boundary under its applicable approval. record installation, live behavior,
-   human usability and unperformed checks separately.
+5. rollback is exercised on isolated resources, including a higher-version
+   emergency apk at the package/data boundary. new jarvis receipts/positions
+   require a qualified reader or stopped forward repair, never history loss.
+   record installation, live behavior and unperformed checks separately.
 6. remove superseded installed integration assets only after verifying no remaining
    caller. reconcile issue records and roadmap status with actual evidence.
 

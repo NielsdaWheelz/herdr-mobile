@@ -8,8 +8,10 @@ this index records present scope and open work, not a release diary.
 ## herdr migration
 
 2026-09-23: pr 2 merged as pr 134 at `9999033`; no deployment is claimed.
-[the pr 3 spec](herdr-pr3.md) now defines jarvis consumer alignment; implementation
-is pending. pr 4 retains coordinated activation and rollback responsibility.
+[pr 3](herdr-pr3.md) is merged in jarvis at `fb5e4a9`; recorded boundary proofs
+do not qualify the unmodified live provider journey. [the pr 4 spec](herdr-pr4.md)
+now defines installation, that isolated proof, two bounded contract corrections,
+coordinated activation and rollback. implementation and deployment are pending.
 the earlier candidate/proof notes below retain their historical scope.
 
 [the migration plan](herdr-migration.md) owns the proposed runtime/desktop cutover,
