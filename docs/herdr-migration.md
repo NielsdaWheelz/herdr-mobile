@@ -79,8 +79,8 @@ spaces/shells delivery sequence.
 | pr | repository | dependency | status |
 | --- | --- | --- | --- |
 | 1. feasibility and contract | skid | isolated proof resources and applicable live/device approval | candidate contract accepted for implementation; remaining live proofs open |
-| 2. complete skid cutover | skid | user-authorized candidate scope | source candidate; engineering and recorded host proofs pass, named remaining gaps accepted as non-blocking |
-| 3. jarvis alignment | jarvis | pr 2's final cli contract and runnable candidate | required by the changed strict consumer schema; blocked on pr 2 |
+| 2. complete skid cutover | skid | user-authorized candidate scope | merged as pr 134 at `9999033`; named remaining gaps accepted as non-blocking; not deployed |
+| 3. jarvis alignment | jarvis | pr 2's final cli contract and runnable candidate | [implementation spec](herdr-pr3.md) written; implementation pending |
 | 4. deployment and fleet acceptance | dev-server, consuming skid release artifacts | pr 2 and pr 3 | blocked on the preceding stages |
 
 pr 2 changes gateway, cli and android together. use reviewable commits inside that
@@ -265,6 +265,9 @@ the [dated waivers](herdr-pr2.md#accepted-non-blocking-follow-ups) apply to the
 criteria above and later rollout criteria; waived checks remain unrun, not passed.
 
 ## pr 3: jarvis consumer alignment
+
+[the pr 3 spec](herdr-pr3.md) owns the exact consumer delta, non-overlapping
+file slices, content contract, temporary proofs and coordinated cutover handoff.
 
 ### scope
 
