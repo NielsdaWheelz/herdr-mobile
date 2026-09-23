@@ -1,5 +1,23 @@
 # spaces
 
+## herdr pr 2 candidate
+
+the optional tmux session label and `skid space` mutation described below are
+superseded. each terminal belongs to a real host-bound herdr workspace.
+`workspaceRef` identifies that workspace for create and move; equal labels on
+different hosts group visually but never identify a mutation. `skid start`
+accepts an exact existing workspace or creates a new one, defaulting to a new
+workspace named for the terminal. `skid move` moves the original terminal to
+an exact destination or an explicitly named new workspace. it may change
+desktop layout and remove an emptied tab or workspace. there is no
+`unassigned` resource, clear-membership operation or cosmetic client count.
+inventory, phone and cli preserve exact refs across display refreshes.
+[pr 1's operation table](herdr-pr1.md#retained-gateway-operations) and
+[pr 2](herdr-pr2.md) own the candidate contract and acceptance. all tmux
+storage, `/v1/sessions`, filters and acceptance claims below are historical.
+
+## historical cosmetic spaces
+
 implemented: session labels, grouping/filtering, restoration and space-aware
 creation under [the composition plan](spaces-and-shells.md).
 [the roadmap](roadmap.md) indexes delivery; [spaces/shells hands-on acceptance](issues/spaces-shells-hands-on.md)

@@ -52,7 +52,7 @@ drive a disposable probe; the accepted product contract instead reports coarse
 `control_unavailable` before the first frame and never treats human prose as
 a stable code.
 the stream reader accepts up to 32 mib, though its terminal attach producer
-emits under a 2-mib cap. skid's current terminal frame bound is 64 kib;
+emits under a 2-mib cap. the retired tmux bridge's frame bound was 64 kib;
 full-frame and queue limits need measurement and an explicit bounded bridge
 decision before cutover.
 
@@ -139,8 +139,9 @@ forwards raw tty chunks, which cannot become committed text without decoding.
 the candidate now defines one shared semantic key vocabulary. upstream
 [`parse_key_combo`](https://github.com/herdrdev/herdr/blob/065ef9d6a531c49fb8bee7e818ef837065b21ee9/src/config/keybinds.rs#L1231)
 also lacks insert/delete/page names at v0.9.1. extend the public mode-aware path
-for retained desktop input in the same qualification; do not fix phone home/end
-while leaving desktop controls unspecified.
+for a future full desktop key contract. the current candidate visibly disables
+home/end on the phone, supports unmodified page visual navigation through
+`terminal.scroll`, and rejects remaining unsupported hardware/desktop keys.
 
 reuse candidate: the existing ultraviolet dependency offers a terminal input
 reader with key/paste/reply events. its
@@ -174,15 +175,50 @@ input parser. a temporary upstream patch on that source passed parser and
 mode-aware api tests, including application-cursor home/end, but has no
 published release or linux/darwin/phone proof. herdr's
 [contribution policy](https://github.com/herdrdev/herdr/blob/0ff0f27e222633c97ba4291f6b9be4137002ca84/CONTRIBUTING.md)
-does not accept unsolicited implementation pull requests. the entry gate
-therefore remains open; local patches do not authorize skid cutover.
-the user chose to retain the keys and defer cutover. no herdr discussion or
-pull request was posted. a future independently released public key operation
-must pass the same mode-aware phone/desktop proof before this issue closes.
+does not accept unsolicited implementation pull requests. local patches do not
+qualify the key path. the user later accepted visible disabled controls and
+explicit rejection of unsupported keys so the rest of pr 2 can be implemented
+at v0.9.1. no herdr discussion or pull request was posted. a future
+independently released public key operation needs mode-aware phone/desktop proof
+before those controls are re-enabled.
 
 resolved when: the skid-side decoder preserves fragmented utf-8 (including
 `U+FFFD`), multiline/bracketed paste and detach-looking paste literally, rejects
 oversize input without unbounded accumulation, and cancels cleanly. prove
-the named key/modifier mapping through actual `skid enter` and gateway/herdr on
+the supported named key/modifier mapping through actual `skid enter` and
+gateway/herdr on
 linux and darwin. the [pr 2 spec](../herdr-pr2.md#attached-terminal) owns integration;
 these checks do not waive the physical-phone gaps above.
+
+## pr 2 source candidate, 2026-09-22
+
+the production gateway, cli decoder, and android page are now wired to the
+pinned public protocol. temporary socket probes passed inventory, metadata
+claim, exact typed text, full-frame admission, stale-ref rejection after
+websocket admission, detach and child release; they were synthetic, not herdr
+live acceptance. the cli decoder's temporary probes reproduced and fixed
+per-operation response decoding and json expansion of maximum text/read bytes.
+android compilation and javascript syntax pass. independent source review found
+and repaired unbounded pending main-thread frame callbacks, unsupported named
+hardware-key fallthrough, and a scroll-line cap mismatch.
+
+the approved pr 2 live run used isolated official v0.9.1 servers and the
+source candidate on darwin and arch linux. both gateway streams delivered a
+valid full frame, exact synthetic text plus enter, and detach within two
+seconds. with an independent native desktop attached on each host, the worker
+held phone-style geometry at 20×40 and returned to desktop geometry 29×73
+after detach; the shell survived. darwin cli `enter` also passed typing,
+paste, resize and tty restoration on a test-owned terminal. temporary
+gateway websocket probes reproduced and repaired pre-frame input admission,
+stalled-input release and stale-ref handling; those probes were deleted.
+
+a separate proof apk built from the candidate with only its application id
+changed, installed and launched on samsung sm-s906w/android 16, then was
+removed without replacing the installed app. full phone terminal acceptance
+is `NOT_RUN`: production pairing requires three named machines over canonical
+https on port 8443, while the isolated test boundary exposed one darwin http
+gateway; the device keyguard also obscured the proof activity. no product
+transport or pairing bypass was used. exact phone typing, synthetic paste,
+scroll, takeover, background/acquisition release, loss, bearer revocation,
+largest-frame rendering and phone geometry return remain unproved. dictation,
+gboard paste, local copy and rotation remain user-waived `NOT_RUN`.

@@ -7,35 +7,43 @@ owns delivery. [pr 1's candidate](herdr-pr1.md#candidate-pr-2-contract-proposed-
 owns exact wire shapes and upstream mappings; this document owns implementation
 structure and acceptance. do not maintain a second schema here.
 
-## entry gate
+## implementation and cutover gates
 
-pr 1 remains incomplete. v0.9.1 cannot receive `proceed`. before implementation:
+the user has authorized implementation in this branch with the unsupported
+key controls visibly disabled. this supersedes the earlier requirement to
+qualify a new herdr key operation before coding. herdr v0.9.1 is the target;
+no upstream patch or private protocol is part of this candidate. phone deck
+home and end remain visible but disabled with an accessible explanation.
+unmodified page up/down use herdr's public visual-scroll operation; they are
+disabled while ctrl/alt is armed. android hardware and desktop keys unsupported by herdr are
+rejected locally with an explanation; `skid keys` rejects them before dispatch.
+modified non-ascii whitespace keys are also rejected because herdr trims them
+before key parsing; unmodified committed whitespace remains text.
+no input is silently dropped or sent as guessed raw csi. this is an explicit
+feature loss at cutover, not a successful key test. [pr 1's operation
+table](herdr-pr1.md#retained-gateway-operations) owns the active key set.
 
-- qualify a public mode-aware key operation covering the retained phone and
-  desktop input vocabulary; record its exact release/source and operation map.
-  no raw-csi workaround, hidden key removal or private upstream protocol.
-- qualify the desktop input decoder path for literal, bounded paste and
-  cancellation; [the recorded defects](issues/herdr-terminal-acceptance.md#pr-2-input-contract-review)
-  prevent using the pinned ultraviolet `TerminalReader`.
-- close the recorded readiness, process-bound claude identity, phone typing,
-  provider scrolling, background release and linux stream/desktop checks.
-  [pr 1's evidence](herdr-pr1.md#2026-09-22-reopened-qualification-at-the-accepted-scope)
-  distinguishes failures from missing proof. none becomes a pass here.
-  [claude submission](issues/herdr-claude-submission.md) is separately open.
+the desktop input decoder path must preserve literal bounded paste and
+cancellation; [the recorded defects](issues/herdr-terminal-acceptance.md#pr-2-input-contract-review)
+prevent using the pinned ultraviolet `TerminalReader`. qualify the local
+composition through product code.
+
+before declaring pr 2 complete, close the recorded readiness, process-bound
+claude identity, phone typing, provider scrolling, background release and linux
+stream/desktop checks through the implemented product. [pr 1's
+evidence](herdr-pr1.md#2026-09-22-reopened-qualification-at-the-accepted-scope)
+distinguishes failures from missing proof; none becomes a pass here.
+[claude submission](issues/herdr-claude-submission.md) is separately open.
 
 the user waived the human dictation, gboard paste, local copy and rotation
 checks for this candidate. record each as `NOT_RUN`; record later failures as
 live-repair issues. do not infer that these behaviors work.
 
-then freeze the candidate and close its issues. the user's task already
-authorizes implementation once these prerequisites hold.
-pr 2 repeats important proofs through product code. a disposable adapter cannot
-qualify the implementation that replaces it.
-
-accepted 2026-09-22: retain the full phone and desktop key vocabulary and defer
-cutover until a qualified released herdr public operation supports it. do not
-remove controls, guess raw csi, ship a partial runtime, or ask herdr to conform
-to skid's unpublished contract. no external request or patch was submitted.
+freeze the candidate's supported operation map and component interfaces before
+parallel coding. a disposable adapter cannot qualify the product implementation.
+the earlier choice to retain all live keys and defer cutover is superseded by
+the disabled-control scope above. re-enabling those controls requires a later
+qualified public herdr operation and separate acceptance.
 
 accepted 2026-09-22: ordinary `skid send` requires recognized idle and rejects
 working/unconfirmed states before dispatch; it does not wait or queue.
@@ -168,8 +176,11 @@ fifteen-second acquisition deadline or detach. input remains disabled throughout
 the gateway validates frames and withholds input until it emits a valid first
 full frame. the phone applies that frame's reset, geometry and ansi before its
 page acknowledges application to the current connection attempt, which then
-enables input. no websocket acknowledgement is added. native code checks
-contiguous sequence numbers; decimal strings preserve uint64 through javascript.
+enables input. no websocket acknowledgement is added. the gateway cannot
+establish when a message queued in the opposite websocket
+direction was sent relative to that first frame; it only dispatches after the
+frame write. clients enforce the stronger local applied-frame gate. native code
+checks contiguous sequence numbers; decimal strings preserve uint64 through javascript.
 retain acknowledged rendering/backpressure. gaps, malformed data and overflow
 end only the attachment. qualify the candidate's frame/queue caps against the
 largest intended geometry/output; exceeding a cap disconnects rather than grows
@@ -187,7 +198,8 @@ selection/copy. keep the immutable copy snapshot through incremental output;
 clear it on full redraw/resize, attachment loss and explicit cancellation.
 native code owns credentials and transport. ctrl/alt apply only to proven discrete
 keys/deck actions; ime/dictation, paste and uncertain text consume them unchanged.
-retain hardware keys and enter/backspace as well as every deck key.
+retain supported hardware keys and enter/backspace, with disabled controls still
+visible in the deck.
 
 desktop input frames escapes with the already pinned `x/ansi` parser, decodes
 complete named/modified keys and terminal replies with ultraviolet's public
@@ -287,7 +299,7 @@ distinguish working from readiness, not describe a busy worker as broken.
 | uncertainty + ownership | suppress one actual reply after dispatch: one effect, truthful unknown/partial, no replay. client/gateway loss preserves workers; runtime restart creates new lifetimes with resume disabled |
 | native closure | ordinary close, linked cascade and confirmation refusal; outside-group terminals survive. stop reports its separate steps, rejects observed replacement, and stops after unknown interrupt |
 | desktop | bare skid attaches existing local server and refuses absent server; `enter` qualifies typing/keys/paste, resize, detach and tty restoration through the real gateway on both platforms |
-| physical phone | shell, codex and claude: exact automatable typing, synthetic multiline paste, full key vocabulary in relevant modes, actual history scroll, sizing, takeover and return navigation; linux and darwin host stream boundaries. human dictation, gboard paste, local copy and rotation remain `NOT_RUN` under the user waiver above |
+| physical phone | shell, codex and claude: exact automatable typing, synthetic multiline paste, supported keys and unmodified page navigation, actual history scroll, sizing, takeover and return navigation; disabled home/end and modified page controls remain visible and inert. linux and darwin host stream boundaries. human dictation, gboard paste, local copy and rotation remain `NOT_RUN` under the user waiver above |
 | phone lifetime + bounds | background during acquisition, first frame and steady state; abrupt loss including retained tcp relay, and bearer revocation. desktop regains geometry within the stated deadlines, worker survives, stale callbacks/input never resume; stress intended maximum frames and overflow closure. rotation remains `NOT_RUN` under the user waiver |
 | retained services + retirement | pairing/machine rejection, directory and pressure smoke through actual routes; old config/routes/commands reject. source/import/build checks show no tmux/browser/local detector/native-control execution path or unused dependency |
 

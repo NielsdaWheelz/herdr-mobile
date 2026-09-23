@@ -1,5 +1,22 @@
 # Working-directory chooser
 
+## herdr pr 2 candidate
+
+the phone's browse-home, active-cwd and exact-path choices remain. the
+authenticated read-only `POST /v1/directory-listings` route and its canonical
+home tokens retain [the http contract below](#http-api). `Active` now samples
+fresh terminal cwd values from `GET /v1/terminals`, never tmux sessions.
+selection still fills the Forge draft; creation uses `POST /v1/terminals`,
+whose host validates the cwd before one herdr create. machine change and stale
+request fencing retain their phone-local behavior. directory listing remains
+independent of herdr; it neither creates a workspace nor changes directory.
+[pr 1's operation table](herdr-pr1.md#retained-gateway-operations) owns the
+create wire. old tmux references, `/v1/sessions` routes and acceptance claims
+below are historical; the directory-listing and chooser interaction mechanics
+remain applicable where they do not name those retired owners.
+
+## historical tmux integration
+
 Status: **implementation candidate, 2026-08-31**. All four owner reds are
 recorded and production source is hard-cut. On the pre-rebase feature tree,
 routine verification, the approved isolated Darwin and Linux real-tmux Create

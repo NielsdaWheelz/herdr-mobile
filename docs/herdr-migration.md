@@ -3,18 +3,14 @@
 2026-09-22: accepted direction and delivery plan. the original pr 1 `reconsider`
 result prompted an [approved scope amendment](herdr-pr1.md#accepted-scope-amendment):
 native herdr closure effects and single-terminal phone interaction without remote
-click/drag parity. qualification can resume at v0.9.1; no new upstream revision
-is required solely for those two former gates. full qualification, implementation
-and fleet acceptance remain incomplete. this document does not authorize pr 2.
-the current [architecture](architecture.md) and feature contracts still describe
-the tmux implementation. the [candidate pr 2 contract](herdr-pr1.md#candidate-pr-2-contract-proposed-not-implemented)
-records the proposed replacement; unresolved live input and lifecycle proofs
-still prevent a `proceed` decision. the physical phone proof found a real
-home/end failure in application-cursor mode at pinned v0.9.1; its public
-logical-key parser lacks those keys. a qualified public mode-aware key
-primitive is now required to retain the deck, unless the user separately
-accepts losing it. interactive provider readiness and the skipped human phone
-actions remain `NOT_RUN`; no pr 2 code has begun.
+click/drag parity. the user subsequently authorized the pr 2 source candidate
+with unsupported keys visibly disabled or locally rejected. this branch contains
+that candidate; its live acceptance and fleet deployment remain incomplete.
+[the architecture](architecture.md) describes the candidate. [pr 1's contract](herdr-pr1.md#candidate-pr-2-contract-proposed-not-implemented)
+owns exact wire shapes, and [pr 2](herdr-pr2.md) owns the implementation and
+remaining gates. interactive provider readiness and the user-waived human phone
+actions remain `NOT_RUN`; source completion is not a `proceed` or deployment
+decision.
 
 ## outcome and scope
 
@@ -37,13 +33,13 @@ acceptance. terminal status and successful input delivery never prove task succe
 | dev-server | pinned installation, host configuration and independent runtime service lifecycle |
 | providers | execution semantics, credentials and native conversation history |
 
-proposed defaults for pr 1 to close:
+candidate defaults:
 
 - one herdr server per host; desktop and gateway address that same instance.
 - one dwarf per live terminal; its foreground agent is a separate observation.
   manually created herdr terminals are discoverable alongside skid-created ones.
 - phone grouping follows herdr workspaces; tabs and splits remain herdr layout.
-  specify the change from skid's current independent space labels explicitly.
+  the old independent space labels are retired.
 - automatic provider resume is disabled initially. cold restart creates new
   unnamed shell lifetimes without prior profile, objective or dwarf metadata.
   per the user's 2026-09-22 decision, a surviving native pane label is shown
@@ -51,7 +47,7 @@ proposed defaults for pr 1 to close:
   actions require a fresh reference until named through skid. no persistent
   dwarf registry.
 - phone entry acquires terminal control and detach/backgrounding releases it.
-  specify takeover and geometry handback from actual observed behavior.
+  takeover is explicit; geometry handback still requires product live proof.
 
 retain machine identity, private ingress, authentication, encrypted pairings,
 profile selection, directory browsing, pressure, and the native visual language.
@@ -77,8 +73,8 @@ spaces/shells delivery sequence.
 
 | pr | repository | dependency | status |
 | --- | --- | --- | --- |
-| 1. feasibility and contract | skid | isolated proof resources and applicable live/device approval | qualification reopened at v0.9.1 under approved scope; historical evidence unchanged; remaining proofs/contracts open |
-| 2. complete skid cutover | skid | pr 1 recommends proceeding and closes the required contracts | awaiting completed pr 1 qualification; no `proceed` yet |
+| 1. feasibility and contract | skid | isolated proof resources and applicable live/device approval | candidate contract accepted for implementation; remaining live proofs open |
+| 2. complete skid cutover | skid | user-authorized candidate scope | source candidate in this branch; engineering checks pass, live acceptance pending |
 | 3. jarvis alignment | jarvis | pr 2's final cli contract and runnable candidate | required by the changed strict consumer schema; blocked on pr 2 |
 | 4. deployment and fleet acceptance | dev-server, consuming skid release artifacts | pr 2 and pr 3 | blocked on the preceding stages |
 
@@ -173,14 +169,15 @@ scope it separately and qualify a release containing it before proceeding.
 [pr 1's original evidence and decision](herdr-pr1.md#investigation-result-at-the-pinned-baseline)
 remain recorded: the old terminal-only assertion failed, and no public remote
 click path exists. the approved amendment changes the requirements, not those
-results. resume the outstanding proofs and wire contract at the same pin;
-current tmux contracts and delivery status remain in force until cutover.
+results. the pr 2 source candidate has now replaced the tmux runtime in this
+branch; installed hosts retain their prior release until pr 4 activation.
 
 ## pr 2: coherent skid cutover
 
 [the pr 2 spec](herdr-pr2.md) owns the bounded implementation design, exclusive
 file slices, content responsibilities, entry gates and red/green/refactor plan.
-it does not authorize implementation while pr 1 remains incomplete.
+the user authorized candidate implementation with unsupported keys visibly
+disabled or locally rejected; unresolved proofs still block acceptance.
 
 ### scope
 
@@ -245,9 +242,11 @@ retirement. no production deletion belongs to pr 1.
 2. host and cli demonstrate inventory, all configured launch choices, bounded
    reads, literal sends, keys, interrupt, stop, disclosed native close/refusal, rename,
    grouping and new-terminal-here under the accepted contract.
-3. android demonstrates fleet inventory, creation and focused attachment; keyboard,
-   dictation/composition, paste, scrolling, copy, rotation, backgrounding, sizing
-   and return navigation work on the physical phone with test-owned terminals.
+3. android demonstrates fleet inventory, creation and focused attachment;
+   automatable typing, synthetic paste, supported keys, scrolling, backgrounding,
+   sizing and return navigation work on the physical phone with test-owned
+   terminals. user-waived dictation, gboard paste, local copy and rotation stay
+   `NOT_RUN`, without an inferred pass.
 4. repeat the important pr 1 lifecycle/targeting proofs through the actual gateway,
    cli and phone paths on linux and darwin. direct upstream success is insufficient.
 5. native herdr desktop sees and operates the same workers; selecting another

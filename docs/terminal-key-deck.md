@@ -1,5 +1,22 @@
 # Terminal key deck
 
+## herdr pr 2 candidate
+
+the two-row visible deck remains, with `Home` and `End` always disabled and
+an accessible explanation. unmodified `PgUp` and `PgDn` use herdr's public
+`terminal.scroll` visual page operation; they disable while ctrl or alt is
+armed without consuming that modifier. the supported named key set is enter,
+escape, tab, backspace, arrows and f1–f12, with qualified printable keys and
+modifiers. unsupported hardware home/end/insert/forward-delete and modified
+page keys are locally rejected with an explanation. committed text and paste
+remain distinct from logical keys. the phone page owns composition/modifiers;
+herdr owns mode-aware key encoding and terminal scroll policy. no raw csi or
+xterm `onData` egress is part of the candidate. [pr 1's input contract](herdr-pr1.md#candidate-pr-2-contract-proposed-not-implemented)
+and [pr 2's attachment contract](herdr-pr2.md#attached-terminal) supersede the
+encoding, api and proof claims below, which document the tmux generation.
+
+## historical tmux key contract
+
 The [readable-sizing target](terminal-readable-sizing.md) supersedes the
 80-column viewport requirement and earlier packaged-page versions. Key/deck
 behavior remains; historical evidence below does not prove the new sizing.

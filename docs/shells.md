@@ -1,5 +1,22 @@
 # new terminal here
 
+## herdr pr 2 candidate
+
+the independent-shell intent survives; the tmux session and cosmetic space
+mechanics below are historical. `POST /v1/terminals/R/shell` revalidates the
+original source terminal, samples its current cwd and exact herdr workspace,
+then creates one independent tab/root pane there with the generated terminal
+name. it does not split, replace or inherit the source's provider profile or
+objective. unreadable cwd fails before creation. standalone
+`POST /v1/terminals` creates one terminal in an exact existing workspace or a
+new workspace; absent destination means a new workspace named for the
+terminal. creation returns launch submission facts, not worker readiness;
+partial and uncertain effects are reported without replay or compensating
+close. [pr 1's operation table](herdr-pr1.md#retained-gateway-operations)
+and [pr 2](herdr-pr2.md) own the candidate wire and acceptance.
+
+## historical tmux contract
+
 implemented: standalone terminal and new terminal here, following [spaces](spaces.md).
 [the roadmap](roadmap.md) indexes delivery. linux/darwin host/desktop and corrected
 real-phone journeys passed on their recorded sources; [hands-on acceptance](issues/spaces-shells-hands-on.md)

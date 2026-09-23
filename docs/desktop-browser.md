@@ -1,5 +1,18 @@
 # organized desktop browser — pr 3
 
+## herdr pr 2 candidate
+
+the browser, `sessionui` model, cosmetic space sidebar, and tmux attachment
+described below belong to the superseded desktop generation. bare tty `skid`
+loads the configured local host config and execs `herdr client` against that
+host's server; it does not open a fleet browser. `skid enter` retains exact
+cross-host attachment through a selected gateway and an original terminal ref.
+herdr owns desktop layout and navigation. [pr 1's cli contract](herdr-pr1.md#retained-gateway-operations)
+and [pr 2's local configuration](herdr-pr2.md#local-configuration) govern the
+candidate; the following browser design and acceptance are historical.
+
+## historical desktop browser
+
 implemented; [darwin native acceptance](issues/desktop-browser-runtime-acceptance.md)
 remains skipped. [the roadmap](roadmap.md) indexes delivery. [architecture](architecture.md)
 owns scope; [roadmap](roadmap.md) owns delivery/evidence. this spec replaces the

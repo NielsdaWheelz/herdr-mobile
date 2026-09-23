@@ -2,11 +2,12 @@
 
 Before changing this repository, read [the architecture](docs/architecture.md),
 [the roadmap](docs/roadmap.md), and
-[the codebase rules](docs/rules/index.md). tmux owns terminal sessions and pane
-processes; providers own execution and history.
-the phone and desktop are tmux clients. read [agent control](docs/agent-control.md)
-for the accepted sampled status, bounded reads and explicit controls: codex is
-terminal-only; claude may use native status/history/stop. do not reintroduce
+[the codebase rules](docs/rules/index.md). herdr owns terminal and pane
+process lifetimes; providers own execution and history.
+the phone and desktop control herdr terminals. read [the pr 1 operation
+contract](docs/herdr-pr1.md#retained-gateway-operations) for sampled status,
+bounded reads and explicit controls: both providers use terminal reads and
+unconfirmed interrupt/close; no native claude status/history/stop. do not reintroduce
 retired machinery: generalized hook runtimes, provenance, sqlite lifecycle facts,
 contract codegen or proof ledgers.
 

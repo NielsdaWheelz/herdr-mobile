@@ -1,5 +1,22 @@
 # Readable terminal sizing
 
+## herdr pr 2 candidate
+
+the phone retains its saved 12–24sp text preference, whole-cell fitting,
+too-small state and responsive refit. a valid 20–1024 column by 5–512 row
+`Resize` is required before opening the herdr controller; the first full
+frame must be applied before phone input is enabled. subsequent resize uses
+the public terminal stream. the attached phone can affect shared terminal
+geometry; detach, background release or stream loss must return geometry to
+the desktop within [pr 2's acceptance bounds](herdr-pr2.md#attached-terminal).
+there is no tmux `window-size latest`, pty client, attached-client count,
+`Hello`/`Presence`, or xterm reply egress in this candidate. the preference
+and viewport mechanics below remain useful; their tmux transport, schemas
+and old release proofs are historical. [pr 1's stream wire](herdr-pr1.md#candidate-pr-2-contract-proposed-not-implemented)
+owns the candidate frame and input bounds.
+
+## historical tmux sizing contract
+
 Status: implemented 2026-09-08 (merged with its paired dev-server change that
 makes `window-size latest` explicit) and published in immutable `v0.2.30`,
 upstream-pinned. Routine verification (`./scripts/test verify`) is green and the

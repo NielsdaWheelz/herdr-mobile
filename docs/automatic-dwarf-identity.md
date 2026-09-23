@@ -1,5 +1,20 @@
 # Automatic dwarf identity
 
+## herdr pr 2 candidate
+
+one visible dwarf represents one live herdr terminal, including a manual pane.
+its catalogue character is selected deterministically from machine and terminal
+lifetime; no `@skid_character` write or character registry is needed. the
+character is separate from the operator's terminal name, workspace and optional
+foreground agent. the terminal ref survives rename, move and gateway restart
+while that herdr lifetime survives; cold herdr restart creates new lifetimes.
+metadata token claim failures make a resource unaddressable and inventory
+partial, never a fabricated card. [pr 1's projection](herdr-pr1.md#identity-inventory-and-metadata)
+and [pr 2](herdr-pr2.md) own this candidate. the tmux allocation, persistence,
+api, and acceptance material below is historical.
+
+## historical tmux character assignment
+
 Status: implemented, 2026-08-26; routine verification and isolated real-tmux
 acceptance green on that source. The final behavior is cut
 into [`architecture.md`](architecture.md); this document remains the

@@ -1,19 +1,12 @@
-# agent control: usable client, direct attachment
+# agent control: usable client, direct attachment (historical)
 
 2026-09-13 spec · shipped in v0.4.1; a1–a9 verified on 2026-09-14.
 baseline: skid `919e3d2`, dev-server `453d72c`, jarvis `1dbeee3`.
-this document supersedes only the cli, attachment, and grouped-kill contracts in
-[agent control](agent-control.md) and [architecture](architecture.md).
-implementation must replace their affected normative sections; historical release
-evidence remains historical. no compatibility path survives the cutover.
-
-2026-09-22 future herdr target: [the pr 1 candidate contract](herdr-pr1.md#candidate-pr-2-contract-proposed-not-implemented)
-makes bare `skid` open the local herdr client and `skid enter` attach one exact
-terminal through its host gateway. it changes names, workspace selection,
-closure disclosure and typed connection outcomes. the tmux client contract
-below remains implemented; pr 1 has no `proceed` decision.
-restored and newly discovered manual terminals show any native pane label only
-as a hint until named through skid; a fresh ref selects either for actions.
+this entire document records the retired tmux client. its commands, routes,
+modules, gates and rollout instructions below are historical evidence, not
+current implementation guidance. [architecture](architecture.md),
+[agent control](agent-control.md), and [herdr pr 1](herdr-pr1.md) own the
+current source candidate and its acceptance limits.
 
 2026-09-15 accepted target amendment: [spaces](spaces.md) adds optional session
 labels, one exact membership route, grouped human collections, machine/space
