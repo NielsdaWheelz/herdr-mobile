@@ -5,7 +5,7 @@ clients compose independent gateways. there is no application database.
 
 | slice | owner | boundary |
 | --- | --- | --- |
-| startup and host configuration | `cmd/skidbladnir`, `internal/hostconfig`, `internal/platform` | compose one host from deployment-owned configuration |
+| startup and host configuration | `cmd/skidbladnir`, `internal/hostconfig`, `internal/platform` | compose one host from deployment-owned configuration; `validate-host-config` admits that configuration for the deployment owner |
 | runtime and metadata | `internal/herdr`, `internal/sessions`, `internal/catalog`, `internal/reference` | public herdr socket/terminal control, inventory, lifetime claims, exact mutations and refs |
 | agent identity and control | `internal/agentruntime`, `internal/process`, `internal/agenthook`, `internal/agentcontrol` | observe one foreground process; bind reads and controls to that lifetime |
 | host resources | `internal/workdir`, `internal/pressure` | bounded directory browsing and native pressure observation |
@@ -16,7 +16,7 @@ clients compose independent gateways. there is no application database.
 | phone machine pressure | `Pressure.kt`, `PressurePresentation.kt`, `MachinePressureRail.kt` | strict pressure contract and state, dashboard visibility and content, rendered rail and details |
 | phone terminal | `TerminalConnection.kt`, `LockedTerminalWebView.kt`, terminal composables, `assets/terminal` | transport, page protocol, input, selection and rendering |
 | visual assets | theme/chrome/seal/ornament files, `catalog`, `scripts/gen-ornament` | shared presentation and generated artwork |
-| build and operations | `scripts`, `.github/workflows`, android build files | engineering checks, release artifacts, installation and fleet operations; host installation belongs to `dev-server` |
+| build and operations | `scripts`, `.github/workflows`, android build files | engineering checks, release artifacts, installation and fleet operations; `scripts/fleet verify` probes each host's gateway and configured herdr; host installation belongs to `dev-server` |
 
 phone source paths are relative to
 `android/app/src/main/java/dev/niels/skidbladnir`; terminal assets are under

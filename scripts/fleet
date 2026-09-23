@@ -124,6 +124,88 @@ release_identity_digest() {
     "$version" "$source" "$platform_key" | sha256_stream
 }
 
+herdr_runtime_identity() {
+  local platform="$1"
+  local share="$HOME/.local/share/skidbladnir"
+  local host_config="$share/current/host-config.json"
+  local values binary socket tested observed relative state
+  require_command python3
+  [[ -f "$host_config" && ! -L "$host_config" && -x "$share/current/skidbladnir" ]] || return 1
+  # The installed binary owns the configuration schema; this probe only reads
+  # the admitted herdr entry back.
+  "$share/current/skidbladnir" validate-host-config --host-config="$host_config" >/dev/null 2>&1 || return 1
+  values="$(jq -er '[.herdr.path, .herdr.socketPath, .herdr.testedVersion] | @tsv' "$host_config" 2>/dev/null)" || return
+  IFS=$'\t' read -r binary socket tested <<<"$values"
+  [[ -x "$binary" && -S "$socket" ]] || return 1
+  observed="$("$binary" --version 2>/dev/null)" || return
+  [[ "$observed" == "$tested" ]] || return 1
+  case "$platform" in
+  Darwin)
+    state="$(launchctl print "gui/$(id -u)/dev.niels.herdr" 2>/dev/null)" || return 1
+    [[ "$(grep -Ec '^[[:space:]]*state = running$' <<<"$state")" == 1 ]] || return 1
+    ;;
+  Linux)
+    [[ "$(systemctl --user show herdr.service --property=ActiveState --value 2>/dev/null)" == active ]] || return 1
+    ;;
+  *) return 64 ;;
+  esac
+  python3 - "$socket" "${tested#herdr }" 2>/dev/null <<'PYPING' || return 1
+import json
+import socket
+import sys
+
+path, version = sys.argv[1:]
+connection = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+connection.settimeout(5)
+connection.connect(path)
+connection.sendall(json.dumps({"id": "fleet", "method": "ping", "params": {}}).encode() + b"\n")
+data = b""
+while not data.endswith(b"\n") and len(data) <= 65536:
+    chunk = connection.recv(65536)
+    if not chunk:
+        break
+    data += chunk
+connection.close()
+reply = json.loads(data)
+result = reply["result"]
+if reply["id"] != "fleet" or result["type"] != "pong" or result["version"] != version or result["protocol"] != 22:
+    raise SystemExit(1)
+PYPING
+  relative="$(readlink "$HOME/.local/share/herdr/current")" || return 1
+  [[ "$relative" =~ ^releases/v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-([0-9a-f]{64})$ ]] || return 1
+  printf '%s\n' "${BASH_REMATCH[4]}"
+}
+
+candidate_herdr_digest() {
+  local checkout="$1"
+  local platform="$2"
+  local pin="$checkout/assets/herdr/release-pin.json"
+  local platform_key asset value bytes
+  case "$platform" in
+  Darwin) platform_key=darwin-arm64 asset=herdr-macos-aarch64 ;;
+  Linux) platform_key=linux-amd64 asset=herdr-linux-x86_64 ;;
+  *) return 64 ;;
+  esac
+  tracked_file_at_head "$checkout" assets/herdr/release-pin.json ||
+    die 'dev-server herdr pin must be tracked and byte-exact at checkout HEAD'
+  bytes="$(LC_ALL=C wc -c <"$pin" | tr -d '[:space:]')"
+  [[ "$bytes" =~ ^[1-9][0-9]*$ && "$bytes" -le 4096 ]] || die 'dev-server herdr pin is not bounded'
+  value="$(cat "$pin")" || die 'could not read the dev-server herdr pin'
+  json_is_single_and_duplicate_free "$value" || die 'dev-server herdr pin JSON is invalid'
+  printf '%s' "$value" | jq -er --arg key "$platform_key" --arg asset "$asset" '
+    .version as $version |
+    if type == "object" and keys == ["artifacts", "schemaVersion", "sourceSha", "version"] and
+      .schemaVersion == 1 and
+      (.version | type == "string" and test("^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$")) and
+      (.sourceSha | type == "string" and test("^[0-9a-f]{40}$")) and
+      (.artifacts | type == "object" and keys == ["darwin-arm64", "linux-amd64"]) and
+      (.artifacts[$key] | type == "object" and keys == ["sha256", "url"] and
+        (.sha256 | type == "string" and test("^[0-9a-f]{64}$")) and
+        .url == ("https://github.com/herdrdev/herdr/releases/download/" + $version + "/" + $asset))
+    then .artifacts[$key].sha256 else error("invalid herdr pin") end
+  ' 2>/dev/null || die 'dev-server herdr pin schema is invalid'
+}
+
 active_runtime_is_current() {
   local share="$HOME/.local/share/skidbladnir"
   local relative generation name expected active
@@ -301,7 +383,7 @@ validate_host_platform() {
 verify_host() {
   local platform="$1"
   local label="$2"
-  local expected_handle origin pressure pressure_bytes runtime
+  local expected_handle origin pressure pressure_bytes runtime herdr
   validate_host_platform "$platform" "$label" || return 64
   [[ "$(uname -s)" == "$platform" ]] || {
     printf 'error: %s runtime platform does not match %s\n' "$label" "$platform" >&2
@@ -324,6 +406,11 @@ verify_host() {
     printf 'error: %s active runtime identity does not match the current generation\n' "$label" >&2
     return 1
   }
+  herdr="$(herdr_runtime_identity "$platform")" || {
+    printf 'error: %s configured herdr runtime is absent, not supervised, or does not answer with its tested version\n' "$label" >&2
+    return 1
+  }
+  [[ "$herdr" =~ ^[0-9a-f]{64}$ ]] || return 1
   runtime="$(release_identity_digest "$platform")" || {
     printf 'error: %s installed release identity is invalid\n' "$label" >&2
     return 1
@@ -362,7 +449,7 @@ verify_host() {
     printf 'error: %s pressure response is invalid\n' "$label" >&2
     return 1
   fi
-  printf '%s\t%s\t%s\t%s\n' "$expected_handle" "$platform" "$runtime" "$origin"
+  printf '%s\t%s\t%s\t%s\t%s\n' "$expected_handle" "$platform" "$runtime" "$origin" "$herdr"
 }
 
 # The operator transfers this private configuration once; clients then route
@@ -492,11 +579,13 @@ remote_host() {
 verify_fleet() {
   local expected_darwin_release="$1"
   local expected_linux_release="$2"
+  local expected_darwin_herdr="$3"
+  local expected_linux_herdr="$4"
   local local_result='' devbox_result='' arch_result=''
   local identity_separator=$'\t'
-  local local_handle local_platform local_release local_origin
-  local devbox_handle devbox_platform devbox_release devbox_origin
-  local arch_handle arch_platform arch_release arch_origin
+  local local_handle local_platform local_release local_origin local_herdr
+  local devbox_handle devbox_platform devbox_release devbox_origin devbox_herdr
+  local arch_handle arch_platform arch_release arch_origin arch_herdr
   local failures=0
   local_result="$(verify_host Darwin macbook)" || failures=$((failures + 1))
   devbox_result="$(remote_host verify devbox)" || failures=$((failures + 1))
@@ -506,13 +595,13 @@ verify_fleet() {
       "$failures" "$([[ "$failures" == 1 ]] || printf s)" >&2
     return 1
   fi
-  [[ "$local_result" =~ ^mh-[0-9a-f]{32}${identity_separator}Darwin${identity_separator}[0-9a-f]{64}${identity_separator}https://[a-z0-9.-]+:8443/$ &&
-    "$devbox_result" =~ ^mh-[0-9a-f]{32}${identity_separator}Linux${identity_separator}[0-9a-f]{64}${identity_separator}https://[a-z0-9.-]+:8443/$ &&
-    "$arch_result" =~ ^mh-[0-9a-f]{32}${identity_separator}Linux${identity_separator}[0-9a-f]{64}${identity_separator}https://[a-z0-9.-]+:8443/$ ]] ||
+  [[ "$local_result" =~ ^mh-[0-9a-f]{32}${identity_separator}Darwin${identity_separator}[0-9a-f]{64}${identity_separator}https://[a-z0-9.-]+:8443/${identity_separator}[0-9a-f]{64}$ &&
+    "$devbox_result" =~ ^mh-[0-9a-f]{32}${identity_separator}Linux${identity_separator}[0-9a-f]{64}${identity_separator}https://[a-z0-9.-]+:8443/${identity_separator}[0-9a-f]{64}$ &&
+    "$arch_result" =~ ^mh-[0-9a-f]{32}${identity_separator}Linux${identity_separator}[0-9a-f]{64}${identity_separator}https://[a-z0-9.-]+:8443/${identity_separator}[0-9a-f]{64}$ ]] ||
     die 'fixed-fleet verification returned invalid host identity'
-  IFS=$'\t' read -r local_handle local_platform local_release local_origin <<<"$local_result"
-  IFS=$'\t' read -r devbox_handle devbox_platform devbox_release devbox_origin <<<"$devbox_result"
-  IFS=$'\t' read -r arch_handle arch_platform arch_release arch_origin <<<"$arch_result"
+  IFS=$'\t' read -r local_handle local_platform local_release local_origin local_herdr <<<"$local_result"
+  IFS=$'\t' read -r devbox_handle devbox_platform devbox_release devbox_origin devbox_herdr <<<"$devbox_result"
+  IFS=$'\t' read -r arch_handle arch_platform arch_release arch_origin arch_herdr <<<"$arch_result"
   [[ "$local_platform" == Darwin && "$devbox_platform" == Linux && "$arch_platform" == Linux ]] ||
     die 'fixed-fleet verification returned invalid platforms'
   [[ "$devbox_release" == "$arch_release" ]] ||
@@ -520,6 +609,9 @@ verify_fleet() {
   [[ "$local_release" == "$expected_darwin_release" &&
     "$devbox_release" == "$expected_linux_release" ]] ||
     die 'fixed-fleet release identities do not match the dev-server release pin'
+  [[ "$local_herdr" == "$expected_darwin_herdr" &&
+    "$devbox_herdr" == "$expected_linux_herdr" && "$arch_herdr" == "$expected_linux_herdr" ]] ||
+    die 'fixed-fleet herdr generations do not match the dev-server herdr pin'
   [[ "$local_handle" != "$devbox_handle" && "$local_handle" != "$arch_handle" &&
     "$devbox_handle" != "$arch_handle" ]] || die 'fixed-fleet machine handles are not unique'
   [[ "$local_origin" != "$devbox_origin" && "$local_origin" != "$arch_origin" &&
@@ -636,6 +728,9 @@ arch, and jarvis; it requires tailscale and ssh, not a deployment checkout.
 
 verify requires SKIDBLADNIR_DEV_SERVER_CHECKOUT naming the exact local dev-server
 checkout with its release pin tracked and byte-exact at HEAD.
+each host must also run the supervised herdr named by its current host config;
+verify pings that socket for the tested version and protocol and compares the
+installed herdr generation with the checkout's herdr pin.
 EOF
 }
 
@@ -648,7 +743,7 @@ require_checkout() {
 
 main() {
   local command="${1:-}"
-  local expected_darwin_release expected_linux_release
+  local expected_darwin_release expected_linux_release expected_darwin_herdr expected_linux_herdr
   if [[ "$command" == _host ]]; then
     shift
     host_main "$@"
@@ -686,7 +781,10 @@ main() {
     require_command curl
     expected_darwin_release="$(candidate_release_digest "$dev_server_checkout" Darwin)" || return
     expected_linux_release="$(candidate_release_digest "$dev_server_checkout" Linux)" || return
-    verify_fleet "$expected_darwin_release" "$expected_linux_release"
+    expected_darwin_herdr="$(candidate_herdr_digest "$dev_server_checkout" Darwin)" || return
+    expected_linux_herdr="$(candidate_herdr_digest "$dev_server_checkout" Linux)" || return
+    verify_fleet "$expected_darwin_release" "$expected_linux_release" \
+      "$expected_darwin_herdr" "$expected_linux_herdr"
     ;;
   provision-clients)
     provision_clients

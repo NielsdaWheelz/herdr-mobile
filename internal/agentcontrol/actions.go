@@ -85,8 +85,7 @@ func (service *Service) write(ctx context.Context, paneID, text string, keys []s
 }
 
 func (service *Service) Stop(ctx context.Context, target sessions.AgentTarget) (StopResult, error) {
-	write, err := service.Interrupt(ctx, target)
-	if err != nil {
+	if _, err := service.Interrupt(ctx, target); err != nil {
 		var failure *sessions.Error
 		if errors.As(err, &failure) && failure.Dispatch != "not_sent" {
 			copy := *failure
@@ -94,10 +93,6 @@ func (service *Service) Stop(ctx context.Context, target sessions.AgentTarget) (
 			return StopResult{}, &copy
 		}
 		return StopResult{}, err
-	}
-	if write.Dispatch != "sent" {
-		return StopResult{}, &sessions.Error{Code: sessions.ErrorOutcomeUnknown, Message: "Interrupt delivery is unknown.", Dispatch: "unknown",
-			Partial: &sessions.Partial{AgentOutcome: "unconfirmed", TerminalOutcome: "not_attempted"}}
 	}
 	agentOutcome := "interrupt_sent"
 	// The original terminal ref remains the closure target. Sessions holds
@@ -112,22 +107,32 @@ func (service *Service) Stop(ctx context.Context, target sessions.AgentTarget) (
 	return StopResult{Agent: agentOutcome, Terminal: closure.Closed.Terminal, Dispatch: closure.Closed.Dispatch}, nil
 }
 
+// stopFailure reports a failure after an acknowledged interrupt, which makes
+// the whole stop at least sent. The close error's own dispatch classifies the
+// close: none dispatched is not_attempted, an acknowledged rejection is
+// refused, and a lost reply is unconfirmed. Revalidation can fail with an
+// unclassified inventory error; that close was never entered.
 func stopFailure(err error, agentOutcome string, closeAttempted bool) error {
 	var failure *sessions.Error
 	if !errors.As(err, &failure) {
-		return err
+		return &sessions.Error{Code: sessions.ErrorOutcomeUnknown, Message: "The terminal's current state is unavailable.", Dispatch: "sent",
+			Partial: &sessions.Partial{AgentOutcome: agentOutcome, TerminalOutcome: "not_attempted"}}
 	}
 	copy := *failure
-	if copy.Dispatch == "not_sent" {
-		copy.Dispatch = "sent"
-	}
 	terminalOutcome := "not_attempted"
 	if closeAttempted {
-		if copy.Code == sessions.ErrorClosureConfirmationRequired {
+		switch failure.Dispatch {
+		case "not_sent":
+		case "sent":
 			terminalOutcome = "refused"
-		} else if copy.Dispatch == "unknown" {
+		case "unknown":
 			terminalOutcome = "unconfirmed"
+		default:
+			panic("invalid close dispatch") // justify-defect: sessions errors carry only not_sent, sent or unknown dispatch.
 		}
+	}
+	if copy.Dispatch == "not_sent" {
+		copy.Dispatch = "sent"
 	}
 	copy.Partial = &sessions.Partial{AgentOutcome: agentOutcome, TerminalOutcome: terminalOutcome}
 	return &copy
