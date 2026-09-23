@@ -60,9 +60,9 @@ internal fun SessionCard(
     onKill: () -> Unit,
     onSpace: () -> Unit,
 ) {
-    val session = visibleSession.target.session
+    val session = visibleSession.target.terminal
     val snapshot = machine.inventory.lastSnapshot() ?: return
-    val status = sessionStatusContent(session.agent?.status, fresh = machine.canMutate)
+    val status = sessionStatusContent(session.agent, fresh = machine.canMutate)
     val tone = sessionStatusColor(session.agent?.status?.state)
     val profile = sessionProfileLabel(session, snapshot.inventory.profiles)
     val visibleContext = sessionFooterText(visibleSession.machine.label, profile, showMachineLabel)
@@ -86,12 +86,16 @@ internal fun SessionCard(
                 .padding(10.dp),
         ) {
             SessionIdentityHeader(
-                tmuxName = session.tmuxName,
+                terminalName = terminalDisplayName(session),
                 dwarfName = session.character.displayName,
                 working = session.agent?.status?.state == AgentState.Working,
                 activityTone = tone,
                 animateActivity = machine.canMutate && motionEnabled,
             )
+            if (session.name == null && session.nativeLabel != null) {
+                Text("herdr label: ${session.nativeLabel}", color = Muted,
+                    style = MaterialTheme.typography.labelSmall)
+            }
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -155,10 +159,9 @@ internal fun SessionCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    SpaceTextAction(
-                        label = "space", enabled = machine.canMutate, onClick = onSpace,
-                        description = "space for ${session.tmuxName} on ${visibleSession.machine.label.text}: " +
-                            (session.space?.let { "space: ${it.text}" } ?: "unassigned"),
+                    WorkspaceTextAction(
+                        label = "move", enabled = machine.canMutate, onClick = onSpace,
+                        description = "move ${terminalDisplayName(session)} on ${visibleSession.machine.label.text}",
                     )
                     KillButton(
                         machineLabel = visibleSession.machine.label,
@@ -172,10 +175,10 @@ internal fun SessionCard(
     }
 }
 
-internal fun sessionProfileLabel(session: TmuxSession, profiles: List<ProfileChoice>): String {
+internal fun sessionProfileLabel(session: TerminalRecord, profiles: List<ProfileChoice>): String {
     val agent = session.agent
     return if (agent != null) {
-        agent.profile?.let { runtimeProfile ->
+        agent.provenRuntimeProfile?.let { runtimeProfile ->
             profiles.single {
                 it.key == runtimeProfile && it.provider == agent.provider
             }.label
@@ -186,7 +189,7 @@ internal fun sessionProfileLabel(session: TmuxSession, profiles: List<ProfileCho
     } else {
         session.launchProfile?.let { launchProfile ->
             profiles.single { it.key == launchProfile }.label
-        } ?: "profile unknown"
+        } ?: "terminal"
     }
 }
 
@@ -195,7 +198,7 @@ internal fun sessionFooterText(machine: MachineLabel, profile: String, showMachi
 
 @Composable
 private fun SessionIdentityHeader(
-    tmuxName: String,
+    terminalName: String,
     dwarfName: String,
     working: Boolean,
     activityTone: Color,
@@ -204,7 +207,7 @@ private fun SessionIdentityHeader(
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = tmuxName,
+                text = terminalName,
                 color = Bone,
                 style = MaterialTheme.typography.titleMedium,
                 fontFamily = NidavellirType.Data,
@@ -241,14 +244,14 @@ private fun ActivityFacet(
         return
     }
 
-    val transition = rememberInfiniteTransition(label = "active session activity")
+    val transition = rememberInfiniteTransition(label = "active terminal activity")
     val rotation by transition.animateFloat(
         initialValue = 0f,
         targetValue = 360f,
         animationSpec = infiniteRepeatable(
             animation = tween(durationMillis = 1_200, easing = LinearEasing),
         ),
-        label = "active session facet rotation",
+        label = "active terminal facet rotation",
     )
     Canvas(modifier) {
         drawRect(tone)

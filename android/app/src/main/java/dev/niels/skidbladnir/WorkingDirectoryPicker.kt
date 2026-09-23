@@ -127,8 +127,8 @@ internal fun openWorkingDirectoryPicker(
     if (forge.pending || forge.surface !is ForgeSurface.Form || pickerInstance <= 0) return null
     if (forge.form.machineHandle != machine.machine.handle || machine.access != MachineAccess.Ready) return null
     val inventory = machine.inventory as? InventoryState.Fresh ?: return null
-    val activeDirectories = inventory.snapshot.inventory.sessions.asSequence()
-        .mapNotNull(TmuxSession::cwd)
+    val activeDirectories = inventory.snapshot.inventory.terminals.asSequence()
+        .mapNotNull(TerminalRecord::cwd)
         .map { cwd ->
             WorkingDirectoryPath.parse(cwd)
                 ?: throw ProtocolDecodeException("inventory working-directory value")
@@ -299,22 +299,7 @@ internal fun completeWorkingDirectoryRequest(
                     loading,
                     DirectoryBrowseFailure.Internal,
                 )
-                ApiErrorCode.InvalidRequest,
-                ApiErrorCode.RequestTooLarge,
-                ApiErrorCode.WorkingDirectoryInvalid,
-                ApiErrorCode.WorkingDirectoryUnavailable,
-                ApiErrorCode.ProfileUnknown,
-                ApiErrorCode.SessionNameInvalid,
-                ApiErrorCode.ObjectiveInvalid, ApiErrorCode.SpaceInvalid,
-                ApiErrorCode.SessionNameConflict,
-                ApiErrorCode.SessionNotFound,
-                ApiErrorCode.SessionIdentityMismatch,
-                ApiErrorCode.PairingInviteRejected,
-                ApiErrorCode.ReconnectRequired,
-                ApiErrorCode.TerminalConfigurationUnsupported,
-                ApiErrorCode.AgentTargetStale,
-                ApiErrorCode.AgentBlocked, ApiErrorCode.AgentInputInvalid,
-                -> throw ProtocolDecodeException("directory-listing completion error set")
+                else -> throw ProtocolDecodeException("directory-listing completion error set")
             }
         }
     }
@@ -598,30 +583,7 @@ private fun selectWorkingDirectory(
 
 internal fun ForgeFailure.isWorkingDirectoryRejection(): Boolean = when (this) {
     ForgeFailure.None -> false
-    is ForgeFailure.Definite -> when (rejection.code) {
-        ApiErrorCode.WorkingDirectoryInvalid,
-        ApiErrorCode.WorkingDirectoryUnavailable,
-        -> true
-        ApiErrorCode.Unauthenticated,
-        ApiErrorCode.InvalidRequest,
-        ApiErrorCode.RequestTooLarge,
-        ApiErrorCode.DirectoryListingUnavailable,
-        ApiErrorCode.DirectoryListingTooLarge,
-        ApiErrorCode.ProfileUnknown,
-        ApiErrorCode.SessionNameInvalid,
-        ApiErrorCode.ObjectiveInvalid, ApiErrorCode.SpaceInvalid,
-        ApiErrorCode.SessionNameConflict,
-        ApiErrorCode.SessionNotFound,
-        ApiErrorCode.SessionIdentityMismatch,
-        ApiErrorCode.PairingInviteRejected,
-        ApiErrorCode.MachineIdentityMismatch,
-        ApiErrorCode.InternalError,
-        ApiErrorCode.ReconnectRequired,
-        ApiErrorCode.TerminalConfigurationUnsupported,
-        ApiErrorCode.AgentTargetStale,
-        ApiErrorCode.AgentBlocked, ApiErrorCode.AgentInputInvalid,
-        -> false
-    }
+    is ForgeFailure.Definite -> rejection.code == ApiErrorCode.WorkingDirectoryInvalid
 }
 
 private fun ForgeFailure.afterWorkingDirectoryChoice(): ForgeFailure =

@@ -20,6 +20,8 @@ import okhttp3.Response
 
 private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 internal const val MAXIMUM_HTTP_BODY_BYTES = 64 * 1024
+private const val MAXIMUM_CONTROL_BODY_BYTES = 256 * 1024
+private const val MAXIMUM_INVENTORY_BODY_BYTES = 1024 * 1024
 
 internal class GatewayBearer private constructor(internal val encoded: String) {
     companion object {
@@ -42,34 +44,58 @@ internal sealed interface GatewayResult<out Value> {
     data class Failure(val failure: GatewayFailure) : GatewayResult<Nothing>
 }
 
-internal enum class MutationDispatch { NotSent, Unknown }
+internal enum class MutationDispatch { NotSent, Sent, Unknown }
+
+internal data class MutationPartial(
+    val stage: String? = null,
+    val terminal: TerminalRecord? = null,
+    val terminalStatus: String? = null,
+    val agentStatus: String? = null,
+)
 
 internal sealed interface GatewayFailure {
-    data class Api(val code: ApiErrorCode, val dispatch: MutationDispatch? = null) : GatewayFailure
+    data class Api(
+        val code: ApiErrorCode,
+        val dispatch: MutationDispatch? = null,
+        val partial: MutationPartial? = null,
+    ) : GatewayFailure
     data object Transport : GatewayFailure
 }
 
 internal fun gatewayFailureMessage(failure: GatewayFailure): String = when (failure) {
-    is GatewayFailure.Api -> apiErrorMessage(failure.code)
+    is GatewayFailure.Api -> buildString {
+        append(apiErrorMessage(failure.code))
+        failure.partial?.let { partial ->
+            when (partial.stage) {
+                "resource_created" -> append(" A terminal was created, but its identity was not confirmed.")
+                "identified" -> append(" The terminal was identified; launch was not confirmed.")
+                "launch_submitted" -> append(" Launch was submitted; startup was not confirmed.")
+                null -> Unit
+                else -> error("unknown creation stage")
+            }
+            when (partial.agentStatus) {
+                "interrupt_sent" -> append(" Interrupt sent; stopping is not confirmed.")
+                "exited" -> append(" The original agent process exited.")
+                "unconfirmed" -> append(" Agent state is unconfirmed.")
+                null -> Unit
+                else -> error("unknown partial agent state")
+            }
+            when (partial.terminalStatus) {
+                "refused" -> append(" Terminal close was refused.")
+                "unconfirmed" -> append(" Terminal close is unconfirmed.")
+                "not_attempted" -> append(" Terminal close was not attempted.")
+                null -> Unit
+                else -> error("unknown partial terminal state")
+            }
+            partial.terminal?.let { append(" Terminal: ${terminalDisplayName(it)}.") }
+        }
+    }
     GatewayFailure.Transport -> "Could not reach this machine over your Tailnet."
 }
 
 internal fun createFailureIsDefinitive(failure: GatewayFailure): Boolean =
     failure is GatewayFailure.Api && failure.dispatch == MutationDispatch.NotSent
 
-internal fun killFailureIsDefinitive(failure: GatewayFailure): Boolean = when (failure) {
-    GatewayFailure.Transport -> false
-    is GatewayFailure.Api -> failure.code in setOf(
-        ApiErrorCode.Unauthenticated,
-        ApiErrorCode.MachineIdentityMismatch,
-        ApiErrorCode.InvalidRequest,
-        ApiErrorCode.RequestTooLarge,
-        ApiErrorCode.SessionNotFound,
-        ApiErrorCode.SessionIdentityMismatch,
-    )
-}
-
-@Serializable private data class ErrorResponse(val code: String, val message: String)
 @Serializable private data class WirePairingMachine(val handle: String, val platform: MachinePlatform)
 @Serializable private data class WirePairingResponse(val machine: WirePairingMachine, val bearer: String)
 
@@ -116,11 +142,12 @@ internal class GatewayClient {
         }
     }
 
-    fun listSessions(credential: MachineCredential): GatewayResult<SessionsResponse> = executeJson(
-        request = authorizedRequest(credential, listOf("v1", "sessions")).get().build(),
+    fun listTerminals(credential: MachineCredential): GatewayResult<TerminalsResponse> = executeJson(
+        request = authorizedRequest(credential, listOf("v1", "terminals")).get().build(),
         expectedStatus = 200,
-        decode = ::decodeSessionsResponse,
-        decodeFailure = ::decodeSessionsHttpFailure,
+        decode = ::decodeTerminalsResponse,
+        decodeFailure = ::decodeTerminalsHttpFailure,
+        maximumBodyBytes = MAXIMUM_INVENTORY_BODY_BYTES,
     )
 
     fun readPressure(credential: MachineCredential): GatewayResult<PressureResponse> = executeJson(
@@ -172,113 +199,82 @@ internal class GatewayClient {
             .build()
     }
 
-    fun createSession(credential: MachineCredential, draft: ForgeDraft): GatewayResult<TmuxSession> {
+    fun createTerminal(credential: MachineCredential, draft: ForgeDraft): GatewayResult<CreatedTerminal> {
         require(draft.machineHandle == credential.machine.handle)
         return executeJson(
-            request = authorizedRequest(credential, listOf("v1", "sessions"))
-                .post(encodeCreateSessionRequest(draft).toRequestBody(jsonMediaType))
-                .build(),
-            expectedStatus = 201,
-            decode = ::decodeCreatedSessionResponse,
-            decodeFailure = ::decodeCreateHttpFailure,
+            authorizedRequest(credential, listOf("v1", "terminals"))
+                .post(encodeCreateTerminalRequest(draft).toRequestBody(jsonMediaType)).build(),
+            201, ::decodeCreatedTerminalResponse, ::decodeMutationHttpFailure,
         )
     }
 
-    fun createShell(credential: MachineCredential, source: SessionTarget): GatewayResult<TmuxSession> {
+    fun createShell(credential: MachineCredential, source: TerminalTarget): GatewayResult<CreatedTerminal> {
         require(source.machineHandle == credential.machine.handle)
         return executeJson(
-            request = authorizedRequest(credential, listOf("v1", "sessions", source.session.tmuxId, "shell"))
-                .post(productJson.encodeToString(SessionIdentityRequest(source.session.identityToken)).toRequestBody(jsonMediaType))
-                .build(),
-            expectedStatus = 201,
-            decode = ::decodeCreatedSessionResponse,
-            decodeFailure = ::decodeCreateHttpFailure,
+            authorizedRequest(credential, listOf("v1", "terminals", source.terminal.ref, "shell"))
+                .post("{}".toRequestBody(jsonMediaType)).build(),
+            201, ::decodeCreatedTerminalResponse, ::decodeMutationHttpFailure,
         )
     }
 
-    fun interruptAgent(credential: MachineCredential, target: SessionTarget): GatewayResult<AgentInterruptResult> = executeJson(
-        request = agentRequest(credential, target, "interrupt"), expectedStatus = 200,
-        decode = ::decodeAgentInterruptResult, decodeFailure = ::decodeAgentHttpFailure,
+    fun interruptAgent(credential: MachineCredential, target: TerminalTarget): GatewayResult<AgentWriteResult> = executeJson(
+        agentRequest(credential, target, "interrupt"), 200, ::decodeAgentWriteResult, ::decodeMutationHttpFailure,
     )
 
-    fun stopAgent(credential: MachineCredential, target: SessionTarget): GatewayResult<AgentStopResult> = executeJson(
-        request = agentRequest(credential, target, "stop"), expectedStatus = 200,
-        decode = ::decodeAgentStopResult, decodeFailure = ::decodeAgentHttpFailure,
+    fun stopAgent(credential: MachineCredential, target: TerminalTarget): GatewayResult<AgentStopResult> = executeJson(
+        agentRequest(credential, target, "stop"), 200, ::decodeAgentStopResult, ::decodeMutationHttpFailure,
     )
 
-    internal fun agentRequest(credential: MachineCredential, target: SessionTarget, operation: String): Request {
+    internal fun agentRequest(credential: MachineCredential, target: TerminalTarget, operation: String): Request {
         require(target.machineHandle == credential.machine.handle)
         require(operation == "interrupt" || operation == "stop")
-        return authorizedRequest(credential, listOf("v1", "sessions", target.session.tmuxId, "agent", operation))
-            .post(encodeAgentControlRequest(target).toRequestBody(jsonMediaType)).build()
+        val agent = requireNotNull(target.terminal.agent)
+        return authorizedRequest(credential, listOf("v1", "agents", agent.ref, operation))
+            .post("{}".toRequestBody(jsonMediaType)).build()
     }
 
-    fun killSession(credential: MachineCredential, target: SessionTarget): GatewayResult<Unit> {
+    fun killTerminal(credential: MachineCredential, target: TerminalTarget): GatewayResult<TerminalCloseResult> =
+        executeJson(killRequest(credential, target), 200, ::decodeTerminalCloseResult, ::decodeMutationHttpFailure)
+
+    internal fun killRequest(credential: MachineCredential, target: TerminalTarget): Request {
         require(target.machineHandle == credential.machine.handle)
-        return executeBodyless(killRequest(credential, target), ::decodeKillHttpFailure)
+        return authorizedRequest(credential, listOf("v1", "terminals", target.terminal.ref))
+            .delete("{}".toRequestBody(jsonMediaType)).build()
     }
 
-    internal fun killRequest(credential: MachineCredential, target: SessionTarget): Request {
+    fun renameTerminal(credential: MachineCredential, target: TerminalTarget, name: String): GatewayResult<ObservedTerminal> =
+        executeJson(renameRequest(credential, target, name), 200,
+            ::decodeObservedTerminalResponse, ::decodeMutationHttpFailure)
+
+    internal fun renameRequest(credential: MachineCredential, target: TerminalTarget, name: String): Request {
         require(target.machineHandle == credential.machine.handle)
-        return authorizedRequest(credential, listOf("v1", "sessions", target.session.tmuxId))
-            .delete(encodeKillSessionRequest(target.session).toRequestBody(jsonMediaType))
-            .build()
+        return authorizedRequest(credential, listOf("v1", "terminals", target.terminal.ref))
+            .patch(encodeRenameTerminalRequest(name).toRequestBody(jsonMediaType)).build()
     }
 
-    fun renameSession(
+    fun moveTerminal(
         credential: MachineCredential,
-        target: SessionTarget,
-        newTmuxName: String,
-    ): GatewayResult<Unit> {
-        require(target.machineHandle == credential.machine.handle)
-        return executeBodyless(
-            request = renameRequest(credential, target, newTmuxName),
-            decodeFailure = ::decodeRenameHttpFailure,
-        )
-    }
+        target: TerminalTarget,
+        destination: WorkspaceDestination,
+    ): GatewayResult<ObservedTerminal> = executeJson(
+        moveRequest(credential, target, destination), 200, ::decodeObservedTerminalResponse,
+        ::decodeMutationHttpFailure,
+    )
 
-    internal fun renameRequest(
+    internal fun moveRequest(
         credential: MachineCredential,
-        target: SessionTarget,
-        newTmuxName: String,
+        target: TerminalTarget,
+        destination: WorkspaceDestination,
     ): Request {
         require(target.machineHandle == credential.machine.handle)
-        return authorizedRequest(credential, listOf("v1", "sessions", target.session.tmuxId))
-            .patch(encodeRenameSessionRequest(target, newTmuxName).toRequestBody(jsonMediaType))
-            .build()
+        return authorizedRequest(credential, listOf("v1", "terminals", target.terminal.ref, "workspace"))
+            .put(encodeMoveTerminalRequest(destination).toRequestBody(jsonMediaType)).build()
     }
 
-    fun setSessionSpace(
-        credential: MachineCredential,
-        target: SessionTarget,
-        label: SpaceLabel?,
-    ): GatewayResult<Unit> {
-        val request = spaceRequest(credential, target, label)
-        return try {
-            executeBodyless(request, ::decodeSpaceHttpFailure)
-        } catch (_: ProtocolDecodeException) {
-            // A malformed completion after dispatch cannot establish that the write failed.
-            GatewayResult.Failure(GatewayFailure.Transport)
-        }
-    }
-
-    internal fun spaceRequest(
-        credential: MachineCredential,
-        target: SessionTarget,
-        label: SpaceLabel?,
-    ): Request {
+    internal fun terminalRequest(credential: MachineCredential, target: TerminalTarget, takeover: Boolean = false): Request {
         require(target.machineHandle == credential.machine.handle)
-        return authorizedRequest(credential, listOf("v1", "sessions", target.session.tmuxId, "space"))
-            .put(productJson.encodeToString(SpaceRequest(target.session.identityToken, label?.text.orEmpty()))
-                .toRequestBody(jsonMediaType))
-            .build()
-    }
-
-    internal fun terminalRequest(credential: MachineCredential, target: SessionTarget): Request {
-        require(target.machineHandle == credential.machine.handle)
-        return authorizedRequest(credential, listOf("v1", "sessions", target.session.tmuxId, "terminal"))
-            .header("Skidbladnir-Session-Identity", target.session.identityToken)
-            .build()
+        return authorizedRequest(credential, listOf("v1", "terminals", target.terminal.ref, "stream"))
+            .header("Skidbladnir-Terminal-Takeover", takeover.toString()).build()
     }
 
     /**
@@ -302,25 +298,14 @@ internal class GatewayClient {
         expectedStatus: Int,
         decode: (String) -> Value,
         decodeFailure: (Int, String) -> GatewayFailure = ::decodeGatewayHttpFailure,
+        maximumBodyBytes: Int = MAXIMUM_CONTROL_BODY_BYTES,
     ): GatewayResult<Value> = try {
         http.newCall(request).execute().use { response ->
-            decodeGatewayResponse(response, expectedStatus, decode, decodeFailure)
+            decodeGatewayResponse(response, expectedStatus, decode, decodeFailure, maximumBodyBytes)
         }
     } catch (_: IOException) {
         GatewayResult.Failure(GatewayFailure.Transport)
     }
-
-    private fun executeBodyless(
-        request: Request,
-        decodeFailure: (Int, String) -> GatewayFailure = ::decodeGatewayHttpFailure,
-    ): GatewayResult<Unit> = executeJson(
-        request = request,
-        expectedStatus = 204,
-        decode = { encoded ->
-            if (encoded.isNotEmpty()) throw SerializationException("bodyless response was not empty")
-        },
-        decodeFailure = decodeFailure,
-    )
 
 }
 
@@ -329,26 +314,20 @@ internal fun <Value> decodeGatewayResponse(
     expectedStatus: Int,
     decode: (String) -> Value,
     decodeFailure: (Int, String) -> GatewayFailure = ::decodeGatewayHttpFailure,
+    maximumBodyBytes: Int = MAXIMUM_CONTROL_BODY_BYTES,
 ): GatewayResult<Value> {
-    if (response.code in setOf(502, 503, 504)) return GatewayResult.Failure(GatewayFailure.Transport)
-    val bodylessSuccess = response.code == expectedStatus && expectedStatus == 204
     val body = response.body
-    if (!bodylessSuccess) {
-        val mediaType = body?.contentType()
-        if (mediaType?.type != "application" || mediaType.subtype != "json") {
-            return GatewayResult.Failure(GatewayFailure.Transport)
-        }
+    val mediaType = body?.contentType()
+    if (mediaType?.type != "application" || mediaType.subtype != "json") {
+        return GatewayResult.Failure(GatewayFailure.Transport)
     }
     // OkHttp presents this ResponseBody after transparent content decompression. Reading one byte
-    // beyond the owned 64 KiB protocol bound distinguishes an exact-limit body without buffering
+    // beyond the selected protocol bound distinguishes an exact-limit body without buffering
     // an attacker-controlled response through ResponseBody.string().
-    val bytes = body?.byteStream()?.readNBytes(MAXIMUM_HTTP_BODY_BYTES + 1) ?: ByteArray(0)
-    if (bytes.size > MAXIMUM_HTTP_BODY_BYTES) return GatewayResult.Failure(GatewayFailure.Transport)
-    if (bodylessSuccess && bytes.isNotEmpty()) return GatewayResult.Failure(GatewayFailure.Transport)
+    val bound = if (response.code == expectedStatus) maximumBodyBytes else MAXIMUM_HTTP_BODY_BYTES
+    val bytes = body?.byteStream()?.readNBytes(bound + 1) ?: ByteArray(0)
+    if (bytes.size > bound) return GatewayResult.Failure(GatewayFailure.Transport)
     val encoded = decodeStrictUtf8(bytes)
-    if (bodylessSuccess) {
-        return GatewayResult.Success(decodeProtocol { decode(encoded) })
-    }
     return if (response.code != expectedStatus) {
         GatewayResult.Failure(decodeFailure(response.code, encoded))
     } else {
@@ -356,7 +335,7 @@ internal fun <Value> decodeGatewayResponse(
     }
 }
 
-private fun decodeStrictUtf8(bytes: ByteArray): String = try {
+internal fun decodeStrictUtf8(bytes: ByteArray): String = try {
     StandardCharsets.UTF_8.newDecoder()
         .onMalformedInput(CodingErrorAction.REPORT)
         .onUnmappableCharacter(CodingErrorAction.REPORT)
@@ -366,209 +345,123 @@ private fun decodeStrictUtf8(bytes: ByteArray): String = try {
     throw ProtocolDecodeException("HTTP response body is not UTF-8")
 }
 
-private fun decodeApiHttpFailure(status: Int, encoded: String): GatewayFailure = decodeProtocol {
-    if (status == 502 || status == 503 || status == 504) return@decodeProtocol GatewayFailure.Transport
-    val response = productJson.decodeFromJsonElement<ErrorResponse>(strictJsonObject(encoded))
-    val code = parseApiErrorCode(response.code)
-    if (
-        code == ApiErrorCode.ReconnectRequired ||
-        code == ApiErrorCode.TerminalConfigurationUnsupported ||
-        status != apiErrorHttpStatus(code) ||
-        response.message != apiErrorMessage(code)
-    ) {
-        throw SerializationException("HTTP error response disagreed with the owned protocol")
-    }
-    GatewayFailure.Api(code)
+@Serializable private data class WireTerminalCloseResult(val terminal: String, val dispatch: String)
+internal data class TerminalCloseResult(val terminal: String, val dispatch: MutationDispatch)
+internal fun decodeTerminalCloseResult(encoded: String): TerminalCloseResult = decodeProtocol {
+    val value = strictJsonObject(encoded)
+    value.requireExactKeys(setOf("terminal", "dispatch"))
+    val wire = productJson.decodeFromJsonElement<WireTerminalCloseResult>(value)
+    require(wire.terminal == "closed" && wire.dispatch == "sent")
+    TerminalCloseResult(wire.terminal, MutationDispatch.Sent)
 }
 
-private fun decodeClosedHttpFailure(
-    status: Int,
-    encoded: String,
-    allowed: Set<ApiErrorCode>,
-    route: String,
-): GatewayFailure {
-    val failure = decodeApiHttpFailure(status, encoded)
-    if (failure is GatewayFailure.Api && failure.code !in allowed) {
-        throw ProtocolDecodeException("$route route error set")
-    }
-    return failure
+@Serializable private data class WireMoveRequest(val destination: WireMoveDestination)
+@Serializable private data class WireMoveDestination(
+    val kind: String,
+    val workspaceRef: String? = null,
+    val label: String? = null,
+)
+internal fun encodeMoveTerminalRequest(destination: WorkspaceDestination): String =
+    productJson.encodeToString(WireMoveRequest(when (destination) {
+        is WorkspaceDestination.Existing -> WireMoveDestination("existing", workspaceRef = destination.workspaceRef)
+        is WorkspaceDestination.New -> WireMoveDestination("new", label = requireNotNull(destination.label).text)
+    }))
+
+private fun decodeLegacyHttpFailure(status: Int, encoded: String, allowed: Set<ApiErrorCode>): GatewayFailure = decodeProtocol {
+    val value = strictJsonObject(encoded)
+    value.requireExactKeys(setOf("code", "message"))
+    val code = parseApiErrorCode(value.requiredString("code"))
+    require(code in allowed && value.requiredString("message").isNotEmpty())
+    require(status == apiErrorHttpStatus(code))
+    GatewayFailure.Api(code)
 }
 
 internal fun decodeGatewayHttpFailure(status: Int, encoded: String): GatewayFailure =
-    decodeClosedHttpFailure(
-        status,
-        encoded,
-        setOf(
-            ApiErrorCode.Unauthenticated,
-            ApiErrorCode.InvalidRequest,
-            ApiErrorCode.RequestTooLarge,
-            ApiErrorCode.SessionNotFound,
-            ApiErrorCode.SessionIdentityMismatch,
-            ApiErrorCode.MachineIdentityMismatch,
-            ApiErrorCode.InternalError,
-        ),
-        "terminal",
-    )
+    decodeApiHttpFailure(status, encoded, requireDispatch = false)
 
-internal fun decodeSessionsHttpFailure(status: Int, encoded: String): GatewayFailure =
-    decodeClosedHttpFailure(
-        status,
-        encoded,
-        setOf(
-            ApiErrorCode.Unauthenticated,
-            ApiErrorCode.MachineIdentityMismatch,
-            ApiErrorCode.InternalError,
-        ),
-        "sessions",
-    )
+internal fun decodeTerminalsHttpFailure(status: Int, encoded: String): GatewayFailure =
+    decodeApiHttpFailure(status, encoded, requireDispatch = false)
 
 internal fun decodePressureHttpFailure(status: Int, encoded: String): GatewayFailure =
-    decodeClosedHttpFailure(
-        status,
-        encoded,
-        setOf(
-            ApiErrorCode.Unauthenticated,
-            ApiErrorCode.MachineIdentityMismatch,
-            ApiErrorCode.InternalError,
-        ),
-        "pressure",
-    )
+    decodeLegacyHttpFailure(status, encoded, setOf(
+        ApiErrorCode.Unauthenticated, ApiErrorCode.MachineIdentityMismatch, ApiErrorCode.InternalError,
+    ))
 
-internal fun decodeCreateHttpFailure(status: Int, encoded: String): GatewayFailure {
-    if (status == 502 || status == 503 || status == 504) return GatewayFailure.Transport
-    return decodeMutationHttpFailure(status, encoded, setOf(
+internal fun decodePairingHttpFailure(status: Int, encoded: String): GatewayFailure =
+    decodeLegacyHttpFailure(status, encoded, setOf(
+        ApiErrorCode.PairingInviteRejected, ApiErrorCode.InvalidRequest, ApiErrorCode.InternalError,
+    ))
+
+internal fun decodeDirectoryListingHttpFailure(status: Int, encoded: String): GatewayFailure =
+    decodeLegacyHttpFailure(status, encoded, setOf(
         ApiErrorCode.Unauthenticated, ApiErrorCode.InvalidRequest, ApiErrorCode.RequestTooLarge,
-        ApiErrorCode.WorkingDirectoryInvalid, ApiErrorCode.WorkingDirectoryUnavailable,
-        ApiErrorCode.ProfileUnknown, ApiErrorCode.SessionNameInvalid, ApiErrorCode.ObjectiveInvalid,
-        ApiErrorCode.SpaceInvalid, ApiErrorCode.SessionNameConflict, ApiErrorCode.MachineIdentityMismatch,
-        ApiErrorCode.SessionNotFound, ApiErrorCode.SessionIdentityMismatch, ApiErrorCode.InternalError,
+        ApiErrorCode.DirectoryListingUnavailable, ApiErrorCode.DirectoryListingTooLarge,
+        ApiErrorCode.MachineIdentityMismatch, ApiErrorCode.InternalError,
     ))
-}
 
-internal fun decodeKillHttpFailure(status: Int, encoded: String): GatewayFailure =
-    decodeClosedHttpFailure(
-        status,
-        encoded,
-        setOf(
-            ApiErrorCode.Unauthenticated,
-            ApiErrorCode.InvalidRequest,
-            ApiErrorCode.RequestTooLarge,
-            ApiErrorCode.SessionNotFound,
-            ApiErrorCode.SessionIdentityMismatch,
-            ApiErrorCode.MachineIdentityMismatch,
-            ApiErrorCode.InternalError,
-        ),
-        "kill",
-    )
+internal fun decodeMutationHttpFailure(status: Int, encoded: String): GatewayFailure =
+    decodeApiHttpFailure(status, encoded, requireDispatch = true)
 
-internal fun decodePairingHttpFailure(status: Int, encoded: String): GatewayFailure {
-    return decodeClosedHttpFailure(
-        status,
-        encoded,
-        setOf(
-            ApiErrorCode.PairingInviteRejected,
-            ApiErrorCode.InvalidRequest,
-            ApiErrorCode.InternalError,
-        ),
-        "pairing",
-    )
-}
-
-internal fun decodeRenameHttpFailure(status: Int, encoded: String): GatewayFailure {
-    return decodeClosedHttpFailure(
-        status,
-        encoded,
-        setOf(
-            ApiErrorCode.Unauthenticated,
-            ApiErrorCode.InvalidRequest,
-            ApiErrorCode.RequestTooLarge,
-            ApiErrorCode.SessionNameInvalid,
-            ApiErrorCode.SessionNameConflict,
-            ApiErrorCode.SessionNotFound,
-            ApiErrorCode.SessionIdentityMismatch,
-            ApiErrorCode.MachineIdentityMismatch,
-            ApiErrorCode.InternalError,
-        ),
-        "rename",
-    )
-}
-
-internal fun decodeDirectoryListingHttpFailure(status: Int, encoded: String): GatewayFailure {
-    return decodeClosedHttpFailure(
-        status,
-        encoded,
-        setOf(
-            ApiErrorCode.Unauthenticated,
-            ApiErrorCode.InvalidRequest,
-            ApiErrorCode.RequestTooLarge,
-            ApiErrorCode.DirectoryListingUnavailable,
-            ApiErrorCode.DirectoryListingTooLarge,
-            ApiErrorCode.MachineIdentityMismatch,
-            ApiErrorCode.InternalError,
-        ),
-        "directory-listing",
-    )
-}
-
-private fun apiErrorHttpStatus(code: ApiErrorCode): Int = when (code) {
-    ApiErrorCode.Unauthenticated -> 401
-    ApiErrorCode.PairingInviteRejected -> 401
-    ApiErrorCode.InvalidRequest -> 400
-    ApiErrorCode.RequestTooLarge -> 413
-    ApiErrorCode.WorkingDirectoryInvalid,
-    ApiErrorCode.WorkingDirectoryUnavailable,
-    ApiErrorCode.DirectoryListingUnavailable,
-    ApiErrorCode.DirectoryListingTooLarge,
-    ApiErrorCode.ProfileUnknown,
-    ApiErrorCode.SessionNameInvalid,
-    ApiErrorCode.ObjectiveInvalid,
-        ApiErrorCode.SpaceInvalid,
-    -> 422
-    ApiErrorCode.SessionNameConflict,
-    ApiErrorCode.SessionIdentityMismatch,
-    ApiErrorCode.MachineIdentityMismatch,
-    -> 409
-    ApiErrorCode.AgentTargetStale, ApiErrorCode.AgentBlocked -> 409
-    ApiErrorCode.AgentInputInvalid -> 400
-    ApiErrorCode.SessionNotFound -> 404
-    ApiErrorCode.InternalError -> 500
-    ApiErrorCode.ReconnectRequired, ApiErrorCode.TerminalConfigurationUnsupported -> throw SerializationException("terminal error has no HTTP status")
-}
-
-@Serializable
-private data class AgentErrorResponse(val code: String, val message: String, val dispatch: String)
-
-internal fun decodeAgentHttpFailure(status: Int, encoded: String): GatewayFailure = decodeProtocol {
+private fun decodeApiHttpFailure(status: Int, encoded: String, requireDispatch: Boolean): GatewayFailure = decodeProtocol {
     val value = strictJsonObject(encoded)
-    if ("dispatch" !in value) return@decodeProtocol decodeKillHttpFailure(status, encoded)
-    val error = productJson.decodeFromJsonElement<AgentErrorResponse>(value)
-    val code = parseApiErrorCode(error.code)
-    require(code in setOf(ApiErrorCode.AgentTargetStale, ApiErrorCode.AgentBlocked, ApiErrorCode.AgentInputInvalid))
-    require(error.dispatch == "not_sent" && status == apiErrorHttpStatus(code) && error.message == apiErrorMessage(code))
-    GatewayFailure.Api(code)
-}
-
-@Serializable private data class SpaceRequest(val identityToken: String, val space: String)
-@Serializable private data class SessionIdentityRequest(val identityToken: String)
-@Serializable private data class MutationErrorResponse(val code: String, val message: String, val dispatch: String)
-
-internal fun decodeSpaceHttpFailure(status: Int, encoded: String): GatewayFailure =
-    decodeMutationHttpFailure(status, encoded, setOf(
-        ApiErrorCode.Unauthenticated, ApiErrorCode.MachineIdentityMismatch, ApiErrorCode.InvalidRequest,
-        ApiErrorCode.RequestTooLarge, ApiErrorCode.SpaceInvalid, ApiErrorCode.SessionNotFound,
-        ApiErrorCode.SessionIdentityMismatch, ApiErrorCode.InternalError,
-    ))
-
-private fun decodeMutationHttpFailure(status: Int, encoded: String, allowed: Set<ApiErrorCode>): GatewayFailure = decodeProtocol {
-    val response = productJson.decodeFromJsonElement<MutationErrorResponse>(strictJsonObject(encoded))
-    val code = parseApiErrorCode(response.code)
-    require(code in allowed)
-    require(status == apiErrorHttpStatus(code) && response.message == apiErrorMessage(code))
-    val dispatch = when (response.dispatch) {
+    require(value.keys.all { it in setOf("code", "message", "dispatch", "partial") })
+    value.requireAbsentOrNonNull(setOf("dispatch", "partial"))
+    val code = parseApiErrorCode(value.requiredString("code"))
+    require(value.requiredString("message").isNotEmpty())
+    require(status == apiErrorHttpStatus(code))
+    val dispatch = when (value["dispatch"]?.let { value.requiredString("dispatch") }) {
+        null -> null
         "not_sent" -> MutationDispatch.NotSent
+        "sent" -> MutationDispatch.Sent
         "unknown" -> MutationDispatch.Unknown
         else -> throw SerializationException("invalid mutation dispatch")
     }
-    require(dispatch == MutationDispatch.NotSent || code == ApiErrorCode.InternalError)
-    GatewayFailure.Api(code, dispatch)
+    require(!requireDispatch || dispatch != null)
+    val partialValue = value["partial"]
+    if (partialValue != null && partialValue !is kotlinx.serialization.json.JsonObject) {
+        throw SerializationException("invalid mutation partial")
+    }
+    val partial = (partialValue as? kotlinx.serialization.json.JsonObject)?.let { objectValue ->
+        require(objectValue.keys.all { it in setOf("stage", "terminal", "agent") })
+        objectValue.requireAbsentOrNonNull(setOf("stage", "terminal", "agent"))
+        val terminal = objectValue["terminal"]
+        val terminalRecord = (terminal as? kotlinx.serialization.json.JsonObject)?.let { objectRecord ->
+            decodePartialTerminal(objectRecord)
+        }
+        val terminalStatus = if (terminal != null && terminalRecord == null) objectValue.requiredString("terminal") else null
+        val stage = objectValue["stage"]?.let { objectValue.requiredString("stage") }
+        val agentStatus = objectValue["agent"]?.let { objectValue.requiredString("agent") }
+        require(stage == null || stage in setOf("resource_created", "identified", "launch_submitted"))
+        require(agentStatus == null || agentStatus in setOf("interrupt_sent", "exited", "unconfirmed"))
+        require(terminalStatus == null || terminalStatus in setOf("refused", "unconfirmed", "not_attempted"))
+        MutationPartial(
+            stage = stage,
+            terminal = terminalRecord,
+            terminalStatus = terminalStatus,
+            agentStatus = agentStatus,
+        )
+    }
+    GatewayFailure.Api(code, dispatch, partial)
+}
+
+private fun decodePartialTerminal(value: kotlinx.serialization.json.JsonObject): TerminalRecord =
+    decodeTerminalRecord(value)
+
+private fun apiErrorHttpStatus(code: ApiErrorCode): Int = when (code) {
+    ApiErrorCode.Unauthenticated, ApiErrorCode.PairingInviteRejected -> 401
+    ApiErrorCode.InvalidRequest -> 400
+    ApiErrorCode.RequestTooLarge -> 413
+    ApiErrorCode.TerminalNotFound -> 404
+    ApiErrorCode.TerminalStale, ApiErrorCode.AgentStale, ApiErrorCode.WorkspaceStale,
+    ApiErrorCode.NameAmbiguous, ApiErrorCode.ReadinessUnconfirmed,
+    ApiErrorCode.ClosureConfirmationRequired, ApiErrorCode.MachineIdentityMismatch -> 409
+    ApiErrorCode.ProfileUnknown, ApiErrorCode.WorkingDirectoryInvalid, ApiErrorCode.NameInvalid,
+    ApiErrorCode.ObjectiveInvalid, ApiErrorCode.DirectoryListingUnavailable,
+    ApiErrorCode.DirectoryListingTooLarge -> 422
+    ApiErrorCode.MetadataUnavailable, ApiErrorCode.UpstreamRejected -> 502
+    ApiErrorCode.HerdrUnavailable -> 503
+    ApiErrorCode.OutcomeUnknown -> 504
+    ApiErrorCode.MethodUnavailable -> 409
+    ApiErrorCode.InternalError -> 500
+    ApiErrorCode.ReconnectRequired -> throw SerializationException("websocket only code")
 }

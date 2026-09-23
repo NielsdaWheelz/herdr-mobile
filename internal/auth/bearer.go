@@ -1,10 +1,13 @@
 package auth
 
 import (
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -108,6 +111,23 @@ func (credential Credential) Digest() [sha256.Size]byte {
 	var verifier [sha256.Size]byte
 	copy(verifier[:], hash.Sum(nil))
 	return verifier
+}
+
+func (credential Credential) CommandFingerprint(executable string, argv []string) string {
+	hash := hmac.New(sha256.New, credential.raw[:])
+	_, _ = hash.Write([]byte("skid-command-v1\x00"))
+	var length [4]byte
+	binary.BigEndian.PutUint32(length[:], uint32(len(executable)))
+	_, _ = hash.Write(length[:])
+	_, _ = hash.Write([]byte(executable))
+	binary.BigEndian.PutUint32(length[:], uint32(len(argv)))
+	_, _ = hash.Write(length[:])
+	for _, argument := range argv {
+		binary.BigEndian.PutUint32(length[:], uint32(len(argument)))
+		_, _ = hash.Write(length[:])
+		_, _ = hash.Write([]byte(argument))
+	}
+	return hex.EncodeToString(hash.Sum(nil))
 }
 
 func (credential Credential) Verify(authorization string) bool {

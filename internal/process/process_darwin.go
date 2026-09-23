@@ -57,15 +57,6 @@ static int skid_proc_info(int pid, struct proc_bsdinfo *info, char *path, int pa
   return 0;
 }
 
-static int skid_foreground_process_group(int pid, int *foreground) {
-  int mib[4] = { CTL_KERN, KERN_PROC, KERN_PROC_PID, pid };
-  struct kinfo_proc kp; size_t size = sizeof(kp);
-  errno = 0;
-  if (sysctl(mib, 4, &kp, &size, NULL, 0) != 0) return errno != 0 ? errno : EINVAL;
-  if (size != sizeof(kp)) return ESRCH; // the kernel returns an empty record for an absent pid
-  *foreground = kp.kp_eproc.e_tpgid;
-  return 0;
-}
 */
 import "C"
 
@@ -118,17 +109,6 @@ func classifyDarwinError(cause syscall.Errno, action string) error {
 	default:
 		return fmt.Errorf("%s: %w", action, cause)
 	}
-}
-
-func foregroundProcessGroup(panePID PID) (PID, error) {
-	var foreground C.int
-	if code := C.skid_foreground_process_group(C.int(panePID), &foreground); code != 0 {
-		return 0, classifyDarwinError(syscall.Errno(code), "observe Darwin pane process")
-	}
-	if foreground <= 0 {
-		return 0, errors.New("pane has no foreground process group")
-	}
-	return PID(foreground), nil
 }
 
 func darwinArgv(pid PID) ([]string, error) {

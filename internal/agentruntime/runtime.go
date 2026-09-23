@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	PaneOption = "@skid_agent_runtime"
+	RegistrationToken = "skid_agent_runtime"
 
 	maxPIDTextLength                  = 19
 	maxStartIdentityTextLength        = 20
@@ -23,21 +23,33 @@ const (
 	maxEncodedRegistrationLength      = len("v1") + 5 + maxPIDTextLength + maxStartIdentityTextLength + maxProviderTextLength + maxProfileKeyTextLength + maxEncodedProviderSessionIDLength
 )
 
+type RegistrationFacts struct {
+	Profile         ProfileKey
+	ProviderSession *ProviderSessionFacts
+}
+
+// ProjectRegistration accepts only a registration for the currently observed
+// foreground process. A launch row or provider label alone never proves it.
+func ProjectRegistration(profiles []Profile, observation processinfo.Observation, provider Provider, encoded string) (RegistrationFacts, bool) {
+	foreground := Foreground{Provider: provider, PID: observation.PID, StartIdentity: observation.StartIdentity}
+	registration, valid := acceptRegistration(profiles, foreground, encoded)
+	if !valid {
+		return RegistrationFacts{}, false
+	}
+	facts := RegistrationFacts{Profile: registration.profile}
+	if provider == ProviderClaude {
+		name := claudeName(observation.Argv)
+		if registration.providerSessionID != "" || name != "" {
+			facts.ProviderSession, _ = NewProviderSessionFacts(registration.providerSessionID, name)
+		}
+	}
+	return facts, true
+}
+
 type Foreground struct {
 	Provider      Provider
 	PID           processinfo.PID
 	StartIdentity processinfo.StartIdentity
-}
-
-type AgentRuntime struct {
-	PaneID          string
-	StartIdentity   processinfo.StartIdentity
-	Status          Status
-	Methods         Methods
-	Provider        Provider
-	PID             processinfo.PID
-	Profile         ProfileKey
-	ProviderSession *ProviderSessionFacts
 }
 
 type ProviderSessionFacts struct {
@@ -68,32 +80,6 @@ func validateProviderSessionFacts(id, name string) error {
 func (facts ProviderSessionFacts) ID() string   { return facts.id }
 func (facts ProviderSessionFacts) Name() string { return facts.name }
 
-func ValidateAgentRuntime(profiles []Profile, agent AgentRuntime) error {
-	if _, err := ParseProvider(agent.Provider.String()); err != nil {
-		return errors.New("agent runtime provider is invalid")
-	}
-	if agent.PID <= 0 {
-		return errors.New("agent runtime pid is invalid")
-	}
-	if agent.Profile != "" {
-		if _, err := ParseProfileKey(string(agent.Profile)); err != nil {
-			return errors.New("agent runtime profile is invalid")
-		}
-		if !configuredProfileMatchesProvider(profiles, agent.Profile, agent.Provider) {
-			return errors.New("agent runtime profile does not match configured provider")
-		}
-	}
-	if agent.ProviderSession != nil {
-		if err := validateProviderSessionFacts(agent.ProviderSession.id, agent.ProviderSession.name); err != nil {
-			return err
-		}
-		if agent.Provider == ProviderCodex && agent.ProviderSession.name != "" {
-			return errors.New("Codex provider session name is invalid")
-		}
-	}
-	return nil
-}
-
 func ClassifyForeground(profiles []Profile, observation processinfo.Observation) (Foreground, bool) {
 	if observation.PID <= 0 || !validStartIdentity(observation.StartIdentity) {
 		return Foreground{}, false
@@ -119,10 +105,10 @@ func ClassifyForeground(profiles []Profile, observation processinfo.Observation)
 func HookOrigin(
 	profiles []Profile,
 	ancestry []processinfo.Observation,
-	paneTerminal processinfo.TerminalDevice,
+	foregroundPGID processinfo.PID,
+	foregroundPIDs []processinfo.PID,
 ) (Foreground, bool) {
-	terminalAncestry, valid := paneTerminalAncestry(ancestry, paneTerminal)
-	if !valid {
+	if foregroundPGID <= 0 || len(foregroundPIDs) == 0 {
 		return Foreground{}, false
 	}
 	type match struct {
@@ -130,7 +116,14 @@ func HookOrigin(
 		observation processinfo.Observation
 	}
 	matches := make([]match, 0, 2)
-	for _, observation := range terminalAncestry {
+	for _, observation := range ancestry {
+		listed := false
+		for _, pid := range foregroundPIDs {
+			listed = listed || pid == observation.PID
+		}
+		if !listed || observation.ProcessGroup != foregroundPGID || observation.ForegroundProcessGroup != foregroundPGID {
+			continue
+		}
 		if foreground, found := ClassifyForeground(profiles, observation); found {
 			matches = append(matches, match{foreground: foreground, observation: observation})
 		}
@@ -149,9 +142,6 @@ func HookOrigin(
 		}
 		origin = wrapper
 	default:
-		return Foreground{}, false
-	}
-	if origin.foreground.PID != terminalAncestry[0].ForegroundProcessGroup {
 		return Foreground{}, false
 	}
 	return origin.foreground, true
@@ -182,33 +172,6 @@ func EncodeRegistration(foreground Foreground, profile ProfileKey, providerSessi
 		profileValue,
 		base64.RawURLEncoding.EncodeToString([]byte(providerSessionID)),
 	}, ":"), nil
-}
-
-func Project(profiles []Profile, observation processinfo.Observation, encodedRegistration string) (AgentRuntime, bool) {
-	foreground, found := ClassifyForeground(profiles, observation)
-	if !found {
-		return AgentRuntime{}, false
-	}
-	agent := AgentRuntime{Provider: foreground.Provider, PID: foreground.PID, StartIdentity: foreground.StartIdentity, Status: Status{State: "unknown", Source: "unavailable", Reason: "unrecognized"}, Methods: Methods{Read: "terminal", Send: "terminal", Interrupt: "terminal"}}
-	providerSessionID, providerSessionName := "", ""
-	if foreground.Provider == ProviderClaude {
-		if registration, valid := acceptRegistration(profiles, foreground, encodedRegistration); valid {
-			agent.Profile = registration.profile
-			providerSessionID = registration.providerSessionID
-		}
-		providerSessionName = claudeName(observation.Argv)
-	}
-	if providerSessionID != "" || providerSessionName != "" {
-		facts, err := NewProviderSessionFacts(providerSessionID, providerSessionName)
-		if err != nil {
-			panic("validated provider session facts became invalid")
-		}
-		agent.ProviderSession = facts
-	}
-	if err := ValidateAgentRuntime(profiles, agent); err != nil {
-		panic("validated agent runtime became invalid")
-	}
-	return agent, true
 }
 
 type registration struct {
@@ -284,34 +247,6 @@ func configuredProfileMatchesProvider(profiles []Profile, key ProfileKey, provid
 func validStartIdentity(value processinfo.StartIdentity) bool {
 	parsed, err := strconv.ParseUint(string(value), 10, 64)
 	return err == nil && parsed > 0 && strconv.FormatUint(parsed, 10) == string(value)
-}
-
-func paneTerminalAncestry(ancestry []processinfo.Observation, paneTerminal processinfo.TerminalDevice) ([]processinfo.Observation, bool) {
-	if paneTerminal == 0 {
-		return nil, false
-	}
-	start := -1
-	for index, observation := range ancestry {
-		if observation.TerminalDevice == paneTerminal {
-			start = index
-			break
-		}
-	}
-	if start < 0 || ancestry[start].SessionID <= 0 || ancestry[start].ForegroundProcessGroup <= 0 {
-		return nil, false
-	}
-	session := ancestry[start].SessionID
-	foreground := ancestry[start].ForegroundProcessGroup
-	for index := start; index < len(ancestry); index++ {
-		observation := ancestry[index]
-		if observation.TerminalDevice != paneTerminal || observation.SessionID != session || observation.ForegroundProcessGroup != foreground {
-			return nil, false
-		}
-		if observation.PID == session {
-			return ancestry[start : index+1], true
-		}
-	}
-	return nil, false
 }
 
 func matchesSignature(observation processinfo.Observation, signature ForegroundSignature) bool {

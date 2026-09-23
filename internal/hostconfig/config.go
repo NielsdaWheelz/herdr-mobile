@@ -28,9 +28,14 @@ var expectedProfiles = [...]struct {
 }
 
 type Config struct {
-	NativeControlPath string
-	TmuxPath          string
-	Profiles          []agentruntime.Profile
+	Herdr    HerdrConfig
+	Profiles []agentruntime.Profile
+}
+
+type HerdrConfig struct {
+	Path          string
+	SocketPath    string
+	TestedVersion string
 }
 
 func Load(path string, runtime platform.Kind) (config Config, resultErr error) {
@@ -83,31 +88,15 @@ func parse(encoded []byte, runtime platform.Kind) (Config, error) {
 	return wire.validate(runtime)
 }
 
-func ValidateTmuxVersion(version string) error {
-	if len(version) > 64 || !strings.HasPrefix(version, "tmux ") {
-		return errors.New("tmux version is invalid")
-	}
-	for _, character := range []byte(version) {
-		if character < 0x20 || character > 0x7e {
-			return errors.New("tmux version is invalid")
-		}
-	}
-	release := strings.TrimPrefix(version, "tmux ")
-	if release == "" || strings.TrimSpace(release) != release {
-		return errors.New("tmux version is invalid")
-	}
-	return nil
-}
-
 type configDTO struct {
-	NativeControlPath stringField   `json:"nativeControlPath"`
-	Platform          stringField   `json:"platform"`
-	Tmux              *tmuxDTO      `json:"tmux"`
-	Profiles          *[]profileDTO `json:"profiles"`
+	Platform stringField   `json:"platform"`
+	Herdr    *herdrDTO     `json:"herdr"`
+	Profiles *[]profileDTO `json:"profiles"`
 }
 
-type tmuxDTO struct {
+type herdrDTO struct {
 	Path          stringField `json:"path"`
+	SocketPath    stringField `json:"socketPath"`
 	TestedVersion stringField `json:"testedVersion"`
 }
 
@@ -133,7 +122,7 @@ type foregroundSignatureDTO struct {
 }
 
 func (wire configDTO) validate(runtime platform.Kind) (Config, error) {
-	if !wire.Platform.present || wire.Tmux == nil || wire.Profiles == nil || !wire.NativeControlPath.present || !validAbsolutePath(wire.NativeControlPath.value) {
+	if !wire.Platform.present || wire.Herdr == nil || wire.Profiles == nil {
 		return Config{}, errors.New("host config omits a required member")
 	}
 	kind := platform.Kind(wire.Platform.value)
@@ -143,17 +132,22 @@ func (wire configDTO) validate(runtime platform.Kind) (Config, error) {
 	if kind != runtime {
 		return Config{}, fmt.Errorf("host config platform %q does not match runtime %q", kind, runtime)
 	}
-	if !wire.Tmux.Path.present || !wire.Tmux.TestedVersion.present || !validAbsolutePath(wire.Tmux.Path.value) || ValidateTmuxVersion(wire.Tmux.TestedVersion.value) != nil {
-		return Config{}, errors.New("host config tmux entry is invalid")
+	if !wire.Herdr.Path.present || !wire.Herdr.SocketPath.present || !wire.Herdr.TestedVersion.present ||
+		!validAbsolutePath(wire.Herdr.Path.value) || !validAbsolutePath(wire.Herdr.SocketPath.value) ||
+		wire.Herdr.TestedVersion.value != "herdr 0.9.1" {
+		return Config{}, errors.New("host config herdr entry is invalid")
 	}
 	profiles, err := mapProfiles(*wire.Profiles)
 	if err != nil {
 		return Config{}, err
 	}
 	return Config{
-		NativeControlPath: wire.NativeControlPath.value,
-		TmuxPath:          wire.Tmux.Path.value,
-		Profiles:          profiles,
+		Herdr: HerdrConfig{
+			Path:          wire.Herdr.Path.value,
+			SocketPath:    wire.Herdr.SocketPath.value,
+			TestedVersion: wire.Herdr.TestedVersion.value,
+		},
+		Profiles: profiles,
 	}, nil
 }
 

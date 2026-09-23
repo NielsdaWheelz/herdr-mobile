@@ -3,10 +3,8 @@ package process
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"slices"
-	"syscall"
 )
 
 const coherentObservationAttempts = 8
@@ -84,24 +82,6 @@ func equalObservation(left, right Observation) bool {
 		slices.Equal(left.Argv, right.Argv)
 }
 
-// TerminalDeviceAt resolves the kernel device identity of an exact character
-// device path. Tmux's pane_tty and the hook process observation must name the
-// same value before runtime identity may mutate a pane option.
-func TerminalDeviceAt(path string) (TerminalDevice, error) {
-	info, err := os.Stat(path)
-	if err != nil {
-		return 0, fmt.Errorf("stat terminal device: %w", err)
-	}
-	if info.Mode()&os.ModeCharDevice == 0 {
-		return 0, errors.New("terminal path is not a character device")
-	}
-	stat, ok := info.Sys().(*syscall.Stat_t)
-	if !ok || stat.Rdev == 0 {
-		return 0, errors.New("terminal device identity is unavailable")
-	}
-	return TerminalDevice(stat.Rdev), nil
-}
-
 // ObserveAncestry walks from initial toward PID 1 and returns the observable
 // prefix of the chain. The walk ends successfully at PID 1, at a parentless
 // process, or at the first ancestor outside the caller's observation boundary
@@ -137,12 +117,4 @@ func ObserveAncestry(initial PID, limit int) ([]Observation, error) {
 		pid = observation.ParentPID
 	}
 	return nil, errors.New("process ancestry exceeds its closed bound")
-}
-
-func ObserveForeground(panePID PID) (Observation, error) {
-	foreground, err := foregroundProcessGroup(panePID)
-	if err != nil {
-		return Observation{}, err
-	}
-	return Observe(foreground)
 }

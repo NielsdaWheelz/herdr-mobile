@@ -45,7 +45,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
-private val tmuxNamePattern = Regex("[A-Za-z0-9][A-Za-z0-9_-]{0,63}")
+private val terminalNamePattern = Regex("[A-Za-z0-9][A-Za-z0-9_-]{0,63}")
 
 internal sealed interface RenamePhase {
     data class Editing(val stale: Boolean = false) : RenamePhase
@@ -54,7 +54,7 @@ internal sealed interface RenamePhase {
 }
 
 internal data class RenameState(
-    val target: SessionTarget,
+    val target: TerminalTarget,
     val draft: String,
     val phase: RenamePhase,
     val error: String?,
@@ -71,14 +71,14 @@ internal data class TerminalRenameInventoryResult(
     val detachTransport: Boolean,
 )
 
-internal const val RENAME_OUTCOME_UNKNOWN = "Rename outcome unknown. Checking tmux."
-internal const val RENAME_STALE_EDIT = "The tmux name changed. Review and try again."
+internal const val RENAME_OUTCOME_UNKNOWN = "Rename outcome unknown. Checking the terminal."
+internal const val RENAME_STALE_EDIT = "The terminal name changed. Review and try again."
 
-internal fun isValidTmuxName(candidate: String): Boolean = tmuxNamePattern.matches(candidate)
+internal fun isValidTerminalName(candidate: String): Boolean = terminalNamePattern.matches(candidate)
 
-internal fun beginRename(target: SessionTarget): RenameState = RenameState(
+internal fun beginRename(target: TerminalTarget): RenameState = RenameState(
     target = target,
-    draft = target.session.tmuxName,
+    draft = target.terminal.name.orEmpty(),
     phase = RenamePhase.Editing(),
     error = null,
 )
@@ -90,18 +90,18 @@ internal fun updateRenameDraft(state: RenameState, draft: String): RenameState {
 
 internal fun renameSubmissionAdmissible(
     state: RenameState,
-    terminalTarget: SessionTarget,
+    terminalTarget: TerminalTarget,
     terminalActionsAdmissible: Boolean,
 ): Boolean {
     val phase = state.phase as? RenamePhase.Editing ?: return false
     return terminalActionsAdmissible && !phase.stale &&
         sameSessionAuthority(state.target, terminalTarget) &&
-        state.draft != state.target.session.tmuxName && isValidTmuxName(state.draft)
+        state.draft != state.target.terminal.name.orEmpty() && isValidTerminalName(state.draft)
 }
 
 internal fun beginRenameSending(
     state: RenameState,
-    terminalTarget: SessionTarget,
+    terminalTarget: TerminalTarget,
     terminalActionsAdmissible: Boolean,
 ): RenameState? = if (renameSubmissionAdmissible(state, terminalTarget, terminalActionsAdmissible)) {
     state.copy(phase = RenamePhase.Sending, error = null)
@@ -117,7 +117,7 @@ internal fun dismissRename(state: RenameState): RenameState? = when (val phase =
 
 internal fun completeRenameHttp(
     state: RenameState,
-    result: GatewayResult<Unit>,
+    result: GatewayResult<ObservedTerminal>,
 ): RenameHttpTransition = when (result) {
     is GatewayResult.Success -> RenameHttpTransition(
         state = state.copy(phase = RenamePhase.Reconciling(sheetVisible = true), error = null),
@@ -126,38 +126,16 @@ internal fun completeRenameHttp(
     )
     is GatewayResult.Failure -> when (val failure = result.failure) {
         GatewayFailure.Transport -> renameNeedsInventory(state, RENAME_OUTCOME_UNKNOWN)
-        is GatewayFailure.Api -> when (failure.code) {
-            ApiErrorCode.InvalidRequest,
-            ApiErrorCode.RequestTooLarge,
-            ApiErrorCode.SessionNameInvalid,
-            ApiErrorCode.SessionNameConflict,
-            -> RenameHttpTransition(
-                state = state.copy(
-                    phase = RenamePhase.Editing(),
-                    error = gatewayFailureMessage(failure),
-                ),
-                clearMutationFence = true,
-                requireInventoryRead = false,
+        is GatewayFailure.Api -> when {
+            failure.code in setOf(ApiErrorCode.Unauthenticated, ApiErrorCode.MachineIdentityMismatch) ->
+                error("rename access failure escaped the controller access owner")
+            failure.dispatch == MutationDispatch.NotSent && failure.code in setOf(
+                ApiErrorCode.InvalidRequest, ApiErrorCode.RequestTooLarge, ApiErrorCode.NameInvalid,
+            ) -> RenameHttpTransition(
+                state.copy(phase = RenamePhase.Editing(), error = gatewayFailureMessage(failure)),
+                clearMutationFence = true, requireInventoryRead = false,
             )
-            ApiErrorCode.Unauthenticated,
-            ApiErrorCode.MachineIdentityMismatch,
-            -> error("rename access failure escaped the controller access owner")
-            ApiErrorCode.SessionNotFound,
-            ApiErrorCode.SessionIdentityMismatch,
-            -> renameNeedsInventory(state, gatewayFailureMessage(failure))
-            ApiErrorCode.InternalError -> renameNeedsInventory(state, RENAME_OUTCOME_UNKNOWN)
-            ApiErrorCode.WorkingDirectoryInvalid,
-            ApiErrorCode.WorkingDirectoryUnavailable,
-            ApiErrorCode.DirectoryListingUnavailable,
-            ApiErrorCode.DirectoryListingTooLarge,
-            ApiErrorCode.ProfileUnknown,
-            ApiErrorCode.ObjectiveInvalid, ApiErrorCode.SpaceInvalid,
-            ApiErrorCode.PairingInviteRejected,
-            ApiErrorCode.ReconnectRequired,
-            ApiErrorCode.TerminalConfigurationUnsupported,
-            ApiErrorCode.AgentTargetStale,
-            ApiErrorCode.AgentBlocked, ApiErrorCode.AgentInputInvalid,
-            -> error("rename received an error outside its closed route")
+            else -> renameNeedsInventory(state, gatewayFailureMessage(failure))
         }
     }
 }
@@ -184,9 +162,8 @@ internal fun reconcileTerminalRename(
 ): TerminalRenameInventoryResult {
     val snapshot = terminal.machine.inventory.lastSnapshot()?.inventory
         ?: return TerminalRenameInventoryResult(terminal, detachTransport = false)
-    val authoritative = snapshot.sessions.singleOrNull {
-        it.tmuxId == terminal.target.session.tmuxId &&
-            it.identityToken == terminal.target.session.identityToken
+    val authoritative = snapshot.terminals.singleOrNull {
+        it.ref == terminal.target.terminal.ref
     }
     val rename = terminal.rename
     if (authoritative == null) {
@@ -195,14 +172,15 @@ internal fun reconcileTerminalRename(
             terminal = terminal.copy(
                 rename = null,
                 connection = TerminalUiStatus.ReconnectRequired(
-                    "${terminal.machine.machine.label.text}: that session lifetime is no longer available.",
+                    "${terminal.machine.machine.label.text}: that terminal lifetime is no longer available.",
                 ),
             ),
             detachTransport = true,
         )
     }
 
-    val authoritativeTarget = SessionTarget(terminal.target.machineHandle, authoritative)
+    val authoritativeTarget = TerminalTarget(terminal.target.machineHandle,
+        authoritative.copy(agent = terminal.target.terminal.agent))
     if (rename == null) {
         return TerminalRenameInventoryResult(
             terminal.copy(target = authoritativeTarget),
@@ -221,7 +199,7 @@ internal fun reconcileTerminalRename(
             )
         }
         is RenamePhase.Reconciling -> when {
-            authoritative.tmuxName == rename.draft -> null
+            authoritative.name == rename.draft -> null
             phase.sheetVisible -> rename.copy(
                 target = authoritativeTarget,
                 phase = RenamePhase.Editing(stale = true),
@@ -236,16 +214,14 @@ internal fun reconcileTerminalRename(
     )
 }
 
-private fun sameSessionAuthority(first: SessionTarget, second: SessionTarget): Boolean =
-    first.machineHandle == second.machineHandle &&
-        first.session.tmuxId == second.session.tmuxId &&
-        first.session.tmuxName == second.session.tmuxName &&
-        first.session.identityToken == second.session.identityToken
+private fun sameSessionAuthority(first: TerminalTarget, second: TerminalTarget): Boolean =
+    first.machineHandle == second.machineHandle && first.terminal.ref == second.terminal.ref &&
+        first.terminal.name == second.terminal.name
 
 @Composable
 internal fun TerminalRenameControl(
     machine: PairedMachine,
-    target: SessionTarget,
+    target: TerminalTarget,
     presence: String,
     presenceColor: Color,
     enabled: Boolean,
@@ -266,7 +242,7 @@ internal fun TerminalRenameControl(
                 onClick = onClick,
             )
             .semantics(mergeDescendants = true) {
-                contentDescription = "Rename ${target.session.tmuxName} on ${machine.label.text}"
+                contentDescription = "Rename ${terminalDisplayName(target.terminal)} on ${machine.label.text}"
                 stateDescription = presence
             },
     ) {
@@ -277,7 +253,7 @@ internal fun TerminalRenameControl(
             verticalArrangement = Arrangement.Center,
         ) {
             Text(
-                text = "${machine.label.text} · ${target.session.tmuxName}",
+                text = "${machine.label.text} · ${terminalDisplayName(target.terminal)}",
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -314,7 +290,7 @@ internal fun TerminalRenameControl(
 @Composable
 internal fun SessionRenameSheet(
     machine: PairedMachine,
-    terminalTarget: SessionTarget,
+    terminalTarget: TerminalTarget,
     state: RenameState,
     terminalActionsAdmissible: Boolean,
     onDraftChange: (String) -> Unit,
@@ -345,13 +321,13 @@ internal fun SessionRenameSheet(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                text = "Rename tmux session",
+                text = "Rename terminal",
                 style = MaterialTheme.typography.headlineSmall,
                 fontFamily = NidavellirType.Display,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                text = "${state.target.session.tmuxName} on ${machine.label.text}",
+                text = "${terminalDisplayName(state.target.terminal)} on ${machine.label.text}",
                 color = Muted,
                 fontFamily = NidavellirType.Data,
             )

@@ -1,14 +1,12 @@
 package fleetclient
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
-	"net/http"
 	"slices"
 	"time"
 
-	"github.com/NielsdaWheelz/skidbladnir/internal/space"
+	"github.com/NielsdaWheelz/skidbladnir/internal/reference"
 	"github.com/NielsdaWheelz/skidbladnir/internal/strictjson"
 )
 
@@ -27,298 +25,248 @@ type ProviderSession struct {
 	Name string `json:"name,omitempty"`
 }
 type Agent struct {
-	Provider        string           `json:"provider"`
-	Profile         string           `json:"profile,omitempty"`
-	ProviderSession *ProviderSession `json:"providerSession,omitempty"`
-	Status          Status           `json:"status"`
-	Methods         Methods          `json:"methods"`
+	Ref                  string           `json:"ref"`
+	Provider             string           `json:"provider"`
+	ProvenRuntimeProfile string           `json:"provenRuntimeProfile,omitempty"`
+	ProviderSession      *ProviderSession `json:"providerSession,omitempty"`
+	Status               Status           `json:"status"`
+	Readiness            string           `json:"readiness"`
+	Methods              Methods          `json:"methods"`
 }
-type Session struct {
-	Name            string      `json:"name"`
-	Ref             string      `json:"ref"`
-	CWD             string      `json:"cwd,omitempty"`
-	ActiveCommand   string      `json:"activeCommand,omitempty"`
-	LaunchProfile   string      `json:"launchProfile,omitempty"`
-	AttachedClients int         `json:"attachedClients"`
-	Agent           *Agent      `json:"agent,omitempty"`
-	Space           space.Label `json:"-"`
+type Character struct {
+	Key         string `json:"key"`
+	DisplayName string `json:"displayName"`
 }
-
-// sessionJSON is the string-speaking boundary for the owned session label.
-type sessionJSON struct {
-	Name            string     `json:"name"`
-	Ref             string     `json:"ref"`
-	CWD             string     `json:"cwd,omitempty"`
-	ActiveCommand   string     `json:"activeCommand,omitempty"`
-	LaunchProfile   string     `json:"launchProfile,omitempty"`
-	AttachedClients int        `json:"attachedClients"`
-	Agent           *Agent     `json:"agent,omitempty"`
-	Space           spaceField `json:"space,omitzero"`
+type Terminal struct {
+	Ref           string    `json:"ref"`
+	Name          string    `json:"name,omitempty"`
+	NativeLabel   string    `json:"nativeLabel,omitempty"`
+	Character     Character `json:"character"`
+	WorkspaceRef  string    `json:"workspaceRef"`
+	CWD           string    `json:"cwd,omitempty"`
+	LaunchProfile string    `json:"launchProfile,omitempty"`
+	Objective     string    `json:"objective,omitempty"`
+	Agent         *Agent    `json:"agent,omitempty"`
 }
-type spaceField struct{ label space.Label }
-
-func (value spaceField) IsZero() bool                 { return value.label.IsUnassigned() }
-func (value spaceField) MarshalJSON() ([]byte, error) { return json.Marshal(value.label.String()) }
-func (value *spaceField) UnmarshalJSON(encoded []byte) error {
-	var text *string
-	if strictjson.Decode(encoded, &text) != nil || text == nil || *text == "" {
-		return errors.New("invalid space response")
-	}
-	label, err := space.Parse(*text)
-	if err != nil {
-		return err
-	}
-	value.label = label
-	return nil
+type Workspace struct {
+	Ref   string `json:"ref"`
+	Label string `json:"label"`
 }
-func (s Session) MarshalJSON() ([]byte, error) {
-	return json.Marshal(sessionJSON{s.Name, s.Ref, s.CWD, s.ActiveCommand, s.LaunchProfile, s.AttachedClients, s.Agent, spaceField{s.Space}})
-}
-
 type Profile struct {
 	Key      string `json:"key"`
 	Label    string `json:"label"`
 	Provider string `json:"provider"`
 }
 type Peer struct {
-	Label      string    `json:"label"`
-	Machine    string    `json:"machine"`
-	OK         bool      `json:"ok"`
-	ObservedAt string    `json:"observedAt,omitempty"`
-	Profiles   []Profile `json:"profiles,omitempty"`
-	Sessions   []Session `json:"sessions,omitempty"`
-	Error      *Failure  `json:"error,omitempty"`
+	Label                   string      `json:"label"`
+	Machine                 string      `json:"machine"`
+	OK                      bool        `json:"ok"`
+	ObservedAt              string      `json:"observedAt,omitempty"`
+	Partial                 bool        `json:"partial,omitempty"`
+	UnaddressableTerminals  int         `json:"unaddressableTerminals,omitempty"`
+	UnaddressableWorkspaces int         `json:"unaddressableWorkspaces,omitempty"`
+	Profiles                []Profile   `json:"profiles,omitempty"`
+	Workspaces              []Workspace `json:"workspaces,omitempty"`
+	Terminals               []Terminal  `json:"terminals,omitempty"`
+	Error                   *Failure    `json:"error,omitempty"`
 }
-
-// MarshalJSON preserves required empty arrays for a successfully observed peer.
-func (p Peer) MarshalJSON() ([]byte, error) {
-	if !p.OK {
-		return json.Marshal(struct {
-			Label   string   `json:"label"`
-			Machine string   `json:"machine"`
-			OK      bool     `json:"ok"`
-			Error   *Failure `json:"error"`
-		}{p.Label, p.Machine, false, p.Error})
-	}
-	return json.Marshal(struct {
-		Label      string    `json:"label"`
-		Machine    string    `json:"machine"`
-		OK         bool      `json:"ok"`
-		ObservedAt string    `json:"observedAt"`
-		Profiles   []Profile `json:"profiles"`
-		Sessions   []Session `json:"sessions"`
-	}{p.Label, p.Machine, true, p.ObservedAt, p.Profiles, p.Sessions})
-}
-
 type Inventory struct {
 	Partial bool   `json:"partial"`
 	Peers   []Peer `json:"peers"`
 }
-type ObservedSession struct {
-	Label      string  `json:"label"`
-	Machine    string  `json:"machine"`
-	ObservedAt string  `json:"observedAt"`
-	Session    Session `json:"session"`
+type ObservedTerminal struct {
+	Label      string   `json:"label"`
+	Machine    string   `json:"machine"`
+	ObservedAt string   `json:"observedAt"`
+	Terminal   Terminal `json:"terminal"`
+	Launch     string   `json:"launch,omitempty"`
+	Dispatch   string   `json:"dispatch,omitempty"`
 }
 type ReadResult struct {
 	Text      string `json:"text"`
 	Source    string `json:"source"`
 	Scope     string `json:"scope"`
 	Truncated bool   `json:"truncated"`
+	Dispatch  string `json:"dispatch,omitempty"`
 }
 type WriteResult struct {
-	Method  string `json:"method"`
-	Outcome string `json:"outcome"`
+	Method   string `json:"method"`
+	Outcome  string `json:"outcome"`
+	Dispatch string `json:"dispatch"`
 }
 type StopResult struct {
 	Agent    string `json:"agent"`
 	Terminal string `json:"terminal"`
-	Reason   string `json:"reason,omitempty"`
+	Dispatch string `json:"dispatch"`
 }
 type KillResult struct {
 	Terminal string `json:"terminal"`
-}
-type SpaceResult struct {
-	Space string `json:"space"`
+	Dispatch string `json:"dispatch"`
 }
 
-type hostAgent struct {
-	Provider        string           `json:"provider"`
-	Profile         string           `json:"profile,omitempty"`
-	ProviderSession *ProviderSession `json:"providerSession,omitempty"`
-	Status          Status           `json:"status"`
-	Methods         Methods          `json:"methods"`
-	PID             int              `json:"pid"`
-	PaneID          string           `json:"paneId"`
-	StartIdentity   string           `json:"startIdentity"`
-}
-type hostSession struct {
-	TmuxID        string `json:"tmuxId"`
-	TmuxName      string `json:"tmuxName"`
-	IdentityToken string `json:"identityToken"`
-	Character     struct {
-		Key         string `json:"key"`
-		DisplayName string `json:"displayName"`
-	} `json:"character"`
-	LaunchProfile   string     `json:"launchProfile,omitempty"`
-	Agent           *hostAgent `json:"agent,omitempty"`
-	Objective       string     `json:"objective,omitempty"`
-	CWD             string     `json:"cwd,omitempty"`
-	ActiveCommand   string     `json:"activeCommand,omitempty"`
-	AttachedClients *int       `json:"attachedClients"`
-	Space           spaceField `json:"space,omitzero"`
-}
 type hostInventory struct {
 	Machine struct {
 		Handle   string `json:"handle"`
 		Platform string `json:"platform"`
 	} `json:"machine"`
-	ObservedAt string        `json:"observedAt"`
-	Profiles   []Profile     `json:"profiles"`
-	Sessions   []hostSession `json:"sessions"`
-}
-type hostObservedSession struct {
-	ObservedAt string      `json:"observedAt"`
-	Session    hostSession `json:"session"`
-}
-
-func (s hostSession) project(machine string) Session {
-	ref := Reference{Machine: machine, TmuxID: s.TmuxID, IdentityToken: s.IdentityToken}
-	row := Session{Space: s.Space.label, Name: s.TmuxName, CWD: s.CWD, ActiveCommand: s.ActiveCommand, LaunchProfile: s.LaunchProfile, AttachedClients: *s.AttachedClients}
-	if s.Agent != nil {
-		ref.Agent = &ProcessReference{PaneID: s.Agent.PaneID, PID: s.Agent.PID, StartIdentity: s.Agent.StartIdentity}
-		row.Agent = &Agent{Provider: s.Agent.Provider, Profile: s.Agent.Profile, ProviderSession: s.Agent.ProviderSession, Status: s.Agent.Status, Methods: s.Agent.Methods}
-	}
-	row.Ref = ref.Encode()
-	return row
+	ObservedAt              string      `json:"observedAt"`
+	Partial                 bool        `json:"partial"`
+	UnaddressableTerminals  int         `json:"unaddressableTerminals"`
+	UnaddressableWorkspaces int         `json:"unaddressableWorkspaces"`
+	Profiles                []Profile   `json:"profiles"`
+	Workspaces              []Workspace `json:"workspaces"`
+	Terminals               []Terminal  `json:"terminals"`
 }
 
-func decodeResponse(operation string, encoded []byte, target peer) (any, bool) {
-	switch operation {
-	case "list":
-		var value *hostInventory
-		if strictjson.Decode(encoded, &value) != nil || value == nil || value.Machine.Handle != target.Machine || !slices.Contains([]string{"Linux", "Darwin"}, value.Machine.Platform) || value.Profiles == nil || value.Sessions == nil {
-			return nil, false
-		}
-		if _, err := time.Parse(time.RFC3339Nano, value.ObservedAt); err != nil {
-			return nil, false
-		}
-		for _, p := range value.Profiles {
-			if p.Key == "" || p.Label == "" || !slices.Contains([]string{"Codex", "Claude"}, p.Provider) {
-				return nil, false
-			}
-		}
-		observed := Peer{Label: target.Label, Machine: target.Machine, OK: true, ObservedAt: value.ObservedAt, Profiles: value.Profiles, Sessions: make([]Session, 0, len(value.Sessions))}
-		for _, s := range value.Sessions {
-			if !validSession(s) {
-				return nil, false
-			}
-			observed.Sessions = append(observed.Sessions, s.project(target.Machine))
-		}
-		return observed, true
-	case "start", "shell":
-		var value *hostObservedSession
-		if strictjson.Decode(encoded, &value) != nil || value == nil || !validSession(value.Session) {
-			return nil, false
-		}
-		if _, err := time.Parse(time.RFC3339Nano, value.ObservedAt); err != nil {
-			return nil, false
-		}
-		return ObservedSession{Label: target.Label, Machine: target.Machine, ObservedAt: value.ObservedAt, Session: value.Session.project(target.Machine)}, true
-	case "read":
-		var value *struct {
-			Text      *string `json:"text"`
-			Source    string  `json:"source"`
-			Scope     string  `json:"scope"`
-			Truncated *bool   `json:"truncated"`
-		}
-		if strictjson.Decode(encoded, &value) != nil || value == nil || value.Text == nil || value.Truncated == nil || !slices.Contains([]string{"native", "terminal"}, value.Source) || !slices.Contains([]string{"recent_messages", "latest_turn", "terminal_history", "visible"}, value.Scope) {
-			return nil, false
-		}
-	case "send", "keys", "interrupt":
-		var value *WriteResult
-		if strictjson.Decode(encoded, &value) != nil || value == nil || value.Method != "terminal" || !slices.Contains([]string{"written", "unknown"}, value.Outcome) {
-			return nil, false
-		}
-	case "stop":
-		var value *StopResult
-		if strictjson.Decode(encoded, &value) != nil || value == nil || !slices.Contains([]string{"stopped", "interrupted", "idle", "unconfirmed"}, value.Agent) || !slices.Contains([]string{"closed", "unconfirmed"}, value.Terminal) || !slices.Contains([]string{"", "stale", "unavailable"}, value.Reason) {
-			return nil, false
-		}
-	default:
-		return nil, false
-	}
-	var compact bytes.Buffer
-	if json.Compact(&compact, encoded) != nil {
-		return nil, false
-	}
-	return json.RawMessage(compact.Bytes()), true
+func validTime(value string) bool { _, err := time.Parse(time.RFC3339Nano, value); return err == nil }
+func validRef(encoded, machine, kind string) bool {
+	value, err := reference.Decode(encoded)
+	return err == nil && value.Machine == machine && value.Kind == kind
 }
-
-func validSession(s hostSession) bool {
-	if !tmuxAddress(s.TmuxID, '$') || s.TmuxName == "" || s.IdentityToken == "" || s.AttachedClients == nil || *s.AttachedClients < 0 {
+func validTerminal(value Terminal, machine string) bool {
+	if !validRef(value.Ref, machine, "terminal") || !validRef(value.WorkspaceRef, machine, "workspace") || value.Character.Key == "" || value.Character.DisplayName == "" {
 		return false
 	}
-	a := s.Agent
-	if a == nil {
+	if value.Agent == nil {
 		return true
 	}
-	return slices.Contains([]string{"Codex", "Claude"}, a.Provider) && a.PID > 0 && tmuxAddress(a.PaneID, '%') && a.StartIdentity != "" && slices.Contains([]string{"working", "blocked", "idle", "done", "failed", "stopped", "unknown"}, a.Status.State) && slices.Contains([]string{"native", "terminal", "unavailable"}, a.Status.Source) && slices.Contains([]string{"", "permission", "input", "dialog", "provider_unavailable", "unrecognized"}, a.Status.Reason) && slices.Contains([]string{"native", "terminal", "unavailable"}, a.Methods.Read) && slices.Contains([]string{"native", "terminal", "unavailable"}, a.Methods.Send) && slices.Contains([]string{"native", "terminal", "unavailable"}, a.Methods.Interrupt)
+	a := value.Agent
+	if !validRef(a.Ref, machine, "agent") || !slices.Contains([]string{"Codex", "Claude"}, a.Provider) || !slices.Contains([]string{"working", "blocked", "idle", "unknown"}, a.Status.State) || !slices.Contains([]string{"herdr", "unavailable"}, a.Status.Source) || !slices.Contains([]string{"", "default_idle", "unrecognized", "observation_failed"}, a.Status.Reason) || !slices.Contains([]string{"ready", "blocked", "unconfirmed"}, a.Readiness) {
+		return false
+	}
+	for _, method := range []string{a.Methods.Read, a.Methods.Send, a.Methods.Interrupt} {
+		if method != "terminal" && method != "unavailable" {
+			return false
+		}
+	}
+	terminal, _ := reference.Decode(value.Ref)
+	agent, _ := reference.Decode(a.Ref)
+	return terminal.TerminalID == agent.TerminalID && terminal.IdentityToken == agent.IdentityToken && agent.Agent.Provider == a.Provider
+}
+func required(encoded []byte, fields ...string) bool {
+	var object map[string]json.RawMessage
+	if strictjson.Decode(encoded, &object) != nil {
+		return false
+	}
+	for _, field := range fields {
+		value, ok := object[field]
+		if !ok || string(value) == "null" {
+			return false
+		}
+	}
+	return true
+}
+func decodeInventory(encoded []byte, target peer) (Peer, error) {
+	var host *hostInventory
+	if strictjson.Decode(encoded, &host) != nil || !required(encoded, "machine", "observedAt", "partial", "unaddressableTerminals", "unaddressableWorkspaces", "profiles", "workspaces", "terminals") || host == nil || host.Machine.Handle != target.Machine || !slices.Contains([]string{"Linux", "Darwin"}, host.Machine.Platform) || !validTime(host.ObservedAt) || host.Profiles == nil || host.Workspaces == nil || host.Terminals == nil || host.UnaddressableTerminals < 0 || host.UnaddressableWorkspaces < 0 {
+		return Peer{}, errors.New("invalid inventory")
+	}
+	for _, p := range host.Profiles {
+		if p.Key == "" || p.Label == "" || !slices.Contains([]string{"Codex", "Claude"}, p.Provider) {
+			return Peer{}, errors.New("invalid profile")
+		}
+	}
+	for _, w := range host.Workspaces {
+		if !validRef(w.Ref, target.Machine, "workspace") || w.Label == "" {
+			return Peer{}, errors.New("invalid workspace")
+		}
+	}
+	for _, t := range host.Terminals {
+		if !validTerminal(t, target.Machine) {
+			return Peer{}, errors.New("invalid terminal")
+		}
+	}
+	return Peer{Label: target.Label, Machine: target.Machine, OK: true, ObservedAt: host.ObservedAt, Partial: host.Partial, UnaddressableTerminals: host.UnaddressableTerminals, UnaddressableWorkspaces: host.UnaddressableWorkspaces, Profiles: host.Profiles, Workspaces: host.Workspaces, Terminals: host.Terminals}, nil
+}
+func decodeSuccess(operation string, encoded []byte, target peer) (any, error) {
+	switch operation {
+	case "list":
+		return decodeInventory(encoded, target)
+	case "info", "start", "shell", "rename", "move":
+		var host *struct {
+			ObservedAt string   `json:"observedAt"`
+			Terminal   Terminal `json:"terminal"`
+			Launch     string   `json:"launch,omitempty"`
+			Dispatch   string   `json:"dispatch,omitempty"`
+		}
+		if strictjson.Decode(encoded, &host) != nil || !required(encoded, "observedAt", "terminal") || host == nil || !validTime(host.ObservedAt) || !validTerminal(host.Terminal, target.Machine) {
+			return nil, errors.New("invalid terminal response")
+		}
+		if operation == "info" && (host.Launch != "" || host.Dispatch != "") {
+			return nil, errors.New("invalid terminal response")
+		}
+		if operation != "info" && !required(encoded, "dispatch") {
+			return nil, errors.New("missing dispatch")
+		}
+		if (operation == "start" || operation == "shell") && (!slices.Contains([]string{"submitted", "not_requested"}, host.Launch) || host.Dispatch != "sent") {
+			return nil, errors.New("invalid creation")
+		}
+		if (operation == "rename" || operation == "move") && (host.Launch != "" || host.Dispatch != "sent") {
+			return nil, errors.New("invalid mutation")
+		}
+		return ObservedTerminal{target.Label, target.Machine, host.ObservedAt, host.Terminal, host.Launch, host.Dispatch}, nil
+	case "read", "send", "keys", "interrupt", "stop", "kill":
+		var fields map[string]json.RawMessage
+		if strictjson.Decode(encoded, &fields) != nil || fields == nil {
+			return nil, errors.New("invalid response")
+		}
+		switch operation {
+		case "read":
+			var value ReadResult
+			if strictjson.Decode(encoded, &value) != nil || !required(encoded, "text", "source", "scope", "truncated") || value.Source != "terminal" || !slices.Contains([]string{"visible", "terminal_history"}, value.Scope) {
+				return nil, errors.New("invalid read")
+			}
+		case "send", "keys", "interrupt":
+			var value WriteResult
+			if strictjson.Decode(encoded, &value) != nil || !required(encoded, "method", "outcome", "dispatch") || value.Method != "terminal" || !slices.Contains([]string{"written", "unknown"}, value.Outcome) || !slices.Contains([]string{"sent", "unknown"}, value.Dispatch) {
+				return nil, errors.New("invalid write")
+			}
+		case "stop":
+			var value StopResult
+			if strictjson.Decode(encoded, &value) != nil || !required(encoded, "agent", "terminal", "dispatch") || !slices.Contains([]string{"interrupt_sent", "exited"}, value.Agent) || value.Terminal != "closed" || value.Dispatch != "sent" {
+				return nil, errors.New("invalid stop")
+			}
+		case "kill":
+			var value KillResult
+			if strictjson.Decode(encoded, &value) != nil || !required(encoded, "terminal", "dispatch") || value.Terminal != "closed" || value.Dispatch != "sent" {
+				return nil, errors.New("invalid kill")
+			}
+		}
+		fields["label"], _ = json.Marshal(target.Label)
+		fields["machine"], _ = json.Marshal(target.Machine)
+		return fields, nil
+	default:
+		return nil, errors.New("unknown operation")
+	}
 }
 
-// Creation and membership errors carry required dispatch evidence. Malformed
-// evidence never becomes a definite rejection through control-route inference.
-func decodeMutationFailure(operation string, encoded []byte, status int) *Failure {
-	var value struct {
-		Code     string `json:"code"`
-		Message  string `json:"message"`
-		Dispatch string `json:"dispatch"`
-	}
-	if strictjson.Decode(encoded, &value) != nil || value.Dispatch != "not_sent" && value.Dispatch != "unknown" {
-		return nil
-	}
-	wantStatus, wantMessage := 0, ""
-	switch value.Code {
-	case "Unauthenticated":
-		wantStatus, wantMessage = http.StatusUnauthorized, "Authentication required."
-	case "MachineIdentityMismatch":
-		wantStatus, wantMessage = http.StatusConflict, "The machine identity changed. Fleet reset is required."
-	case "InvalidRequest":
-		wantStatus, wantMessage = http.StatusBadRequest, "The request is not valid."
-	case "RequestTooLarge":
-		wantStatus, wantMessage = http.StatusRequestEntityTooLarge, "The request is too large."
-	case "SpaceInvalid":
-		wantStatus, wantMessage = http.StatusUnprocessableEntity, space.ErrInvalid.Error()
-	case "SessionNotFound":
-		wantStatus, wantMessage = http.StatusNotFound, "That session no longer exists."
-	case "SessionIdentityMismatch":
-		wantStatus, wantMessage = http.StatusConflict, "The session changed. Refresh and try again."
-	case "WorkingDirectoryInvalid", "WorkingDirectoryUnavailable", "ProfileUnknown", "SessionNameInvalid", "SessionNameConflict", "ObjectiveInvalid":
-		if operation == "space" {
-			return nil
+func (value Peer) MarshalJSON() ([]byte, error) {
+	if !value.OK {
+		failure := struct{ Code, Message string }{"unavailable", "Peer unavailable."}
+		if value.Error != nil {
+			failure.Code = value.Error.Code
+			failure.Message = value.Error.Message
+			if failure.Message == "" {
+				failure.Message = "Peer unavailable."
+			}
 		}
-		wantStatus = http.StatusUnprocessableEntity
-		switch value.Code {
-		case "WorkingDirectoryInvalid":
-			wantMessage = "Choose a valid working directory."
-		case "WorkingDirectoryUnavailable":
-			wantMessage = "That directory does not exist or cannot be opened."
-		case "ProfileUnknown":
-			wantMessage = "Choose an available profile."
-		case "SessionNameInvalid":
-			wantMessage = "Use 1–64 letters, numbers, underscores, or hyphens, beginning with a letter or number."
-		case "SessionNameConflict":
-			wantStatus, wantMessage = http.StatusConflict, "A session with that name already exists."
-		case "ObjectiveInvalid":
-			wantMessage = "Use 1–240 characters without terminal controls."
-		}
-	case "InternalError":
-		wantStatus, wantMessage = http.StatusInternalServerError, "Skíðblaðnir could not complete the request."
-	default:
-		return nil
+		return json.Marshal(struct {
+			Label   string `json:"label"`
+			Machine string `json:"machine"`
+			OK      bool   `json:"ok"`
+			Error   any    `json:"error"`
+		}{value.Label, value.Machine, false, map[string]string{"code": failure.Code, "message": failure.Message}})
 	}
-	if status != wantStatus || value.Message != wantMessage || value.Code != "InternalError" && value.Dispatch != "not_sent" {
-		return nil
-	}
-	return &Failure{Code: value.Code, Dispatch: value.Dispatch}
+	return json.Marshal(struct {
+		Label                   string      `json:"label"`
+		Machine                 string      `json:"machine"`
+		OK                      bool        `json:"ok"`
+		ObservedAt              string      `json:"observedAt"`
+		Partial                 bool        `json:"partial"`
+		UnaddressableTerminals  int         `json:"unaddressableTerminals"`
+		UnaddressableWorkspaces int         `json:"unaddressableWorkspaces"`
+		Profiles                []Profile   `json:"profiles"`
+		Workspaces              []Workspace `json:"workspaces"`
+		Terminals               []Terminal  `json:"terminals"`
+	}{value.Label, value.Machine, true, value.ObservedAt, value.Partial, value.UnaddressableTerminals, value.UnaddressableWorkspaces, value.Profiles, value.Workspaces, value.Terminals})
 }
