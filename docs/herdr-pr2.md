@@ -1,6 +1,7 @@
 # herdr pr 2: one runtime, one product contract
 
-2026-09-22 · implementation specification, not implementation authorization.
+2026-09-22 · implementation specification. the user has since authorized work
+on this pr, conditional on its entry gate.
 one skid pr; reviewable commits, no intermediate release. [the migration plan](herdr-migration.md)
 owns delivery. [pr 1's candidate](herdr-pr1.md#candidate-pr-2-contract-proposed-not-implemented)
 owns exact wire shapes and upstream mappings; this document owns implementation
@@ -13,17 +14,28 @@ pr 1 remains incomplete. v0.9.1 cannot receive `proceed`. before implementation:
 - qualify a public mode-aware key operation covering the retained phone and
   desktop input vocabulary; record its exact release/source and operation map.
   no raw-csi workaround, hidden key removal or private upstream protocol.
-- qualify the borrowed desktop input decoder for literal, bounded paste and
+- qualify the desktop input decoder path for literal, bounded paste and
   cancellation; [the recorded defects](issues/herdr-terminal-acceptance.md#pr-2-input-contract-review)
-  prevent accepting its current pin from source inspection alone.
+  prevent using the pinned ultraviolet `TerminalReader`.
 - close the recorded readiness, process-bound claude identity, phone typing,
-  provider scrolling, background release, linux stream/desktop and skipped human
-  phone checks. [pr 1's evidence](herdr-pr1.md#2026-09-22-reopened-qualification-at-the-accepted-scope)
+  provider scrolling, background release and linux stream/desktop checks.
+  [pr 1's evidence](herdr-pr1.md#2026-09-22-reopened-qualification-at-the-accepted-scope)
   distinguishes failures from missing proof. none becomes a pass here.
+  [claude submission](issues/herdr-claude-submission.md) is separately open.
 
-then freeze the candidate, close its issues and obtain implementation approval.
+the user waived the human dictation, gboard paste, local copy and rotation
+checks for this candidate. record each as `NOT_RUN`; record later failures as
+live-repair issues. do not infer that these behaviors work.
+
+then freeze the candidate and close its issues. the user's task already
+authorizes implementation once these prerequisites hold.
 pr 2 repeats important proofs through product code. a disposable adapter cannot
 qualify the implementation that replaces it.
+
+accepted 2026-09-22: retain the full phone and desktop key vocabulary and defer
+cutover until a qualified released herdr public operation supports it. do not
+remove controls, guess raw csi, ship a partial runtime, or ask herdr to conform
+to skid's unpublished contract. no external request or patch was submitted.
 
 accepted 2026-09-22: ordinary `skid send` requires recognized idle and rejects
 working/unconfirmed states before dispatch; it does not wait or queue.
@@ -153,8 +165,10 @@ and the first full frame together; timeout releases the child and reports
 `control_unavailable`. client application of that frame must complete within its
 fifteen-second acquisition deadline or detach. input remains disabled throughout.
 
-the gateway validates frames; the phone applies the first full frame's reset,
-geometry and ansi before acknowledging it and enabling input. native code checks
+the gateway validates frames and withholds input until it emits a valid first
+full frame. the phone applies that frame's reset, geometry and ansi before its
+page acknowledges application to the current connection attempt, which then
+enables input. no websocket acknowledgement is added. native code checks
 contiguous sequence numbers; decimal strings preserve uint64 through javascript.
 retain acknowledged rendering/backpressure. gaps, malformed data and overflow
 end only the attachment. qualify the candidate's frame/queue caps against the
@@ -175,14 +189,18 @@ native code owns credentials and transport. ctrl/alt apply only to proven discre
 keys/deck actions; ime/dictation, paste and uncertain text consume them unchanged.
 retain hardware keys and enter/backspace as well as every deck key.
 
-desktop input uses a qualified `ultraviolet.TerminalReader` revision, borrowing
-its utf-8/escape/paste decoder without bubbletea. promote the existing indirect
-dependency only after its [literal-paste/bounds gate](issues/herdr-terminal-acceptance.md#pr-2-input-contract-review)
-passes. map committed text, named/modified keys and bracketed paste to the shared
-wire; enable local bracketed-paste reporting, consume replies locally and never
-submit a paste. `ctrl-] d` is local detach only outside paste; unknown keyboard
-sequences end attachment with an explanation, not raw forwarding. release tty
-modes/readers on every exit. no copied parser or private upstream protocol.
+desktop input frames escapes with the already pinned `x/ansi` parser, decodes
+complete named/modified keys and terminal replies with ultraviolet's public
+`EventDecoder`, and handles utf-8 text and bounded literal bracketed paste in
+`terminalclient`. reuse its cancellable tty reader; do not use the defective
+`ultraviolet.TerminalReader` or bubbletea. map events to the shared wire, enable
+local bracketed-paste reporting, consume replies locally and never submit a
+paste. `ctrl-] d` is local detach only outside paste; unknown keyboard and
+terminfo-only sequences end attachment with an explanation, not raw forwarding.
+preserve ctrl/alt on kitty key events carrying text; resolve or explicitly
+reject ambiguous key/reply events. feed bounded chunks before paste/escape
+accumulation. release tty modes/readers on every exit. no copied parser or private upstream
+protocol.
 
 `SkidbladnirController` remains the sole owner of selected target, foreground
 state, attempt generation and navigation. `TerminalConnection` owns one socket,
@@ -269,8 +287,8 @@ distinguish working from readiness, not describe a busy worker as broken.
 | uncertainty + ownership | suppress one actual reply after dispatch: one effect, truthful unknown/partial, no replay. client/gateway loss preserves workers; runtime restart creates new lifetimes with resume disabled |
 | native closure | ordinary close, linked cascade and confirmation refusal; outside-group terminals survive. stop reports its separate steps, rejects observed replacement, and stops after unknown interrupt |
 | desktop | bare skid attaches existing local server and refuses absent server; `enter` qualifies typing/keys/paste, resize, detach and tty restoration through the real gateway on both platforms |
-| physical phone | shell, codex and claude: exact typing, ime/dictation, gboard/multiline paste, full key vocabulary in relevant modes, actual history scroll, local copy, sizing/rotation, takeover and return navigation; linux and darwin host stream boundaries |
-| phone lifetime + bounds | background during acquisition/first-frame/rotation and steady state; abrupt loss including retained tcp relay, and bearer revocation. desktop regains geometry within the stated deadlines, worker survives, stale callbacks/input never resume; stress intended maximum frames and overflow closure |
+| physical phone | shell, codex and claude: exact automatable typing, synthetic multiline paste, full key vocabulary in relevant modes, actual history scroll, sizing, takeover and return navigation; linux and darwin host stream boundaries. human dictation, gboard paste, local copy and rotation remain `NOT_RUN` under the user waiver above |
+| phone lifetime + bounds | background during acquisition, first frame and steady state; abrupt loss including retained tcp relay, and bearer revocation. desktop regains geometry within the stated deadlines, worker survives, stale callbacks/input never resume; stress intended maximum frames and overflow closure. rotation remains `NOT_RUN` under the user waiver |
 | retained services + retirement | pairing/machine rejection, directory and pressure smoke through actual routes; old config/routes/commands reject. source/import/build checks show no tmux/browser/local detector/native-control execution path or unused dependency |
 
 root removes `terminal_exec.go` and old tmux hook/config/logging fields; retire

@@ -48,18 +48,36 @@ to the test relay and adb reverse, not a claim about a production bridge.
 
 the public control stream also reports attach conflict inside a free-form
 `terminal.closed.reason`, not a typed error. an exact v0.9.1 text match can
-drive a disposable probe, but a production phone contract should request an
-upstream typed close reason rather than make human prose into a stable code.
-the stream reader admits upstream frames up to 32 mib while skid's current
-terminal frame bound is 64 kib; full-frame and queue limits need measurement
-and an explicit bounded bridge decision before cutover.
+drive a disposable probe; the accepted product contract instead reports coarse
+`control_unavailable` before the first frame and never treats human prose as
+a stable code.
+the stream reader accepts up to 32 mib, though its terminal attach producer
+emits under a 2-mib cap. skid's current terminal frame bound is 64 kib;
+full-frame and queue limits need measurement and an explicit bounded bridge
+decision before cutover.
+
+an isolated v0.9.1 darwin control stream at the intended 1024×512 geometry
+produced a full frame of 1,272,539 decoded ansi bytes for 16-cell truecolor
+stripes and 2,016,731 bytes for 8-cell stripes. the latter public json line
+was 2,689,077 bytes. both are valid emitted frames but exceed pr 1's former
+1-mib decoded cap; the latter also exceeds its former 2-mib line and queue caps.
+upstream skipped a denser per-cell-color render at its own 2,097,152-byte
+normal-frame limit. pr 1 now proposes source-derived 2-mib decoded and
+3-mib encoded bounds. the terminal attach producer does not use herdr's
+separate 32-mib graphics allowance, despite the public control reader's
+larger input cap. this is a measured failure of the old contract, not yet a
+product pass:
+largest-frame phone rendering, memory and attachment-only overflow closure
+are `NOT_RUN`.
 
 resolution owner: [migration pr 1](../herdr-migration.md#pr-1-feasibility-and-implementation-contract).
 use test-owned codex, claude and shell terminals on isolated linux/darwin servers.
-exercise the existing phone renderer with typing, composition/dictation, multiline
-paste, keys, alternate-screen history, touch scroll, selection/copy, rotation and
-keyboard resize. prove actual codex/claude history movement, not just receipt of
-scroll commands. taps focus input without remote clicks; selection stays local.
+exercise the existing phone renderer with typing, synthetic multiline paste,
+keys, alternate-screen history, touch scroll and keyboard resize. the user
+waived dictation, gboard paste, local selection/copy and rotation; record them
+as `NOT_RUN`, without inferring success. prove actual codex/claude history
+movement, not just receipt of scroll commands. taps focus input without remote
+clicks; selection stays local.
 attach desktop concurrently, then detach/background/disconnect
 the phone and verify sizing handback and continued worker execution.
 
@@ -100,6 +118,19 @@ input boundary. keep this issue open for the
 key-deck, provider and linux stream boundaries; pr 2 must repeat release
 through its actual websocket bridge.
 
+a later official v0.9.1 physical-phone proof matched nine adb-injected
+synthetic input bytes exactly once in a test-owned raw host reader, then failed
+the same comparison on a fresh worker despite nine foreground input messages.
+automated typing therefore remains open. background release remained red: its
+`onStop` callback and ordered writer ran, but the
+relay received no release and herdr kept phone geometry beyond seven seconds.
+moving release to `onPause` in that temporary adapter delivered
+`terminal.release` and returned geometry from phone 42×40 to desktop 28×53
+within two seconds, with the worker alive. one green run identifies a plausible
+lifecycle boundary but does not establish reliable product behavior; `onPause`
+can also run for transient overlays. retain the background issue until the
+actual phone controller passes repeated acquisition and steady-state cases.
+
 ## pr 2 input contract review
 
 problem: the earlier stream key set described only the phone deck; it omitted
@@ -115,13 +146,43 @@ reuse candidate: the existing ultraviolet dependency offers a terminal input
 reader with key/paste/reply events. its
 [pinned source](https://github.com/charmbracelet/ultraviolet/blob/f5a850f9c2b7/terminal_reader.go#L334)
 discards valid replacement characters in paste and accumulates paste without a
-size limit. this is source evidence, not an executed failure. accepting that pin
-would contradict literal input and bounded buffering. qualify an upstream repair
-or suitable revision; do not copy its parser into skid.
+size limit. a temporary hermetic probe reproduced both defects and blocked
+cancellation at that pin; current upstream source
+`4e49372c11f9827d149a13ffaca652cec39466d9` still has them. a local
+upstream patch passed focused, package and race checks on darwin, but no
+published revision can be pinned. accepting the current reader would
+contradict literal input and bounded buffering.
 
-resolved when: temporary decoder proofs preserve fragmented utf-8 (including
-`U+FFFD`), multiline/bracketed paste and detach-looking paste literally, reject
-oversize input without unbounded accumulation, and cancel cleanly. then prove
+a separate temporary skid-side decoder probe composes the already pinned
+`x/ansi.DecodeSequence` for escape framing, ultraviolet's public `EventDecoder`
+for named keys/replies, and go's utf-8 decoder for literal text and paste. it
+passed fragmented replacement-rune, multiline and detach-looking literal
+paste, 32-kib overflow, one modified arrow, escape-timeout and unknown-sequence
+checks. this avoids the defective `TerminalReader` and copies no parser.
+the resulting scanner still needs a real tty and linux/darwin product proof;
+unrecognized terminfo-only input must end the attachment explicitly. the probe
+currently drops ultraviolet's ambiguous modified-f3/cursor-position
+`MultiEvent` and appends a whole caller chunk before cap checks. product code
+must explicitly handle or reject that ambiguity and feed bounded chunks, with
+tests, before this decoder path qualifies. it also treats a key with both
+`Text` and ctrl/alt modifiers as plain text; preserve modifiers when mapping
+kitty keyboard events and test them. no valid key may disappear silently.
+
+the [latest published herdr preview](https://github.com/herdrdev/herdr/releases/tag/preview-2026-09-21-0ff0f27e2226)
+still rejects home, end, insert, delete and page keys through its public pane
+input parser. a temporary upstream patch on that source passed parser and
+mode-aware api tests, including application-cursor home/end, but has no
+published release or linux/darwin/phone proof. herdr's
+[contribution policy](https://github.com/herdrdev/herdr/blob/0ff0f27e222633c97ba4291f6b9be4137002ca84/CONTRIBUTING.md)
+does not accept unsolicited implementation pull requests. the entry gate
+therefore remains open; local patches do not authorize skid cutover.
+the user chose to retain the keys and defer cutover. no herdr discussion or
+pull request was posted. a future independently released public key operation
+must pass the same mode-aware phone/desktop proof before this issue closes.
+
+resolved when: the skid-side decoder preserves fragmented utf-8 (including
+`U+FFFD`), multiline/bracketed paste and detach-looking paste literally, rejects
+oversize input without unbounded accumulation, and cancels cleanly. prove
 the named key/modifier mapping through actual `skid enter` and gateway/herdr on
 linux and darwin. the [pr 2 spec](../herdr-pr2.md#attached-terminal) owns integration;
 these checks do not waive the physical-phone gaps above.
