@@ -1,5 +1,9 @@
 # herdr account profiles and cold restore
 
+status 2026-09-23: the remaining macbook qualification is an
+[accepted non-blocking follow-up](../herdr-pr2.md#accepted-non-blocking-follow-ups),
+not a merge or cutover gate. preserve the host-specific evidence below.
+
 problem: the inspected herdr v0.9.1 cold-restore path does not retain per-pane
 environment overrides. skid's account profiles rely on distinct provider homes.
 
@@ -11,8 +15,8 @@ evidence: at release commit `065ef9d6a531c49fb8bee7e818ef837065b21ee9`,
 [saved pane fields](https://github.com/herdrdev/herdr/blob/065ef9d6a531c49fb8bee7e818ef837065b21ee9/src/persist/snapshot.rs#L98)
 omit environment, and
 [restore](https://github.com/herdrdev/herdr/blob/065ef9d6a531c49fb8bee7e818ef837065b21ee9/src/persist/restore.rs#L520)
-constructs empty extra environment. this is source evidence; live profile/restore
-acceptance remains `NOT_RUN`.
+constructs empty extra environment. this was source evidence before the live
+profile/restore results below.
 
 pr 1's isolated darwin binary proof passed one synthetic exact-wrapper launch:
 `workspace.create` supplied one root pane with chosen cwd/environment, and
@@ -50,6 +54,19 @@ providers showed startup/update/form blockers or default-idle fallback within
 ten seconds; no account/configuration was changed. the sole content-free claude
 `SessionStart` runtime-profile identity registration is unproved on herdr.
 v0.9.1's `pane.process_info.tty` is always absent; inherited `HERDR_PANE_ID`
-and foreground-process identity offer a source-supported route. keep this issue
-open until that retained capability and interactive readiness are qualified, or
-their loss receives separate explicit acceptance.
+and foreground-process identity offered a source-supported route. that route
+was unproved in the 2026-09-22 run; the later product result follows.
+
+2026-09-23 pr 134 product proof: the authenticated devbox `claude-work`
+profile launched through the candidate gateway on an isolated official v0.9.1
+server. its original worker reached recognized ready/idle and processed one
+literal submission, producing a distinct reply on the same process. a
+test-owned `SessionStart` plugin published process-bound profile and provider
+session metadata; product inventory exposed `provenRuntimeProfile:claude-work`
+and the provider session id for that original worker. the initially published
+single token was truncated by herdr's 80-character metadata value limit, so
+the candidate now writes a bounded committed registration across metadata
+fragments. after this worker exited, a new unregistered foreground worker in
+the same pane did not inherit its optional profile/session facts. macbook
+`claude-work` was signed out in the exact isolated wrapper; its model-turn
+readiness remains unqualified. keep the issue open for that host-specific gap.

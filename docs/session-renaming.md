@@ -1,5 +1,21 @@
 # Tmux session renaming
 
+## herdr pr 2 candidate
+
+the phone retains an explicit rename sheet for the selected terminal. it sends
+`PATCH /v1/terminals/R` with `{name}` against the original machine-bound
+terminal ref. the host validates the 1–64 ascii name grammar, revalidates that
+terminal, calls public `pane.rename`, sets/readbacks `skid_named` when needed,
+and returns the observed terminal plus `dispatch`. rename preserves a live
+terminal ref but a competing native rename can win; clients confirm current
+presentation from inventory. a lost reply remains unknown and is not retried.
+an unmarked native label is a hint, never a name selector. no expected-name
+body, tmux id, `204` result or tmux group semantics survive. [pr 1's operation
+table](herdr-pr1.md#retained-gateway-operations) and [pr 2](herdr-pr2.md)
+govern the candidate. the detailed tmux design and proofs below are historical.
+
+## historical tmux rename contract
+
 Status: **accepted implementation contract; source implemented**. This document
 owns the phone-initiated tmux-session rename capability, delivery boundaries,
 and red/green proof shape.

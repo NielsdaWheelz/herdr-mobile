@@ -22,6 +22,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
+import org.json.JSONArray
 import androidx.webkit.WebMessageCompat
 import androidx.webkit.WebMessagePortCompat
 import androidx.webkit.WebResourceErrorCompat
@@ -36,15 +37,14 @@ import org.json.JSONObject
 
 private const val LOCAL_ASSET_HOST = "appassets.androidplatform.net"
 private const val TERMINAL_URL = "https://$LOCAL_ASSET_HOST/assets/terminal/index.html"
-private const val MAXIMUM_PAGE_OUTPUT_BYTES = 1024 * 1024L
-private const val MAXIMUM_PAGE_INPUT_BYTES = 1024 * 1024
+private const val MAXIMUM_PAGE_OUTPUT_BYTES = 3 * 1024 * 1024L
+private const val MAXIMUM_PAGE_INPUT_BYTES = 32 * 1024
 private const val MAXIMUM_SELECTION_BYTES = 256 * 1024
 private const val MAXIMUM_SAFE_JAVASCRIPT_INTEGER = 9_007_199_254_740_991L
 private const val TERMINAL_PAGE_READY_TIMEOUT_MILLIS = 10_000L
 
 private data class PendingPageOutput(
-    val sequence: String,
-    val bytes: ByteArray,
+    val frame: TerminalFrame,
 )
 
 private enum class PageOutputAdvance {
@@ -53,7 +53,7 @@ private enum class PageOutputAdvance {
     Invalid,
 }
 
-private enum class TerminalScrollDirection {
+private enum class TerminalAccessibilityScrollDirection {
     Backward,
     Forward,
 }
@@ -62,13 +62,13 @@ private sealed interface TerminalPageCommand {
     data object Focus : TerminalPageCommand
     data class Accessory(val accessory: TerminalAccessory) : TerminalPageCommand
     data object ResetInputState : TerminalPageCommand
-    data class Scroll(val direction: TerminalScrollDirection) : TerminalPageCommand
+    data class Scroll(val direction: TerminalAccessibilityScrollDirection) : TerminalPageCommand
     data class ClearSelection(val generation: String) : TerminalPageCommand
     data class FontSize(val fontSizeCssPx: Double) : TerminalPageCommand
 }
 
 internal interface TerminalPage {
-    fun write(bytes: ByteArray)
+    fun writeFrame(frame: TerminalFrame)
     fun focus()
     fun sendAccessory(accessory: TerminalAccessory)
     fun resetInputState()
@@ -104,7 +104,8 @@ internal data class TerminalModifiers(
 
 internal interface TerminalPageListener {
     fun onReady(page: TerminalPage)
-    fun onInput(bytes: ByteArray)
+    fun onInput(input: TerminalInput)
+    fun onFrameApplied(seq: String)
     fun onResize(columns: Int, rows: Int)
     fun onViewportTooSmall()
     fun onModifiersChanged(modifiers: TerminalModifiers)
@@ -147,7 +148,6 @@ internal class LockedTerminalWebView(
     private val pendingOutput = ArrayDeque<PendingPageOutput>()
     private var pendingOutputBytes = 0L
     private var outputInFlight = false
-    private var nextOutputSequence = 1L
     private var accessibilityDelegate: AccessibilityNodeProvider? = null
     private var accessibilityWrapper: AccessibilityNodeProvider? = null
     private var accessibilityActionsWereAvailable = false
@@ -211,17 +211,17 @@ internal class LockedTerminalWebView(
         super.scrollTo(0, 0)
     }
 
-    override fun write(bytes: ByteArray) {
+    override fun writeFrame(frame: TerminalFrame) {
         val shouldDrain = synchronized(outputMonitor) {
             if (disposed || unavailable) return
-            if (pendingOutputBytes + bytes.size > MAXIMUM_PAGE_OUTPUT_BYTES) {
+            if (pendingOutputBytes + frame.ansi.size > MAXIMUM_PAGE_OUTPUT_BYTES) {
                 clearOutputLocked()
                 unavailable = true
                 main.post(::reportUnavailable)
                 return
             }
-            pendingOutput.addLast(PendingPageOutput((nextOutputSequence++).toString(), bytes))
-            pendingOutputBytes += bytes.size
+            pendingOutput.addLast(PendingPageOutput(frame))
+            pendingOutputBytes += frame.ansi.size
             if (outputInFlight) {
                 false
             } else {
@@ -465,16 +465,9 @@ internal class LockedTerminalWebView(
                         } else {
                             markUnavailable()
                         }
-                        "Input" -> if (objectValue.hasExactKeys("kind", "value")) {
-                            val value = objectValue.stringField("value")
-                            val byteCount = value?.utf8ByteCountWithin(MAXIMUM_PAGE_INPUT_BYTES)
-                            if (value == null || byteCount == null) {
-                                markUnavailable()
-                            } else {
-                                listener.onInput(value.toByteArray(Charsets.UTF_8))
-                            }
-                        } else {
-                            markUnavailable()
+                        "Text", "Paste", "Key", "Scroll" -> {
+                            val input = objectValue.terminalInput()
+                            if (input == null) markUnavailable() else listener.onInput(input)
                         }
                         "Resize" -> if (objectValue.hasExactKeys("kind", "columns", "rows")) {
                             val columns = objectValue.intField("columns")
@@ -744,8 +737,8 @@ internal class LockedTerminalWebView(
             arguments: Bundle?,
         ): Boolean {
             val direction = when (action) {
-                R.id.terminal_wheel_backward -> TerminalScrollDirection.Backward
-                R.id.terminal_wheel_forward -> TerminalScrollDirection.Forward
+                R.id.terminal_wheel_backward -> TerminalAccessibilityScrollDirection.Backward
+                R.id.terminal_wheel_forward -> TerminalAccessibilityScrollDirection.Forward
                 else -> return delegate.performAction(virtualViewId, action, arguments)
             }
             val current = delegate.createAccessibilityNodeInfo(virtualViewId)
@@ -821,9 +814,12 @@ internal class LockedTerminalWebView(
             port.postMessage(
                 WebMessageCompat(
                     JSONObject()
-                        .put("kind", "Output")
-                        .put("sequence", output.sequence)
-                        .put("data", Base64.encodeToString(output.bytes, Base64.NO_WRAP))
+                        .put("kind", "Frame")
+                        .put("seq", output.frame.seq)
+                        .put("columns", output.frame.columns)
+                        .put("rows", output.frame.rows)
+                        .put("full", output.frame.full)
+                        .put("ansiBase64", Base64.encodeToString(output.frame.ansi, Base64.NO_WRAP))
                         .toString(),
                 ),
             )
@@ -836,11 +832,11 @@ internal class LockedTerminalWebView(
         val advance = synchronized(outputMonitor) {
             if (disposed || unavailable) return
             val applied = pendingOutput.firstOrNull()
-            if (applied?.sequence != sequence) {
+            if (applied?.frame?.seq != sequence) {
                 PageOutputAdvance.Invalid
             } else {
                 pendingOutput.removeFirst()
-                pendingOutputBytes -= applied.bytes.size
+                pendingOutputBytes -= applied.frame.ansi.size
                 if (pendingOutput.isEmpty()) {
                     outputInFlight = false
                     PageOutputAdvance.Complete
@@ -850,8 +846,11 @@ internal class LockedTerminalWebView(
             }
         }
         when (advance) {
-            PageOutputAdvance.Complete -> Unit
-            PageOutputAdvance.Continue -> post(::sendNextOutput)
+            PageOutputAdvance.Complete -> listener.onFrameApplied(sequence)
+            PageOutputAdvance.Continue -> {
+                listener.onFrameApplied(sequence)
+                post(::sendNextOutput)
+            }
             PageOutputAdvance.Invalid -> markUnavailable()
         }
     }
@@ -900,6 +899,62 @@ internal class LockedTerminalWebView(
     }
 
     private fun JSONObject.stringField(name: String): String? = opt(name) as? String
+
+    private fun JSONObject.terminalInput(): TerminalInput? {
+        return when (stringField("kind")) {
+        "Text", "Paste" -> {
+            if (!hasExactKeys("kind", "text")) return null
+            val value = stringField("text") ?: return null
+            if (value.utf8ByteCountWithin(MAXIMUM_PAGE_INPUT_BYTES) == null) return null
+            if (stringField("kind") == "Paste") {
+                TerminalInput.Paste(value)
+            } else {
+                if (value.isEmpty() || value.any { it.code < 0x20 || it.code == 0x7f }) return null
+                TerminalInput.Text(value)
+            }
+        }
+        "Key" -> {
+            if (!hasExactKeys("kind", "key", "modifiers")) return null
+            val key = stringField("key") ?: return null
+            if (!terminalLogicalKeyValid(key)) return null
+            val rawModifiers = opt("modifiers") as? JSONArray ?: return null
+            if (rawModifiers.length() > 3) return null
+            val modifiers = buildList {
+                for (index in 0 until rawModifiers.length()) {
+                    add(rawModifiers.opt(index) as? String ?: return null)
+                }
+            }
+            if (modifiers != listOf("ctrl", "alt", "shift").filter { it in modifiers }) return null
+            TerminalInput.Key(key, modifiers)
+        }
+        "Scroll" -> {
+            if (!hasExactKeys("kind", "source", "direction", "lines") &&
+                !hasExactKeys("kind", "source", "direction", "lines", "column") &&
+                !hasExactKeys("kind", "source", "direction", "lines", "row") &&
+                !hasExactKeys("kind", "source", "direction", "lines", "column", "row")
+            ) return null
+            val source = when (stringField("source")) {
+                "Wheel" -> TerminalScrollSource.Wheel
+                "PageKey" -> TerminalScrollSource.PageKey
+                else -> return null
+            }
+            val direction = when (stringField("direction")) {
+                "Up" -> TerminalScrollDirection.Up
+                "Down" -> TerminalScrollDirection.Down
+                else -> return null
+            }
+            val lines = intField("lines") ?: return null
+            val column = if (has("column")) intField("column") ?: return null else null
+            val row = if (has("row")) intField("row") ?: return null else null
+            if (lines !in 1..512 || column != null && column !in 0..65535 ||
+                row != null && row !in 0..65535 || source == TerminalScrollSource.PageKey &&
+                (column != null || row != null)
+            ) return null
+            TerminalInput.Scroll(source, direction, lines, column, row)
+        }
+        else -> null
+        }
+    }
 
     private fun JSONObject.selectionGeneration(name: String): String? {
         val value = stringField(name) ?: return null

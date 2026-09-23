@@ -113,7 +113,7 @@ internal fun HeaderChip(
 @Composable
 internal fun KillButton(
     machineLabel: MachineLabel,
-    target: SessionTarget,
+    target: TerminalTarget,
     enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -157,7 +157,7 @@ internal fun KillButton(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = if (target.session.agent == null) "Kill" else "Stop",
+                text = if (target.terminal.agent == null) "Close" else "Stop",
                 // Disabled goes to Bone, not a dimmed Ember: Ember at 38% over
                 // an Ember-tinted ground measures 1.82:1, where Bone holds
                 // 3.21:1 — the legibility the TextButton had. The hue change

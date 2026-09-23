@@ -10,6 +10,7 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import java.util.Base64
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
@@ -184,7 +185,7 @@ internal class ProfileKey private constructor(val encoded: String) {
 }
 
 internal data class PairedMachine(val handle: MachineHandle, val label: MachineLabel, val origin: MachineOrigin)
-internal data class SessionTarget(val machineHandle: MachineHandle, val session: TmuxSession)
+internal data class TerminalTarget(val machineHandle: MachineHandle, val terminal: TerminalRecord)
 internal enum class MachinePlatform { Linux, Darwin }
 internal data class MachineSummary(val handle: MachineHandle, val platform: MachinePlatform)
 @Serializable internal enum class AgentProvider { Codex, Claude }
@@ -219,19 +220,18 @@ internal data class ProviderSessionFacts private constructor(
 }
 
 internal data class AgentRuntime(
+    val ref: String,
     val provider: AgentProvider,
-    val pid: Long,
-    val paneId: String,
-    val startIdentity: String,
     val status: AgentStatus,
+    val readiness: AgentReadiness,
     val methods: AgentMethods,
-    val profile: ProfileKey? = null,
+    val provenRuntimeProfile: ProfileKey? = null,
     val providerSession: ProviderSessionFacts? = null,
 ) {
     init {
-        require(pid > 0)
-        require(paneId.matches(Regex("%[0-9]+")))
-        require(startIdentity.isNotEmpty())
+        require(isOpaqueRef(ref))
+        require(readiness != AgentReadiness.Ready || status.state == AgentState.Idle)
+        require(readiness != AgentReadiness.Blocked || status.state == AgentState.Blocked)
         when (provider) {
             AgentProvider.Codex -> require(providerSession?.name == null)
             AgentProvider.Claude -> Unit
@@ -239,40 +239,62 @@ internal data class AgentRuntime(
     }
 }
 
-internal data class TmuxSession(
-    val tmuxId: String,
-    val tmuxName: String,
-    val identityToken: String,
+internal data class TerminalRecord(
+    val ref: String,
+    val name: String? = null,
+    val nativeLabel: String? = null,
     val character: CharacterSummary,
+    val workspaceRef: String,
     val launchProfile: ProfileKey? = null,
     val objective: String? = null,
-    val space: SpaceLabel? = null,
     val cwd: String? = null,
-    val activeCommand: String? = null,
-    val attachedClients: Int,
     val agent: AgentRuntime? = null,
 )
 
-internal data class SessionsResponse(
+internal data class WorkspaceRecord(val ref: String, val label: WorkspaceLabel)
+
+private val opaqueRefAlphabet = Regex("[A-Za-z0-9_-]+")
+private fun isOpaqueRef(value: String): Boolean {
+    if (value.length !in 1..4096 || value.length % 4 == 1 || !opaqueRefAlphabet.matches(value)) return false
+    return try {
+        Base64.getUrlEncoder().withoutPadding().encodeToString(Base64.getUrlDecoder().decode(value)) == value
+    } catch (_: IllegalArgumentException) {
+        false
+    }
+}
+
+internal data class TerminalsResponse(
     val machine: MachineSummary,
     val observedAt: Instant,
+    val partial: Boolean,
+    val unaddressableTerminals: Int,
+    val unaddressableWorkspaces: Int,
     val profiles: List<ProfileChoice>,
-    val sessions: List<TmuxSession>,
+    val workspaces: List<WorkspaceRecord>,
+    val terminals: List<TerminalRecord>,
 )
 
 @Serializable
-private data class WireSessionsResponse(
+private data class WireTerminalsResponse(
     val machine: WireMachineSummary,
     @Serializable(with = IsoInstantSerializer::class) val observedAt: Instant,
+    val partial: Boolean,
+    val unaddressableTerminals: Int,
+    val unaddressableWorkspaces: Int,
     val profiles: List<WireProfileChoice>,
-    val sessions: List<WireTmuxSession>,
+    val workspaces: List<WireWorkspaceRecord>,
+    val terminals: List<WireTerminalRecord>,
 )
 
 @Serializable
-private data class WireCreatedSessionResponse(
+private data class WireCreatedTerminalResponse(
     @Serializable(with = IsoInstantSerializer::class) val observedAt: Instant,
-    val session: WireTmuxSession,
+    val terminal: WireTerminalRecord,
+    val launch: String,
+    val dispatch: String,
 )
+
+@Serializable private data class WireWorkspaceRecord(val ref: String, val label: String)
 
 @Serializable
 private data class WireProviderSessionFacts(
@@ -282,28 +304,25 @@ private data class WireProviderSessionFacts(
 
 @Serializable
 private data class WireAgentRuntime(
+    val ref: String,
     val provider: AgentProvider,
-    val pid: Long,
-    val paneId: String,
-    val startIdentity: String,
     val status: AgentStatus,
+    val readiness: AgentReadiness,
     val methods: AgentMethods,
-    val profile: String? = null,
+    val provenRuntimeProfile: String? = null,
     val providerSession: WireProviderSessionFacts? = null,
 )
 
 @Serializable
-private data class WireTmuxSession(
-    val tmuxId: String,
-    val tmuxName: String,
-    val identityToken: String,
+private data class WireTerminalRecord(
+    val ref: String,
+    val name: String? = null,
+    val nativeLabel: String? = null,
     val character: CharacterSummary,
+    val workspaceRef: String,
     val launchProfile: String? = null,
     val objective: String? = null,
-    val space: String? = null,
     val cwd: String? = null,
-    val activeCommand: String? = null,
-    val attachedClients: Int,
     val agent: WireAgentRuntime? = null,
 )
 
@@ -312,13 +331,18 @@ internal sealed interface LaunchChoice {
     data object Terminal : LaunchChoice
 }
 
+internal sealed interface WorkspaceDestination {
+    data class Existing(val workspaceRef: String) : WorkspaceDestination
+    data class New(val label: WorkspaceLabel?) : WorkspaceDestination
+}
+
 internal data class ForgeDraft(
     val machineHandle: MachineHandle,
     val cwd: String,
     val launch: LaunchChoice,
-    val optionalTmuxName: String,
+    val name: String,
     val objective: String,
-    val space: SpaceLabel? = null,
+    val destination: WorkspaceDestination?,
 )
 
 internal const val MAXIMUM_WORKING_DIRECTORY_BYTES = 4_096
@@ -477,136 +501,147 @@ internal data class ForgeForm(
     val machineHandle: MachineHandle?,
     val cwd: String,
     val launch: LaunchChoice?,
-    val optionalTmuxName: String,
+    val name: String,
     val objective: String,
-    val space: SpaceDraft = SpaceDraft.Chosen(""),
+    val destination: WorkspaceDraft = WorkspaceDraft.New(""),
 ) {
     constructor(draft: ForgeDraft) : this(
-        draft.machineHandle,
-        draft.cwd,
-        draft.launch,
-        draft.optionalTmuxName,
-        draft.objective,
-        SpaceDraft.Chosen(draft.space?.text.orEmpty()),
+        draft.machineHandle, draft.cwd, draft.launch, draft.name, draft.objective,
+        when (val destination = draft.destination) {
+            is WorkspaceDestination.Existing -> WorkspaceDraft.Existing(destination.workspaceRef)
+            is WorkspaceDestination.New -> WorkspaceDraft.New(destination.label?.text.orEmpty())
+            null -> WorkspaceDraft.New("")
+        },
     )
 
     fun submission(): ForgeDraft? {
-        if (machineHandle == null || launch == null || cwd.isBlank()) return null
-        val chosen = space as? SpaceDraft.Chosen ?: return null
-        val label = if (chosen.text.isEmpty()) null else SpaceLabel.fromDraft(chosen.text) ?: return null
-        return ForgeDraft(machineHandle, cwd, launch, optionalTmuxName, objective, label)
+        if (machineHandle == null || launch == null || cwd.isBlank() || !validTerminalName(name)) return null
+        val chosen = when (val choice = destination) {
+            is WorkspaceDraft.Existing -> WorkspaceDestination.Existing(choice.workspaceRef)
+            is WorkspaceDraft.New -> WorkspaceDestination.New(
+                if (choice.label.isEmpty()) null else WorkspaceLabel.fromDraft(choice.label) ?: return null,
+            )
+        }
+        return ForgeDraft(machineHandle, cwd, launch, name, objective, chosen)
     }
 }
 
-/**
- * Single owner of the Forge draft transition: a machine change clears the machine-scoped working
- * directory and agent profile while preserving terminal choice and the independent metadata.
- */
 internal fun changeForgeDraft(current: ForgeForm, proposed: ForgeForm): ForgeForm =
     if (proposed.machineHandle == current.machineHandle) proposed else proposed.copy(
         cwd = "",
         launch = proposed.launch.takeIf { it == LaunchChoice.Terminal },
+        destination = WorkspaceDraft.New(""),
     )
 
 internal fun forgeActionLabel(label: MachineLabel): String = "Create on ${label.text}"
+internal fun terminalDisplayName(terminal: TerminalRecord): String =
+    terminal.name ?: "unnamed terminal ${terminal.ref.takeLast(8)}"
+internal fun killActionLabel(label: MachineLabel, target: TerminalTarget, terminalOnly: Boolean = false): String =
+    "${if (target.terminal.agent == null || terminalOnly) "Close" else "Stop"} ${terminalDisplayName(target.terminal)} on ${label.text}"
+internal fun killConfirmationTitle(label: MachineLabel, target: TerminalTarget, terminalOnly: Boolean = false): String =
+    killActionLabel(label, target, terminalOnly) + "? linked workspaces and their running terminals may also close."
 
-/**
- * Single owner of destructive copy: the action label is also the screen-reader description of every
- * kill control, so the spoken description and the dialog title cannot name different sessions.
- */
-internal fun killActionLabel(label: MachineLabel, target: SessionTarget, terminalOnly: Boolean = false): String =
-    "${if (target.session.agent == null || terminalOnly) "Kill" else "Stop"} ${target.session.tmuxName} on ${label.text}"
-internal fun killConfirmationTitle(label: MachineLabel, target: SessionTarget, terminalOnly: Boolean = false): String =
-    killActionLabel(label, target, terminalOnly) + "?"
+private fun validTerminalName(value: String): Boolean =
+    value.length in 1..64 && value.matches(Regex("[A-Za-z0-9][A-Za-z0-9_-]*"))
 
-@Serializable private data class CreateSessionRequest(
+@Serializable private data class WireDestination(
+    val kind: String,
+    val workspaceRef: String? = null,
+    val label: String? = null,
+)
+@Serializable private data class CreateTerminalRequest(
     val kind: String,
     val cwd: String,
+    val name: String,
     val profile: String? = null,
-    val optionalTmuxName: String? = null,
     val objective: String? = null,
-    val space: String? = null,
+    val destination: WireDestination? = null,
 )
 @Serializable private data class DirectoryListingRequest(val directory: String)
-@Serializable private data class KillSessionRequest(val tmuxName: String, val identityToken: String)
-@Serializable private data class RenameSessionRequest(
-    val tmuxName: String,
-    val newTmuxName: String,
-    val identityToken: String,
-)
+@Serializable private data class RenameTerminalRequest(val name: String)
 
-internal fun decodeSessionsResponse(encoded: String): SessionsResponse = decodeProtocol {
+internal fun decodeTerminalsResponse(encoded: String): TerminalsResponse = decodeProtocol {
     val element = strictJsonObject(encoded)
-    element.getValue("sessions").jsonArray.forEach { encodedSession ->
-        (encodedSession as? JsonObject ?: throw SerializationException("session is not an object"))
-            .requireSessionOptionalFields()
+    element.getValue("terminals").jsonArray.forEach { encodedTerminal ->
+        (encodedTerminal as? JsonObject ?: throw SerializationException("terminal is not an object"))
+            .requireTerminalOptionalFields()
     }
-    val wire = productJson.decodeFromJsonElement<WireSessionsResponse>(element)
-    val observedAt = acceptProjectionInstant(wire.observedAt)
-    val handle = requireNotNull(MachineHandle.parse(wire.machine.handle))
+    val wire = productJson.decodeFromJsonElement<WireTerminalsResponse>(element)
     val profiles = wire.profiles.map { profile ->
         require(profile.label.isNotEmpty())
         ProfileChoice(requireNotNull(ProfileKey.parse(profile.key)), profile.label, profile.provider)
     }
     require(profiles.map(ProfileChoice::key).allUnique())
-    require(profiles.map(ProfileChoice::label).allUnique())
-    val sessions = wire.sessions.map(::acceptSession)
-    require(sessions.map(TmuxSession::tmuxId).allUnique())
-    require(sessions.map(TmuxSession::identityToken).allUnique())
-    sessions.forEach { session ->
-        session.launchProfile?.let { launchProfile ->
-            profiles.single { choice -> choice.key == launchProfile }
-        }
-        session.agent?.let { agent ->
-            agent.profile?.let { runtimeProfile ->
-                profiles.single { choice -> choice.key == runtimeProfile && choice.provider == agent.provider }
-            }
+    val workspaces = wire.workspaces.map {
+        require(isOpaqueRef(it.ref))
+        WorkspaceRecord(it.ref, requireNotNull(WorkspaceLabel.parse(it.label)))
+    }
+    require(workspaces.map(WorkspaceRecord::ref).allUnique())
+    val terminals = wire.terminals.map(::acceptTerminal)
+    require(terminals.map(TerminalRecord::ref).allUnique())
+    require(terminals.mapNotNull { it.agent?.ref }.allUnique())
+    require(terminals.all { terminal -> workspaces.any { it.ref == terminal.workspaceRef } })
+    require(wire.unaddressableTerminals >= 0 && wire.unaddressableWorkspaces >= 0)
+    require(wire.partial || wire.unaddressableTerminals == 0 && wire.unaddressableWorkspaces == 0)
+    terminals.forEach { terminal ->
+        terminal.launchProfile?.let { profile -> require(profiles.any { it.key == profile }) }
+        terminal.agent?.provenRuntimeProfile?.let { profile ->
+            require(profiles.any { it.key == profile && it.provider == terminal.agent.provider })
         }
     }
-    SessionsResponse(
-        MachineSummary(handle, acceptMachinePlatform(wire.machine.platform)),
-        observedAt,
-        profiles,
-        sessions,
+    TerminalsResponse(
+        MachineSummary(requireNotNull(MachineHandle.parse(wire.machine.handle)),
+            acceptMachinePlatform(wire.machine.platform)),
+        acceptProjectionInstant(wire.observedAt), wire.partial, wire.unaddressableTerminals,
+        wire.unaddressableWorkspaces, profiles, workspaces, terminals,
     )
 }
 
-internal fun decodeCreatedSessionResponse(encoded: String): TmuxSession = decodeProtocol {
+internal data class CreatedTerminal(val observedAt: Instant, val terminal: TerminalRecord, val launch: String)
+internal fun decodeCreatedTerminalResponse(encoded: String): CreatedTerminal = decodeProtocol {
     val element = strictJsonObject(encoded)
-    element.requireExactKeys(setOf("observedAt", "session"))
-    element.requiredObject("session").requireSessionOptionalFields()
-    val wire = productJson.decodeFromJsonElement<WireCreatedSessionResponse>(element)
-    acceptProjectionInstant(wire.observedAt)
-    acceptSession(wire.session)
+    element.requireExactKeys(setOf("observedAt", "terminal", "launch", "dispatch"))
+    element.requiredObject("terminal").requireTerminalOptionalFields()
+    val wire = productJson.decodeFromJsonElement<WireCreatedTerminalResponse>(element)
+    require(wire.launch in setOf("submitted", "not_requested") && wire.dispatch == "sent")
+    CreatedTerminal(acceptProjectionInstant(wire.observedAt), acceptTerminal(wire.terminal), wire.launch)
 }
 
-internal fun encodeCreateSessionRequest(draft: ForgeDraft): String = productJson.encodeToString(
-    CreateSessionRequest(
-        when (draft.launch) {
-            is LaunchChoice.Agent -> "agent"
-            LaunchChoice.Terminal -> "terminal"
+internal data class ObservedTerminal(val observedAt: Instant, val terminal: TerminalRecord)
+@Serializable private data class WireObservedTerminal(
+    @Serializable(with = IsoInstantSerializer::class) val observedAt: Instant,
+    val terminal: WireTerminalRecord,
+    val dispatch: String,
+)
+internal fun decodeObservedTerminalResponse(encoded: String): ObservedTerminal = decodeProtocol {
+    val element = strictJsonObject(encoded)
+    element.requireExactKeys(setOf("observedAt", "terminal", "dispatch"))
+    element.requiredObject("terminal").requireTerminalOptionalFields()
+    val wire = productJson.decodeFromJsonElement<WireObservedTerminal>(element)
+    require(wire.dispatch == "sent")
+    ObservedTerminal(acceptProjectionInstant(wire.observedAt), acceptTerminal(wire.terminal))
+}
+
+internal fun encodeCreateTerminalRequest(draft: ForgeDraft): String = productJson.encodeToString(
+    CreateTerminalRequest(
+        kind = if (draft.launch is LaunchChoice.Agent) "agent" else "terminal",
+        cwd = draft.cwd,
+        name = draft.name,
+        profile = (draft.launch as? LaunchChoice.Agent)?.profile?.encoded,
+        objective = draft.objective.ifEmpty { null },
+        destination = when (val destination = draft.destination) {
+            is WorkspaceDestination.Existing -> WireDestination("existing", workspaceRef = destination.workspaceRef)
+            is WorkspaceDestination.New -> WireDestination("new", label = destination.label?.text)
+            null -> null
         },
-        draft.cwd,
-        (draft.launch as? LaunchChoice.Agent)?.profile?.encoded,
-        draft.optionalTmuxName.ifEmpty { null },
-        draft.objective.ifEmpty { null },
-        draft.space?.text,
     ),
 )
 internal fun encodeDirectoryListingRequest(directory: HomeDirectory): String =
     productJson.encodeToString(DirectoryListingRequest(directory.encoded))
-internal fun encodeKillSessionRequest(session: TmuxSession): String =
-    productJson.encodeToString(KillSessionRequest(session.tmuxName, session.identityToken))
-internal fun encodeRenameSessionRequest(target: SessionTarget, newTmuxName: String): String =
-    productJson.encodeToString(
-        RenameSessionRequest(
-            tmuxName = target.session.tmuxName,
-            newTmuxName = newTmuxName,
-            identityToken = target.session.identityToken,
-        ),
-    )
+internal fun encodeRenameTerminalRequest(name: String): String =
+    productJson.encodeToString(RenameTerminalRequest(name))
 
-internal data class InventorySnapshot(val inventory: SessionsResponse, val receivedAtElapsedMillis: Long)
+internal data class InventorySnapshot(val inventory: TerminalsResponse, val receivedAtElapsedMillis: Long)
 
 internal sealed interface InventoryState {
     data object Reading : InventoryState
@@ -733,39 +768,44 @@ internal fun machineNotice(machine: MachineState): MachineNotice? {
         MachineAvailability.IdentityChanged ->
             MachineNotice("$label: identity changed. Fleet reset is required.", tone)
         MachineAvailability.Refreshing ->
-            MachineNotice("$label: confirming the latest tmux inventory. Actions disabled.", tone)
-        MachineAvailability.Reading -> MachineNotice("$label: reading tmux sessions.", tone)
+            MachineNotice("$label: confirming the latest terminal inventory. Actions disabled.", tone)
+        MachineAvailability.Reading -> MachineNotice("$label: reading terminals.", tone)
         is MachineAvailability.Stale -> MachineNotice(
-            "$label: ${gatewayFailureMessage(availability.cause)} Prior sessions are STALE; actions disabled. " +
+                "$label: ${gatewayFailureMessage(availability.cause)} Prior terminals are STALE; actions disabled. " +
                 "Pull down to check again.",
             tone,
         )
         is MachineAvailability.Unavailable ->
             MachineNotice("$label: ${gatewayFailureMessage(availability.cause)} Pull down to check again.", tone)
-        MachineAvailability.Ready -> when (machine.pressure) {
-            is PressureState.Stale ->
-                MachineNotice("$label: pressure is STALE. Sessions remain current.", tone)
-            is PressureState.Unavailable ->
-                MachineNotice("$label: pressure unavailable. Sessions remain current.", tone)
-            PressureState.Reading, is PressureState.Fresh -> null
+        MachineAvailability.Ready -> {
+            val projection = (machine.inventory as InventoryState.Fresh).snapshot.inventory
+            if (projection.partial) {
+                MachineNotice("$label: inventory partial; ${projection.unaddressableTerminals} terminals and " +
+                    "${projection.unaddressableWorkspaces} workspaces could not be addressed.", tone)
+            } else when (machine.pressure) {
+                is PressureState.Stale ->
+                    MachineNotice("$label: pressure is STALE. Terminals remain current.", tone)
+                is PressureState.Unavailable ->
+                    MachineNotice("$label: pressure unavailable. Terminals remain current.", tone)
+                PressureState.Reading, is PressureState.Fresh -> null
+            }
         }
     }
 }
 
 internal data class VisibleSession(
     val machine: PairedMachine,
-    val target: SessionTarget,
+    val target: TerminalTarget,
 ) {
     val cardKey: DashboardCardKey = dashboardCardKey(target)
 }
 
-internal fun dashboardCardKey(target: SessionTarget): DashboardCardKey {
+internal fun dashboardCardKey(target: TerminalTarget): DashboardCardKey {
     val digest = MessageDigest.getInstance("SHA-256")
     digest.update("skidbladnir.dashboard-card.v1".encodeToByteArray())
     listOf(
         target.machineHandle.encoded,
-        target.session.tmuxId,
-        target.session.identityToken,
+        target.terminal.ref,
     ).forEach { value ->
         val bytes = value.encodeToByteArray()
         digest.update(
@@ -799,57 +839,60 @@ internal fun visibleInventoryTargets(
 
 internal fun visibleSessions(machines: List<MachineState>, scope: DashboardScope): List<VisibleSession> = machines
     .filter { scope == DashboardScope.All || (scope as? DashboardScope.Machine)?.handle == it.machine.handle }
-    .flatMap { state -> state.inventory.lastSnapshot()?.inventory?.sessions.orEmpty().map {
-        VisibleSession(state.machine, SessionTarget(state.machine.handle, it))
+    .flatMap { state -> state.inventory.lastSnapshot()?.inventory?.terminals.orEmpty().map {
+        VisibleSession(state.machine, TerminalTarget(state.machine.handle, it))
     } }
     .sortedWith(compareBy<VisibleSession> { it.machine.label.text.lowercase(Locale.ROOT) }
         .thenBy { it.machine.label.text }
         .thenBy { it.machine.handle.encoded }
-        .thenBy { it.target.session.tmuxName.lowercase(Locale.ROOT) }
-        .thenBy { it.target.session.tmuxName }
-        .thenBy { it.target.session.tmuxId })
+        .thenBy { terminalDisplayName(it.target.terminal).lowercase(Locale.ROOT) }
+        .thenBy { terminalDisplayName(it.target.terminal) }
+        .thenBy { it.target.terminal.ref })
 
 internal enum class ApiErrorCode(val wireName: String) {
-    Unauthenticated("Unauthenticated"), InvalidRequest("InvalidRequest"), RequestTooLarge("RequestTooLarge"),
-    WorkingDirectoryInvalid("WorkingDirectoryInvalid"), WorkingDirectoryUnavailable("WorkingDirectoryUnavailable"),
-    DirectoryListingUnavailable("DirectoryListingUnavailable"), DirectoryListingTooLarge("DirectoryListingTooLarge"),
-    ProfileUnknown("ProfileUnknown"), SessionNameInvalid("SessionNameInvalid"), ObjectiveInvalid("ObjectiveInvalid"), SpaceInvalid("SpaceInvalid"),
-    SessionNameConflict("SessionNameConflict"), SessionNotFound("SessionNotFound"),
-    SessionIdentityMismatch("SessionIdentityMismatch"),
+    Unauthenticated("Unauthenticated"), MachineIdentityMismatch("MachineIdentityMismatch"),
+    InvalidRequest("InvalidRequest"), RequestTooLarge("RequestTooLarge"),
+    TerminalNotFound("TerminalNotFound"), TerminalStale("TerminalStale"),
+    AgentStale("AgentStale"), WorkspaceStale("WorkspaceStale"),
+    MetadataUnavailable("MetadataUnavailable"), ProfileUnknown("ProfileUnknown"),
+    WorkingDirectoryInvalid("WorkingDirectoryInvalid"), NameInvalid("NameInvalid"),
+    NameAmbiguous("NameAmbiguous"), ObjectiveInvalid("ObjectiveInvalid"),
+    ReadinessUnconfirmed("ReadinessUnconfirmed"), MethodUnavailable("MethodUnavailable"),
+    ClosureConfirmationRequired("ClosureConfirmationRequired"), HerdrUnavailable("HerdrUnavailable"),
+    UpstreamRejected("UpstreamRejected"), OutcomeUnknown("OutcomeUnknown"),
     PairingInviteRejected("PairingInviteRejected"),
-    MachineIdentityMismatch("MachineIdentityMismatch"), InternalError("InternalError"),
+    DirectoryListingUnavailable("DirectoryListingUnavailable"),
+    DirectoryListingTooLarge("DirectoryListingTooLarge"),
+    InternalError("InternalError"),
     ReconnectRequired("ReconnectRequired"),
-    TerminalConfigurationUnsupported("TerminalConfigurationUnsupported"),
-    AgentTargetStale("AgentTargetStale"),
-    AgentBlocked("AgentBlocked"), AgentInputInvalid("AgentInputInvalid"),
 }
 
 internal fun apiErrorMessage(code: ApiErrorCode): String = when (code) {
     ApiErrorCode.Unauthenticated -> "Authentication required."
+    ApiErrorCode.MachineIdentityMismatch -> "The machine identity changed. Fleet reset is required."
     ApiErrorCode.InvalidRequest -> "The request is not valid."
     ApiErrorCode.RequestTooLarge -> "The request is too large."
-    ApiErrorCode.WorkingDirectoryInvalid -> "Choose a valid working directory."
-    ApiErrorCode.WorkingDirectoryUnavailable -> "That directory does not exist or cannot be opened."
-    ApiErrorCode.DirectoryListingUnavailable ->
-        "This directory cannot be browsed. Enter the path instead."
-    ApiErrorCode.DirectoryListingTooLarge ->
-        "This directory has too many folders to show. Enter the path instead."
+    ApiErrorCode.TerminalNotFound -> "That terminal no longer exists."
+    ApiErrorCode.TerminalStale -> "The terminal changed. Refresh and try again."
+    ApiErrorCode.AgentStale -> "The agent changed. Refresh and try again."
+    ApiErrorCode.WorkspaceStale -> "The workspace changed. Refresh and try again."
+    ApiErrorCode.MetadataUnavailable -> "The terminal could not be identified. Inspect the inventory."
     ApiErrorCode.ProfileUnknown -> "Choose an available profile."
-    ApiErrorCode.SessionNameInvalid -> "Use 1–64 letters, numbers, underscores, or hyphens, beginning with a letter or number."
-    ApiErrorCode.SpaceInvalid -> SPACE_INVALID
+    ApiErrorCode.WorkingDirectoryInvalid -> "Choose a valid working directory."
+    ApiErrorCode.NameInvalid -> "Use 1–64 letters, numbers, underscores, or hyphens, beginning with a letter or number."
+    ApiErrorCode.NameAmbiguous -> "That name matches several terminals. Choose an exact terminal."
     ApiErrorCode.ObjectiveInvalid -> "Use 1–240 characters without terminal controls."
-    ApiErrorCode.SessionNameConflict -> "A session with that name already exists."
-    ApiErrorCode.SessionNotFound -> "That session no longer exists."
-    ApiErrorCode.SessionIdentityMismatch -> "The session changed. Refresh and try again."
+    ApiErrorCode.ReadinessUnconfirmed -> "The agent is not confirmed ready. Inspect it or choose a deliberate override."
+    ApiErrorCode.MethodUnavailable -> "This control is unavailable for the agent."
+    ApiErrorCode.ClosureConfirmationRequired -> "Herdr refused to close this terminal without confirmation."
+    ApiErrorCode.HerdrUnavailable -> "Herdr is unavailable on this machine."
+    ApiErrorCode.UpstreamRejected -> "Herdr refused the request."
+    ApiErrorCode.OutcomeUnknown -> "Outcome unknown. Inspect the current terminal before trying again."
     ApiErrorCode.PairingInviteRejected -> "This fleet invite is invalid, expired, or already used."
-    ApiErrorCode.MachineIdentityMismatch -> "The machine identity changed. Fleet reset is required."
+    ApiErrorCode.DirectoryListingUnavailable -> "This directory cannot be browsed. Enter the path instead."
+    ApiErrorCode.DirectoryListingTooLarge -> "This directory has too many folders to show. Enter the path instead."
     ApiErrorCode.InternalError -> "Skíðblaðnir could not complete the request."
     ApiErrorCode.ReconnectRequired -> "Reconnect required."
-    ApiErrorCode.TerminalConfigurationUnsupported ->
-        "tmux requires window-size latest, destroy-unattached off, and detach-on-destroy on."
-    ApiErrorCode.AgentTargetStale -> "The agent changed. Refresh and try again."
-    ApiErrorCode.AgentBlocked -> "Inspect the terminal and send a deliberate reply."
-    ApiErrorCode.AgentInputInvalid -> "The agent input is not valid."
 }
 
 internal fun parseApiErrorCode(value: String): ApiErrorCode =
@@ -857,19 +900,23 @@ internal fun parseApiErrorCode(value: String): ApiErrorCode =
 
 internal data class SessionStatusContent(val label: String, val accessibilityLabel: String)
 
-internal fun sessionStatusContent(status: AgentStatus?, fresh: Boolean): SessionStatusContent {
-    val state = status?.state?.name?.uppercase() ?: "TERMINAL"
-    val inferred = status?.source == AgentMethod.Terminal
-    val label = state + if (inferred) " · inferred" else ""
+internal fun sessionStatusContent(agent: AgentRuntime?, fresh: Boolean): SessionStatusContent {
+    val state = agent?.status?.state?.name?.uppercase() ?: "TERMINAL"
+    val readiness = when (agent?.readiness) {
+        AgentReadiness.Ready -> " · ready"
+        AgentReadiness.Blocked -> " · blocked"
+        AgentReadiness.Unconfirmed -> " · unconfirmed"
+        null -> ""
+    }
+    val label = state + readiness
     val spoken = (if (fresh) "" else "Last observed: ") + label.lowercase()
     return SessionStatusContent(label, spoken)
 }
 
-private fun JsonObject.requireSessionOptionalFields() {
-    if ("space" in this) requiredString("space")
-    requireAbsentOrNonNull(setOf("launchProfile", "objective", "space", "cwd", "activeCommand", "agent"))
+private fun JsonObject.requireTerminalOptionalFields() {
+    requireAbsentOrNonNull(setOf("name", "nativeLabel", "launchProfile", "objective", "cwd", "agent"))
     (this["agent"] as? JsonObject)?.let { agent ->
-        agent.requireAbsentOrNonNull(setOf("profile", "providerSession"))
+        agent.requireAbsentOrNonNull(setOf("provenRuntimeProfile", "providerSession"))
         (agent["status"] as? JsonObject)?.requireAbsentOrNonNull(setOf("reason"))
         (agent["providerSession"] as? JsonObject)?.requireAbsentOrNonNull(setOf("id", "name"))
     }
@@ -886,44 +933,43 @@ private fun acceptMachinePlatform(platform: WireMachinePlatform): MachinePlatfor
     WireMachinePlatform.Darwin -> MachinePlatform.Darwin
 }
 
-private fun acceptSession(session: WireTmuxSession): TmuxSession = TmuxSession(
-    tmuxId = session.tmuxId,
-    tmuxName = session.tmuxName,
-    identityToken = session.identityToken,
-    character = session.character,
-    launchProfile = session.launchProfile?.let { requireNotNull(ProfileKey.parse(it)) },
-    objective = session.objective,
-    space = session.space?.let { requireNotNull(SpaceLabel.parse(it)) },
-    cwd = session.cwd,
-    activeCommand = session.activeCommand,
-    attachedClients = session.attachedClients,
-    agent = session.agent?.let(::acceptAgentRuntime),
-).also(::acceptSession)
+private fun acceptTerminal(wire: WireTerminalRecord): TerminalRecord = TerminalRecord(
+    ref = wire.ref,
+    name = wire.name,
+    nativeLabel = wire.nativeLabel,
+    character = wire.character,
+    workspaceRef = wire.workspaceRef,
+    launchProfile = wire.launchProfile?.let { requireNotNull(ProfileKey.parse(it)) },
+    objective = wire.objective,
+    cwd = wire.cwd,
+    agent = wire.agent?.let(::acceptAgentRuntime),
+).also { terminal ->
+    require(isOpaqueRef(terminal.ref) && isOpaqueRef(terminal.workspaceRef))
+    require(terminal.name == null || validTerminalName(terminal.name))
+    require(terminal.nativeLabel?.let { it.isNotEmpty() && !it.hasDisplayUnsafeCodePoint() } != false)
+    require(terminal.cwd?.let(WorkingDirectoryPath::parse) != null || terminal.cwd == null)
+    require(terminal.character.key.isNotEmpty() && terminal.character.displayName.isNotEmpty())
+}
 
-private fun acceptAgentRuntime(runtime: WireAgentRuntime): AgentRuntime = AgentRuntime(
-    provider = runtime.provider,
-    pid = runtime.pid,
-    paneId = runtime.paneId,
-    startIdentity = runtime.startIdentity,
-    status = runtime.status,
-    methods = runtime.methods,
-    profile = runtime.profile?.let { requireNotNull(ProfileKey.parse(it)) },
-    providerSession = runtime.providerSession?.let(::acceptProviderSessionFacts),
+internal fun decodeTerminalRecord(value: JsonObject): TerminalRecord = decodeProtocol {
+    value.requireTerminalOptionalFields()
+    acceptTerminal(productJson.decodeFromJsonElement<WireTerminalRecord>(value))
+}
+
+private fun acceptAgentRuntime(wire: WireAgentRuntime): AgentRuntime = AgentRuntime(
+    ref = wire.ref,
+    provider = wire.provider,
+    status = wire.status,
+    readiness = wire.readiness,
+    methods = wire.methods,
+    provenRuntimeProfile = wire.provenRuntimeProfile?.let { requireNotNull(ProfileKey.parse(it)) },
+    providerSession = wire.providerSession?.let(::acceptProviderSessionFacts),
 )
 
 private fun acceptProviderSessionFacts(facts: WireProviderSessionFacts): ProviderSessionFacts = when {
     facts.id != null -> ProviderSessionFacts.withId(facts.id, facts.name)
     facts.name != null -> ProviderSessionFacts.withName(facts.name)
     else -> throw IllegalArgumentException("provider session facts are empty")
-}
-
-private fun acceptSession(session: TmuxSession) {
-    require(session.tmuxId.isNotEmpty() && session.tmuxName.isNotEmpty() && session.identityToken.isNotEmpty())
-    require(session.attachedClients >= 0)
-    require(session.cwd?.let(WorkingDirectoryPath::parse) != null || session.cwd == null)
-    require(session.activeCommand?.isNotEmpty() != false)
-    require(session.objective?.isNotEmpty() != false)
-    require(session.character.key.isNotEmpty() && session.character.displayName.isNotEmpty())
 }
 
 private fun isProviderSessionId(value: String): Boolean =

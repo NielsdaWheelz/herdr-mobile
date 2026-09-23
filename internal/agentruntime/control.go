@@ -14,17 +14,17 @@ type Methods struct {
 
 func (status Status) Valid() bool {
 	switch status.State {
-	case "working", "blocked", "idle", "done", "failed", "stopped", "unknown":
+	case "working", "blocked", "idle", "unknown":
 	default:
 		return false
 	}
 	switch status.Source {
-	case "native", "terminal", "unavailable":
+	case "herdr", "unavailable":
 	default:
 		return false
 	}
 	switch status.Reason {
-	case "", "permission", "input", "dialog", "provider_unavailable", "unrecognized":
+	case "", "default_idle", "unrecognized", "observation_failed":
 		return true
 	default:
 		return false
@@ -34,7 +34,7 @@ func (status Status) Valid() bool {
 func (methods Methods) Valid() bool {
 	for _, method := range []string{methods.Read, methods.Send, methods.Interrupt} {
 		switch method {
-		case "native", "terminal", "unavailable":
+		case "terminal", "unavailable":
 		default:
 			return false
 		}

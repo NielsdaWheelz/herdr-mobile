@@ -49,6 +49,52 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 
+internal sealed interface TerminalUiStatus {
+    data object Preparing : TerminalUiStatus
+    data object Verifying : TerminalUiStatus
+    data object Connecting : TerminalUiStatus
+    data object Connected : TerminalUiStatus
+    data class ReconnectRequired(val message: String, val takeoverOffered: Boolean = false) : TerminalUiStatus
+}
+
+/** The page's last fitted grid, retained independently of the connection. */
+internal sealed interface TerminalViewport {
+    data object Pending : TerminalViewport
+    data class Fitted(val columns: Int, val rows: Int) : TerminalViewport
+    data object TooSmall : TerminalViewport
+}
+
+internal fun terminalActionAdmissible(machineCanMutate: Boolean, connection: TerminalUiStatus): Boolean =
+    machineCanMutate && when (connection) {
+        TerminalUiStatus.Connected, is TerminalUiStatus.ReconnectRequired -> true
+        TerminalUiStatus.Preparing, TerminalUiStatus.Verifying, TerminalUiStatus.Connecting -> false
+    }
+
+/** User ingress (touch, focus, typing, accessories) needs both an attachment and a fitted grid. */
+internal fun terminalInputAdmissible(connection: TerminalUiStatus, viewport: TerminalViewport): Boolean =
+    connection == TerminalUiStatus.Connected && viewport is TerminalViewport.Fitted
+
+/** The page exists and is still attachable, so its font and recovery surfaces are live. */
+internal fun terminalPageLive(connection: TerminalUiStatus): Boolean = when (connection) {
+    TerminalUiStatus.Connecting, TerminalUiStatus.Connected -> true
+    TerminalUiStatus.Preparing, TerminalUiStatus.Verifying, is TerminalUiStatus.ReconnectRequired -> false
+}
+
+/** One admission for the sheet's three controls and for the write they order: page live, no write in flight, a real step in range. */
+internal fun terminalTextSizeStepAdmissible(
+    textSize: TerminalTextSizeState.Ready,
+    connection: TerminalUiStatus,
+    nominalSp: Int,
+): Boolean = terminalPageLive(connection) && textSize.write != TerminalTextSizeWrite.Pending &&
+    nominalSp != textSize.nominalSp && nominalSp in TERMINAL_TEXT_SIZE_RANGE_SP
+
+/** The sheet shows only over a live page, so a lost attachment closes it. */
+internal fun terminalTextSizeSheet(
+    textSize: TerminalTextSizeState,
+    connection: TerminalUiStatus,
+): TerminalTextSizeState.Ready? =
+    (textSize as? TerminalTextSizeState.Ready)?.takeIf { it.sheetOpen && terminalPageLive(connection) }
+
 @Composable
 internal fun TerminalScreen(
     state: SkidbladnirUiState.Terminal,
@@ -124,7 +170,7 @@ internal fun TerminalScreen(
                 onClick = controller::openTextSize,
                 modifier = Modifier.width(48.dp),
             )
-            if (state.target.session.agent != null) {
+            if (state.target.terminal.agent != null) {
                 var expanded by remember(state.attempt) { mutableStateOf(false) }
                 Box {
                     HeaderChip(
@@ -136,7 +182,7 @@ internal fun TerminalScreen(
                         DropdownMenuItem(text = { Text("Interrupt") }, onClick = {
                             expanded = false
                             controller.interruptAgent()
-                        }, enabled = state.target.session.agent.methods.interrupt != AgentMethod.Unavailable)
+                        }, enabled = state.target.terminal.agent.methods.interrupt != AgentMethod.Unavailable)
                         DropdownMenuItem(text = { Text("Stop") }, onClick = {
                             expanded = false
                             controller.requestKill(state.target)
@@ -184,8 +230,12 @@ internal fun TerminalScreen(
                                                 controller.terminalPageReady(state.attempt, page)
                                             }
 
-                                            override fun onInput(bytes: ByteArray) {
-                                                controller.sendTerminal(state.attempt, bytes)
+                                            override fun onInput(input: TerminalInput) {
+                                                controller.sendTerminalInput(state.attempt, input)
+                                            }
+
+                                            override fun onFrameApplied(seq: String) {
+                                                controller.terminalFrameApplied(state.attempt, seq)
                                             }
 
                                             override fun onResize(columns: Int, rows: Int) {
@@ -221,15 +271,17 @@ internal fun TerminalScreen(
                     ) {
                         TextSizeUnavailable(onRetry = controller::retryTextSizeRead)
                     } else when (val connection = state.connection) {
-                        TerminalUiStatus.Verifying -> TerminalWaiting("Verifying ${state.machine.machine.label.text} and session lifetime…")
+                        TerminalUiStatus.Verifying -> TerminalWaiting("Verifying ${state.machine.machine.label.text} and terminal lifetime…")
                         TerminalUiStatus.Preparing -> TerminalWaiting("Preparing terminal…")
                         TerminalUiStatus.Connecting -> if (!recovering) TerminalWaiting("Connecting…")
-                        is TerminalUiStatus.Connected -> Unit
+                        TerminalUiStatus.Connected -> Unit
                         is TerminalUiStatus.ReconnectRequired -> ReconnectPanel(
                             machineLabel = state.machine.machine.label,
                             message = connection.message,
+                            takeoverOffered = connection.takeoverOffered,
                             actionAdmissible = terminalActionAdmissible(state.machine.canMutate, state.connection),
                             onReattach = controller::reattachTerminal,
+                            onTakeover = controller::takeoverTerminal,
                             onSessions = onDetach,
                         )
                     }
@@ -424,8 +476,10 @@ private fun TerminalWaiting(message: String) {
 private fun ReconnectPanel(
     machineLabel: MachineLabel,
     message: String,
+    takeoverOffered: Boolean,
     actionAdmissible: Boolean,
     onReattach: () -> Unit,
+    onTakeover: () -> Unit,
     onSessions: () -> Unit,
 ) {
     Box(
@@ -452,11 +506,11 @@ private fun ReconnectPanel(
                 modifier = Modifier.padding(top = 8.dp, bottom = 20.dp),
             )
             Button(
-                onClick = onReattach,
+                onClick = if (takeoverOffered) onTakeover else onReattach,
                 enabled = actionAdmissible,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("Reattach to ${machineLabel.text}")
+                Text(if (takeoverOffered) "Take over on ${machineLabel.text}" else "Reattach to ${machineLabel.text}")
             }
             OutlinedButton(
                 onClick = onSessions,
@@ -471,18 +525,15 @@ private fun ReconnectPanel(
 }
 
 private fun terminalPresence(state: SkidbladnirUiState.Terminal): String = when (val connection = state.connection) {
-    TerminalUiStatus.Verifying -> "Verifying machine and session"
+    TerminalUiStatus.Verifying -> "Verifying machine and terminal"
     TerminalUiStatus.Preparing -> "Preparing a fresh attachment"
     TerminalUiStatus.Connecting -> "Connecting"
     is TerminalUiStatus.ReconnectRequired -> "Input frozen"
-    is TerminalUiStatus.Connected -> {
-        val clients = connection.attachedClients
-        "$clients ${if (clients == 1) "client" else "clients"}"
-    }
+    TerminalUiStatus.Connected -> "connected"
 }
 
 private fun terminalPresenceColor(connection: TerminalUiStatus): Color = when (connection) {
-    is TerminalUiStatus.Connected -> Moss
+    TerminalUiStatus.Connected -> Moss
     is TerminalUiStatus.ReconnectRequired -> noticeToneColor(NoticeTone.Failure)
     TerminalUiStatus.Preparing, TerminalUiStatus.Verifying, TerminalUiStatus.Connecting -> Gold
 }

@@ -2,51 +2,114 @@ package dev.niels.skidbladnir
 
 import android.os.Handler
 import android.os.Looper
+import java.util.Base64
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.booleanOrNull
 import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
-import okio.ByteString.Companion.toByteString
+import org.json.JSONArray
+import org.json.JSONObject
 
-private const val MAXIMUM_TERMINAL_FRAME_BYTES = 64 * 1024
-private const val MAXIMUM_TERMINAL_QUEUE_BYTES = 1024 * 1024L
+private const val MAXIMUM_TERMINAL_FRAME_BYTES = 3 * 1024 * 1024
+private const val MAXIMUM_TERMINAL_ANSI_BYTES = 2 * 1024 * 1024
+private const val MAXIMUM_TERMINAL_QUEUE_BYTES = 3 * 1024 * 1024L
+private const val MAXIMUM_TERMINAL_INPUT_BYTES = 32 * 1024
+
+internal enum class TerminalScrollSource { Wheel, PageKey }
+internal enum class TerminalScrollDirection { Up, Down }
+
+internal fun terminalLogicalKeyValid(key: String): Boolean =
+    key in setOf(
+        "enter", "escape", "tab", "backspace", "up", "down", "left", "right",
+        "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11", "f12",
+    ) || key.codePointCount(0, key.length) == 1 &&
+        key.utf8ByteCountWithin(4) != null &&
+        key.codePointAt(0).let {
+            it >= 0x20 && !Character.isISOControl(it) &&
+                (it == 0x20 || !Character.isWhitespace(it) && !Character.isSpaceChar(it))
+        }
+
+internal sealed interface TerminalInput {
+    data class Text(val text: String) : TerminalInput
+    data class Paste(val text: String) : TerminalInput
+    data class Key(val key: String, val modifiers: List<String>) : TerminalInput
+    data class Scroll(
+        val source: TerminalScrollSource,
+        val direction: TerminalScrollDirection,
+        val lines: Int,
+        val column: Int? = null,
+        val row: Int? = null,
+    ) : TerminalInput
+}
+
+internal data class TerminalFrame(
+    val seq: String,
+    val columns: Int,
+    val rows: Int,
+    val full: Boolean,
+    val ansi: ByteArray,
+)
+
+internal enum class TerminalEndCode { ControlUnavailable, StreamLost, Detached, ProtocolError }
 
 internal sealed interface TerminalServerEvent {
-    data class Hello(val attachedClients: Int) : TerminalServerEvent
-    data class Presence(val attachedClients: Int) : TerminalServerEvent
-    data class Error(val code: ApiErrorCode) : TerminalServerEvent
+    data class Frame(val frame: TerminalFrame) : TerminalServerEvent
+    data class End(val code: TerminalEndCode) : TerminalServerEvent
 }
-@Serializable private data class TerminalErrorPayload(val code: String, val message: String)
-@Serializable private data class TerminalErrorEnvelope(val kind: String, val error: TerminalErrorPayload)
 @Serializable private data class TerminalResize(val kind: String, val columns: Int, val rows: Int)
 @Serializable private data class TerminalDetach(val kind: String)
 
 internal fun decodeTerminalServerEvent(encoded: String): TerminalServerEvent = decodeProtocol {
     val objectValue = strictJsonObject(encoded)
     when (val kind = objectValue.requiredString("kind")) {
-        "Hello", "Presence" -> {
-            objectValue.requireExactKeys(setOf("kind", "attachedClients"))
-            val attachedClients = objectValue.requiredPositiveInt("attachedClients")
-            if (kind == "Hello") TerminalServerEvent.Hello(attachedClients)
-            else TerminalServerEvent.Presence(attachedClients)
-        }
-        "Error" -> {
-            objectValue.requireExactKeys(setOf("kind", "error"))
-            objectValue.requiredObject("error").requireExactKeys(setOf("code", "message"))
-            val payload = productJson.decodeFromJsonElement<TerminalErrorEnvelope>(objectValue).error
-            val code = parseApiErrorCode(payload.code)
-            if (code !in setOf(ApiErrorCode.InvalidRequest, ApiErrorCode.RequestTooLarge, ApiErrorCode.ReconnectRequired, ApiErrorCode.TerminalConfigurationUnsupported, ApiErrorCode.InternalError)) {
-                throw SerializationException("error code is outside the terminal protocol")
+        "Frame" -> {
+            objectValue.requireExactKeys(setOf("kind", "seq", "columns", "rows", "full", "ansiBase64"))
+            val seq = objectValue.requiredString("seq")
+            if (!seq.matches(Regex("[1-9][0-9]*")) || seq.toULongOrNull() == null) {
+                throw SerializationException("invalid terminal frame sequence")
             }
-            if (payload.message != apiErrorMessage(code)) throw SerializationException("incorrect API error message")
-            TerminalServerEvent.Error(code)
+            val columns = objectValue.requiredInteger("columns")
+            val rows = objectValue.requiredInteger("rows")
+            val fullValue = objectValue["full"] as? JsonPrimitive
+            if (fullValue == null || fullValue.isString) {
+                throw SerializationException("invalid terminal frame completeness")
+            }
+            val full = fullValue.booleanOrNull
+                ?: throw SerializationException("invalid terminal frame completeness")
+            if (columns !in TERMINAL_COLUMNS_RANGE || rows !in TERMINAL_ROWS_RANGE) {
+                throw SerializationException("invalid terminal frame geometry")
+            }
+            val base64 = objectValue.requiredString("ansiBase64")
+            if (base64.length > (MAXIMUM_TERMINAL_ANSI_BYTES + 2) / 3 * 4 ||
+                base64.length % 4 != 0 || !base64.matches(Regex("[A-Za-z0-9+/]*={0,2}"))
+            ) throw SerializationException("invalid terminal frame encoding")
+            val ansi = try {
+                Base64.getDecoder().decode(base64)
+            } catch (_: IllegalArgumentException) {
+                throw SerializationException("invalid terminal frame encoding")
+            }
+            if (ansi.size > MAXIMUM_TERMINAL_ANSI_BYTES ||
+                Base64.getEncoder().encodeToString(ansi) != base64
+            ) throw SerializationException("invalid terminal frame encoding")
+            TerminalServerEvent.Frame(TerminalFrame(seq, columns, rows, full, ansi))
+        }
+        "End" -> {
+            objectValue.requireExactKeys(setOf("kind", "code"))
+            val code = when (objectValue.requiredString("code")) {
+                "control_unavailable" -> TerminalEndCode.ControlUnavailable
+                "stream_lost" -> TerminalEndCode.StreamLost
+                "detached" -> TerminalEndCode.Detached
+                "protocol_error" -> TerminalEndCode.ProtocolError
+                else -> throw SerializationException("unknown terminal end code")
+            }
+            TerminalServerEvent.End(code)
         }
         else -> throw SerializationException("unknown terminal event kind")
     }
@@ -65,16 +128,50 @@ internal fun encodeTerminalResize(columns: Int, rows: Int): String {
 }
 internal fun encodeTerminalDetach(): String = productJson.encodeToString(TerminalDetach("Detach"))
 
-// kotlinx's tree decoder coerces quoted digits into numbers; presence counts stay JSON numbers.
-private fun JsonObject.requiredPositiveInt(key: String): Int {
+internal fun encodeTerminalInput(input: TerminalInput): String {
+    val message = JSONObject()
+    when (input) {
+        is TerminalInput.Text -> {
+            require(input.text.isNotEmpty() && input.text.utf8ByteCountWithin(MAXIMUM_TERMINAL_INPUT_BYTES) != null)
+            require(input.text.none { it.code < 0x20 || it.code == 0x7f })
+            message.put("kind", "Text").put("text", input.text)
+        }
+        is TerminalInput.Paste -> {
+            require(input.text.isNotEmpty() && input.text.utf8ByteCountWithin(MAXIMUM_TERMINAL_INPUT_BYTES) != null)
+            message.put("kind", "Paste").put("text", input.text)
+        }
+        is TerminalInput.Key -> {
+            require(terminalLogicalKeyValid(input.key))
+            require(input.modifiers == listOf("ctrl", "alt", "shift").filter { it in input.modifiers })
+            message.put("kind", "Key").put("key", input.key)
+                .put("modifiers", JSONArray(input.modifiers))
+        }
+        is TerminalInput.Scroll -> {
+            require(input.lines in 1..512)
+            require(input.column == null || input.column in 0..65535)
+            require(input.row == null || input.row in 0..65535)
+            require(input.source != TerminalScrollSource.PageKey ||
+                input.column == null && input.row == null && input.lines in TERMINAL_ROWS_RANGE)
+            message.put("kind", "Scroll")
+                .put("source", if (input.source == TerminalScrollSource.Wheel) "wheel" else "page_key")
+                .put("direction", if (input.direction == TerminalScrollDirection.Up) "up" else "down")
+                .put("lines", input.lines)
+            input.column?.let { message.put("column", it) }
+            input.row?.let { message.put("row", it) }
+        }
+    }
+    return message.toString()
+}
+
+private fun JsonObject.requiredInteger(key: String): Int {
     val member = this[key]
     if (member !is JsonPrimitive || member.isString) throw SerializationException("missing or non-number $key")
-    return member.content.toIntOrNull()?.takeIf { it >= 1 }
-        ?: throw SerializationException("$key is not a positive integer")
+    return member.content.toIntOrNull() ?: throw SerializationException("$key is not an integer")
 }
 
 internal interface TerminalConnectionObserver {
-    fun onPresence(attachedClients: Int)
+    fun onFrame(frame: TerminalFrame)
+    fun onEnd(code: TerminalEndCode)
     fun onFailure(code: ApiErrorCode)
 }
 
@@ -86,9 +183,9 @@ private data class PendingResize(
 internal class TerminalConnection(
     private val client: GatewayClient,
     private val credential: MachineCredential,
-    private val target: SessionTarget,
+    private val target: TerminalTarget,
     initialViewport: TerminalViewport.Fitted,
-    private val page: TerminalPage,
+    private val takeover: Boolean,
     private val observer: TerminalConnectionObserver,
 ) : WebSocketListener() {
     private val stopped = AtomicBoolean(false)
@@ -97,7 +194,8 @@ internal class TerminalConnection(
     private var socket: WebSocket? = null
     private var started = false
     private var opened = false
-    private var connected = false
+    private var receivedFrame = false
+    private var pendingFrameBytes = 0L
     private var pendingResize: PendingResize? = null
     private var resizeDrainScheduled = false
     private val resizeDrain = Runnable(::drainResize)
@@ -114,7 +212,7 @@ internal class TerminalConnection(
             check(!started) // justify-service-invariant-check: each connection object owns exactly one WebSocket lifetime.
             started = true
             if (stopped.get()) return
-            socket = client.http.newWebSocket(client.terminalRequest(credential, target), this)
+            socket = client.http.newWebSocket(client.terminalRequest(credential, target, takeover), this)
         }
     }
 
@@ -131,47 +229,54 @@ internal class TerminalConnection(
 
     override fun onMessage(webSocket: WebSocket, text: String) {
         if (stopped.get()) return
-        if (text.utf8ByteCountWithin(MAXIMUM_TERMINAL_FRAME_BYTES) == null) {
-            // justify-defect: only the gateway writes server text frames, so an oversized frame is
-            // a same-system contract violation.
-            throw ProtocolDecodeException("terminal text frame exceeded the protocol bound")
+        val frameBytes = text.utf8ByteCountWithin(MAXIMUM_TERMINAL_FRAME_BYTES)
+        if (frameBytes == null) {
+            end(TerminalEndCode.ProtocolError)
+            return
         }
-        val event = decodeTerminalServerEvent(text)
+        val event = try {
+            decodeTerminalServerEvent(text)
+        } catch (_: ProtocolDecodeException) {
+            end(TerminalEndCode.ProtocolError)
+            return
+        }
         when (event) {
-            is TerminalServerEvent.Hello -> synchronized(monitor) {
-                if (stopped.get()) return
-                // justify-defect: the gateway owns the closed terminal event sequence.
-                if (connected) throw ProtocolDecodeException("terminal sent Hello more than once")
-                connected = true
-                observer.onPresence(event.attachedClients)
+            is TerminalServerEvent.Frame -> {
+                synchronized(monitor) {
+                    if (stopped.get()) return
+                    if (!receivedFrame && !event.frame.full ||
+                        pendingFrameBytes + frameBytes > MAXIMUM_TERMINAL_QUEUE_BYTES) {
+                        end(TerminalEndCode.ProtocolError)
+                        return
+                    }
+                    receivedFrame = true
+                    pendingFrameBytes += frameBytes
+                }
+                if (!main.post {
+                        try {
+                            if (!stopped.get()) observer.onFrame(event.frame)
+                        } finally {
+                            synchronized(monitor) { pendingFrameBytes -= frameBytes }
+                        }
+                    }) {
+                    synchronized(monitor) { pendingFrameBytes -= frameBytes }
+                    end(TerminalEndCode.StreamLost)
+                }
             }
-            is TerminalServerEvent.Presence -> synchronized(monitor) {
-                if (stopped.get()) return
-                // justify-defect: the gateway owns the closed terminal event sequence.
-                if (!connected) throw ProtocolDecodeException("terminal sent Presence before Hello")
-                observer.onPresence(event.attachedClients)
-            }
-            is TerminalServerEvent.Error -> fail(event.code)
+            is TerminalServerEvent.End -> end(event.code)
         }
     }
 
     override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
-        synchronized(monitor) {
-            if (stopped.get()) return
-            // justify-defect: the gateway serializes Hello before bounded PTY output.
-            if (!connected || bytes.size > MAXIMUM_TERMINAL_FRAME_BYTES) {
-                throw ProtocolDecodeException("terminal binary frame violated ordering or size")
-            }
-            page.write(bytes.toByteArray())
-        }
+        end(TerminalEndCode.ProtocolError)
     }
 
     override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-        if (!stopped.get()) fail(ApiErrorCode.ReconnectRequired)
+        end(TerminalEndCode.StreamLost)
     }
 
     override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-        if (!stopped.get()) fail(ApiErrorCode.ReconnectRequired)
+        end(TerminalEndCode.StreamLost)
     }
 
     override fun onFailure(webSocket: WebSocket, throwable: Throwable, response: Response?) {
@@ -180,7 +285,9 @@ internal class TerminalConnection(
             terminalUpgradeFailureCode(null, null)
         } else {
             response.use {
-                terminalUpgradeFailureCode(it.code, it.body?.string().orEmpty())
+                val bytes = it.body?.byteStream()?.readNBytes(MAXIMUM_HTTP_BODY_BYTES + 1) ?: ByteArray(0)
+                if (bytes.size > MAXIMUM_HTTP_BODY_BYTES) ApiErrorCode.ReconnectRequired
+                else terminalUpgradeFailureCode(it.code, decodeStrictUtf8(bytes))
             }
         }
         fail(code)
@@ -201,35 +308,28 @@ internal class TerminalConnection(
         }
     }
 
-    fun send(bytes: ByteArray) {
+    fun send(input: TerminalInput) {
+        val encoded = encodeTerminalInput(input)
         synchronized(monitor) {
             val activeSocket = socket
-            if (!connected || stopped.get() || activeSocket == null) return
+            if (!receivedFrame || stopped.get() || activeSocket == null) return
             val pendingResizeBytes = pendingResize?.byteCount ?: 0
-            if (bytes.size.toLong() + pendingResizeBytes + activeSocket.queueSize() >
+            if (encoded.toByteArray(Charsets.UTF_8).size.toLong() + pendingResizeBytes + activeSocket.queueSize() >
                 MAXIMUM_TERMINAL_QUEUE_BYTES
             ) {
-                fail(ApiErrorCode.ReconnectRequired)
+                end(TerminalEndCode.ProtocolError)
                 return
             }
             flushResizeBeforeInputLocked(activeSocket)
             if (stopped.get()) return
-            var offset = 0
-            while (offset < bytes.size) {
-                val byteCount = minOf(MAXIMUM_TERMINAL_FRAME_BYTES, bytes.size - offset)
-                if (!activeSocket.send(bytes.toByteString(offset, byteCount))) {
-                    fail(ApiErrorCode.ReconnectRequired)
-                    return
-                }
-                offset += byteCount
-            }
+            if (!activeSocket.send(encoded)) end(TerminalEndCode.StreamLost)
         }
     }
 
     fun detach() {
         if (!stopped.compareAndSet(false, true)) return
         synchronized(monitor) {
-            connected = false
+            receivedFrame = false
             pendingResize = null
             resizeDrainScheduled = false
             main.removeCallbacks(resizeDrain)
@@ -240,13 +340,13 @@ internal class TerminalConnection(
     }
 
     fun terminalUnavailable() {
-        fail(ApiErrorCode.ReconnectRequired)
+        end(TerminalEndCode.StreamLost)
     }
 
     private fun fail(code: ApiErrorCode) {
         if (!stopped.compareAndSet(false, true)) return
         synchronized(monitor) {
-            connected = false
+            receivedFrame = false
             pendingResize = null
             resizeDrainScheduled = false
             main.removeCallbacks(resizeDrain)
@@ -254,6 +354,19 @@ internal class TerminalConnection(
             socket = null
         }
         observer.onFailure(code)
+    }
+
+    private fun end(code: TerminalEndCode) {
+        if (!stopped.compareAndSet(false, true)) return
+        synchronized(monitor) {
+            receivedFrame = false
+            pendingResize = null
+            resizeDrainScheduled = false
+            main.removeCallbacks(resizeDrain)
+            socket?.cancel()
+            socket = null
+        }
+        observer.onEnd(code)
     }
 
     private fun drainResize() {

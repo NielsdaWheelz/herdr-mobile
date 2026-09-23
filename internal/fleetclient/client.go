@@ -1,10 +1,11 @@
-// Package fleetclient owns direct peer routing, name resolution, and exact references.
+// Package fleetclient owns direct peer routing and exact resource selection.
 package fleetclient
 
 import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"mime"
 	"net/http"
@@ -12,164 +13,187 @@ import (
 	"sync"
 	"time"
 
-	"github.com/NielsdaWheelz/skidbladnir/internal/space"
+	"github.com/NielsdaWheelz/skidbladnir/internal/reference"
 	"github.com/NielsdaWheelz/skidbladnir/internal/strictjson"
 	"github.com/coder/websocket"
 )
 
 const (
-	MaximumInputBytes     = 64 * 1024
-	MaximumControlBytes   = 64 * 1024
+	MaximumInputBytes     = 256 * 1024
+	MaximumControlBytes   = 256 * 1024
+	MaximumErrorBytes     = 64 * 1024
 	MaximumInventoryBytes = 1024 * 1024
 	Timeout               = 15 * time.Second
 )
 
 type Failure struct {
-	Code     string `json:"code"`
-	Dispatch string `json:"dispatch"`
+	Code     string          `json:"code"`
+	Message  string          `json:"message,omitempty"`
+	Dispatch string          `json:"dispatch,omitempty"`
+	Partial  json.RawMessage `json:"-"`
 }
 type Result struct {
-	OK bool `json:"ok"`
-	// Success values are Inventory, ObservedSession, KillResult, or SpaceResult.
-	// Read/write/stop retain json.RawMessage; list peer calls return Peer.
-	Value      any      `json:"result,omitempty"`
-	Error      *Failure `json:"error,omitempty"`
-	Candidates []string `json:"-"`
+	Label      string          `json:"label,omitempty"`
+	Machine    string          `json:"machine,omitempty"`
+	OK         bool            `json:"ok"`
+	Value      any             `json:"result,omitempty"`
+	Error      *Failure        `json:"error,omitempty"`
+	Partial    json.RawMessage `json:"partial,omitempty"`
+	Candidates []string        `json:"-"`
 }
 
 func Failed(code, dispatch string) Result {
-	return Result{Error: &Failure{Code: code, Dispatch: dispatch}}
+	return Result{Error: &Failure{Code: code, Message: localMessage(code), Dispatch: dispatch}}
 }
-func success(value any) Result {
-	return Result{OK: true, Value: value}
+func localMessage(code string) string {
+	switch code {
+	case "inventory_incomplete":
+		return "A peer or resource is unavailable; select a machine or exact reference."
+	case "name_ambiguous":
+		return "Several terminals have that name; select an exact reference."
+	case "name_not_found":
+		return "No terminal has that name."
+	case "OutcomeUnknown":
+		return "Delivery may have occurred; inspect before retrying."
+	case "protocol_error":
+		return "The gateway response is invalid."
+	case "configuration_invalid":
+		return "The private peer configuration is unavailable or invalid."
+	default:
+		return "The operation could not be completed."
+	}
 }
+func success(value any) Result { return Result{OK: true, Value: value} }
 
 type Client struct {
 	peers []peer
 	http  *http.Client
 }
 
-// Execute never retries a write, including after a lost acknowledgement.
 func (client *Client) Execute(ctx context.Context, request Request) Result {
 	ctx, cancel := context.WithTimeout(ctx, Timeout)
 	defer cancel()
 	if !request.Valid() {
 		return Failed("invalid_input", "not_sent")
 	}
-	var result Result
-	switch request.Operation {
-	case "list":
-		result = client.list(ctx, request.Machine)
-		if result.OK && request.SpaceFilter.Kind() != space.FilterAll {
-			value := result.Value.(Inventory)
-			for index := range value.Peers {
-				peer := &value.Peers[index]
-				if !peer.OK {
-					continue
-				}
-				rows := make([]Session, 0, len(peer.Sessions))
-				for _, row := range peer.Sessions {
-					if request.SpaceFilter.Matches(row.Space) {
-						rows = append(rows, row)
-					}
-				}
-				peer.Sessions = rows
+	if request.Operation == "list" {
+		return client.list(ctx, request.Machine)
+	}
+	if request.Operation == "enter" {
+		return Failed("invalid_input", "not_sent")
+	}
+	var selected peer
+	var encodedRef string
+	if request.Operation == "start" {
+		var ok bool
+		selected, ok = client.peerByLabel(request.Machine)
+		if !ok {
+			return Failed("machine_unknown", "not_sent")
+		}
+	} else {
+		var failed *Result
+		selected, encodedRef, failed = client.resolve(ctx, request)
+		if failed != nil {
+			return *failed
+		}
+	}
+	destination := func() (any, bool) {
+		switch request.DestinationKind {
+		case "":
+			return nil, true
+		case "new":
+			return struct {
+				Kind  string `json:"kind"`
+				Label string `json:"label,omitempty"`
+			}{"new", request.NewWorkspace}, true
+		case "existing":
+			value, err := reference.Decode(request.WorkspaceRef)
+			if err != nil || value.Kind != "workspace" || value.Machine != selected.Machine {
+				return nil, false
 			}
-			result = success(value)
+			return struct {
+				Kind         string `json:"kind"`
+				WorkspaceRef string `json:"workspaceRef"`
+			}{"existing", request.WorkspaceRef}, true
+		default:
+			return nil, false
 		}
-		return result
+	}
+	var method, path string
+	var body any
+	switch request.Operation {
 	case "start":
-		selected, ok := client.peerByLabel(request.Machine)
+		dest, ok := destination()
 		if !ok {
-			return Failed("machine_unknown", "not_sent")
-		}
-		cwd := request.CWD
-		if cwd == "" {
-			cwd = "~"
-		}
-		body, _ := json.Marshal(struct {
-			Kind    LaunchKind `json:"kind"`
-			CWD     string     `json:"cwd"`
-			Profile string     `json:"profile,omitempty"`
-			Name    string     `json:"optionalTmuxName"`
-			Space   string     `json:"space,omitempty"`
-		}{request.Kind, cwd, request.Profile, request.Name, request.Space.String()})
-		if len(body) > MaximumInputBytes {
-			return Failed("input_limit", "not_sent")
-		}
-		result = client.call(ctx, selected, "start", "/v1/sessions", body)
-	default:
-		ref, observed, failure := client.resolve(ctx, request)
-		if failure != nil {
-			return *failure
-		}
-		selected, ok := client.peerByMachine(ref.Machine)
-		if !ok {
-			return Failed("machine_unknown", "not_sent")
-		}
-		if request.Operation == "info" {
-			result = success(observed)
-			break
-		}
-		if request.Operation == "enter" {
 			return Failed("invalid_input", "not_sent")
 		}
-		body := map[string]any{"identityToken": ref.IdentityToken}
-		path := "/v1/sessions/" + ref.TmuxID
-		if request.Operation == "shell" {
-			path += "/shell"
-		} else if request.Operation == "space" {
-			body["space"] = request.Space.String()
-			path += "/space"
-		} else if request.Operation == "kill" {
-			body["tmuxName"] = observed.Session.Name
-		} else {
-			if ref.Agent == nil {
-				return Failed("agent_unavailable", "not_sent")
-			}
-			body["paneId"] = ref.Agent.PaneID
-			body["pid"] = ref.Agent.PID
-			body["startIdentity"] = ref.Agent.StartIdentity
-			path += "/agent/" + request.Operation
-			switch request.Operation {
-			case "read", "send":
-				mode := request.Mode
-				if mode == "" {
-					mode = "auto"
-				}
-				body["mode"] = mode
-				if request.Operation == "read" {
-					maximum := request.MaxBytes
-					if maximum == 0 {
-						maximum = 16384
-					}
-					body["maxBytes"] = maximum
-				} else {
-					body["text"] = request.Text
-				}
-			case "keys":
-				body["keys"] = request.Keys
-			}
+		method, path = http.MethodPost, "/v1/terminals"
+		body = struct {
+			Kind        LaunchKind `json:"kind"`
+			Profile     string     `json:"profile,omitempty"`
+			CWD         string     `json:"cwd"`
+			Name        string     `json:"name"`
+			Objective   string     `json:"objective,omitempty"`
+			Destination any        `json:"destination,omitempty"`
+		}{request.Kind, request.Profile, request.CWD, request.Name, request.Objective, dest}
+	case "info":
+		method, path = http.MethodGet, "/v1/terminals/"+encodedRef
+	case "shell":
+		method, path = http.MethodPost, "/v1/terminals/"+encodedRef+"/shell"
+		body = struct{}{}
+	case "rename":
+		method, path = http.MethodPatch, "/v1/terminals/"+encodedRef
+		body = struct {
+			Name string `json:"name"`
+		}{request.NewName}
+	case "move":
+		dest, ok := destination()
+		if !ok {
+			return Failed("invalid_input", "not_sent")
 		}
-		encoded, _ := json.Marshal(body)
-		if len(encoded) > MaximumInputBytes {
+		method, path = http.MethodPut, "/v1/terminals/"+encodedRef+"/workspace"
+		body = struct {
+			Destination any `json:"destination"`
+		}{dest}
+	case "kill":
+		method, path = http.MethodDelete, "/v1/terminals/"+encodedRef
+		body = struct{}{}
+	case "read":
+		method, path = http.MethodPost, "/v1/agents/"+encodedRef+"/read"
+		body = struct {
+			Coverage string `json:"coverage,omitempty"`
+			MaxBytes int    `json:"maxBytes,omitempty"`
+		}{request.Coverage, request.MaxBytes}
+	case "send":
+		method, path = http.MethodPost, "/v1/agents/"+encodedRef+"/send"
+		mode := request.Mode
+		if mode == "" {
+			mode = "auto"
+		}
+		body = struct {
+			Text string `json:"text"`
+			Mode string `json:"mode"`
+		}{request.Text, mode}
+	case "keys":
+		method, path = http.MethodPost, "/v1/agents/"+encodedRef+"/keys"
+		body = struct {
+			Keys []string `json:"keys"`
+		}{request.Keys}
+	case "interrupt", "stop":
+		method, path = http.MethodPost, "/v1/agents/"+encodedRef+"/"+request.Operation
+		body = struct{}{}
+	default:
+		return Failed("invalid_input", "not_sent")
+	}
+	var data []byte
+	if body != nil {
+		data, _ = json.Marshal(body)
+		if len(data) > MaximumInputBytes {
 			return Failed("input_limit", "not_sent")
 		}
-		result = client.call(ctx, selected, request.Operation, path, encoded)
-		if result.OK && request.Operation == "space" {
-			result = success(SpaceResult{Space: request.Space.String()})
-		}
 	}
-	if _, err := result.Encode(request.Operation); err != nil {
-		dispatch := "not_sent"
-		if request.Operation == "start" || request.Operation == "shell" || request.Operation == "send" || request.Operation == "keys" || request.Operation == "interrupt" || request.Operation == "stop" || request.Operation == "kill" || request.Operation == "space" {
-			dispatch = "unknown"
-		}
-		return Failed("output_limit", dispatch)
-	}
-	return result
+	return client.call(ctx, selected, request.Operation, method, path, data)
 }
-
 func (client *Client) list(ctx context.Context, label string) Result {
 	peers := client.peers
 	if label != "" {
@@ -183,8 +207,8 @@ func (client *Client) list(ctx context.Context, label string) Result {
 	var pending sync.WaitGroup
 	for index, selected := range peers {
 		pending.Go(func() {
-			result := client.call(ctx, selected, "list", "/v1/sessions", nil)
-			row := Peer{Label: selected.Label, Machine: selected.Machine, OK: result.OK, Error: result.Error}
+			result := client.call(ctx, selected, "list", http.MethodGet, "/v1/terminals", nil)
+			row := Peer{Label: selected.Label, Machine: selected.Machine, Error: result.Error}
 			if result.OK {
 				row = result.Value.(Peer)
 			}
@@ -192,159 +216,121 @@ func (client *Client) list(ctx context.Context, label string) Result {
 		})
 	}
 	pending.Wait()
-	result := Inventory{Peers: rows}
+	inventory := Inventory{Peers: rows}
 	for _, row := range rows {
-		if !row.OK {
-			result.Partial = true
+		if !row.OK || row.Partial {
+			inventory.Partial = true
 		}
 	}
-	reply := success(result)
-	if _, err := reply.Encode("list"); err != nil {
-		return Failed("output_limit", "not_sent")
-	}
-	return reply
+	return success(inventory)
 }
-
-func (client *Client) resolve(ctx context.Context, request Request) (Reference, ObservedSession, *Result) {
-	fail := func(code string) (Reference, ObservedSession, *Result) {
-		result := Failed(code, "not_sent")
-		return Reference{}, ObservedSession{}, &result
+func (client *Client) resolve(ctx context.Context, request Request) (peer, string, *Result) {
+	fail := func(code string) (peer, string, *Result) {
+		r := Failed(code, "not_sent")
+		return peer{}, "", &r
 	}
-	var ref Reference
-	label := request.Machine
 	if request.Ref != "" {
-		var err error
-		ref, err = DecodeReference(request.Ref)
+		value, err := reference.Decode(request.Ref)
 		if err != nil {
 			return fail("invalid_input")
 		}
-		selected, ok := client.peerByMachine(ref.Machine)
+		selected, ok := client.peerByMachine(value.Machine)
 		if !ok {
 			return fail("machine_unknown")
 		}
-		if request.Operation != "info" && request.Operation != "kill" {
-			return ref, ObservedSession{}, nil
-		}
-		label = selected.Label
+		return selected, request.Ref, nil
 	}
-	result := client.list(ctx, label)
-	if !result.OK {
-		return Reference{}, ObservedSession{}, &result
+	inventory := client.list(ctx, request.Machine)
+	if !inventory.OK {
+		return peer{}, "", &inventory
 	}
-	listed := result.Value.(Inventory)
+	listed := inventory.Value.(Inventory)
 	if listed.Partial {
 		return fail("inventory_incomplete")
 	}
-	matches := make([]ObservedSession, 0)
-	for _, peer := range listed.Peers {
-		for _, row := range peer.Sessions {
-			current, err := DecodeReference(row.Ref)
-			if err != nil {
-				return fail("protocol_error")
-			}
-			if request.Ref != "" {
-				if !current.SessionEqual(ref) {
-					continue
+	type match struct {
+		peer Peer
+		ref  string
+	}
+	var matches []match
+	for _, p := range listed.Peers {
+		for _, t := range p.Terminals {
+			if t.Name == request.Name {
+				ref := t.Ref
+				if agentOperation(request.Operation) {
+					if t.Agent == nil {
+						continue
+					}
+					ref = t.Agent.Ref
 				}
-			} else if row.Name != request.Name {
-				continue
+				matches = append(matches, match{p, ref})
 			}
-			matches = append(matches, ObservedSession{Label: peer.Label, Machine: peer.Machine, ObservedAt: peer.ObservedAt, Session: row})
 		}
 	}
 	if len(matches) == 0 {
-		if request.Ref != "" {
-			return fail("SessionIdentityMismatch")
-		}
 		return fail("name_not_found")
 	}
 	if len(matches) > 1 {
-		result := Failed("name_ambiguous", "not_sent")
-		for _, match := range matches {
-			result.Candidates = append(result.Candidates, match.Label+" / "+match.Session.Name)
+		r := Failed("name_ambiguous", "not_sent")
+		for _, m := range matches {
+			r.Candidates = append(r.Candidates, m.peer.Label+" / "+request.Name+" / "+m.ref)
 		}
-		return Reference{}, ObservedSession{}, &result
+		return peer{}, "", &r
 	}
-	observed := matches[0]
-	if request.Ref == "" {
-		ref, _ = DecodeReference(observed.Session.Ref)
-	}
-	return ref, observed, nil
+	m := matches[0]
+	selected, _ := client.peerByMachine(m.peer.Machine)
+	return selected, m.ref, nil
 }
-
-// OpenTerminal shares the configured transport and identity binding with control calls.
-func (client *Client) OpenTerminal(ctx context.Context, request Request) (*websocket.Conn, *Failure) {
-	ctx, cancel := context.WithTimeout(ctx, Timeout)
-	defer cancel()
+func (client *Client) OpenTerminal(ctx context.Context, request Request, takeover bool) (*websocket.Conn, *Failure) {
 	request.Operation = "enter"
 	if !request.Valid() {
 		return nil, &Failure{Code: "invalid_input", Dispatch: "not_sent"}
 	}
-	ref, _, failure := client.resolve(ctx, request)
-	if failure != nil {
-		return nil, failure.Error
-	}
-	selected, ok := client.peerByMachine(ref.Machine)
-	if !ok {
-		return nil, &Failure{Code: "machine_unknown", Dispatch: "not_sent"}
+	selected, encoded, failed := client.resolve(ctx, request)
+	if failed != nil {
+		return nil, failed.Error
 	}
 	headers := http.Header{}
 	headers.Set("Authorization", "Bearer "+selected.Bearer)
 	headers.Set("Skidbladnir-Machine", selected.Machine)
-	headers.Set("Skidbladnir-Session-Identity", ref.IdentityToken)
-	connection, response, err := websocket.Dial(ctx, strings.Replace(selected.Origin, "https://", "wss://", 1)+"/v1/sessions/"+ref.TmuxID+"/terminal", &websocket.DialOptions{HTTPClient: client.http, HTTPHeader: headers, CompressionMode: websocket.CompressionDisabled})
-	if err != nil {
-		if response != nil && response.Body != nil {
-			defer response.Body.Close()
-			encoded, readErr := io.ReadAll(io.LimitReader(response.Body, MaximumControlBytes+1))
-			mediaType, _, typeErr := mime.ParseMediaType(response.Header.Get("Content-Type"))
-			if readErr == nil && len(encoded) <= MaximumControlBytes && typeErr == nil && mediaType == "application/json" {
-				if refusal := decodeFailure(encoded, "not_sent"); refusal != nil {
-					return nil, refusal
-				}
+	if takeover {
+		headers.Set("Skidbladnir-Terminal-Takeover", "true")
+	} else {
+		headers.Set("Skidbladnir-Terminal-Takeover", "false")
+	}
+	connection, response, err := websocket.Dial(ctx, strings.Replace(selected.Origin, "https://", "wss://", 1)+"/v1/terminals/"+encoded+"/stream", &websocket.DialOptions{HTTPClient: client.http, HTTPHeader: headers, CompressionMode: websocket.CompressionDisabled})
+	if err == nil {
+		return connection, nil
+	}
+	if response != nil && response.Body != nil {
+		defer response.Body.Close()
+		data, readErr := io.ReadAll(io.LimitReader(response.Body, MaximumErrorBytes+1))
+		if readErr == nil && len(data) <= MaximumErrorBytes {
+			if failure := decodeFailure(data); failure != nil {
+				return nil, failure
 			}
 		}
-		return nil, &Failure{Code: "terminal_unavailable", Dispatch: "not_sent"}
 	}
-	return connection, nil
+	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return nil, &Failure{Code: "control_unavailable", Message: "Terminal acquisition timed out.", Dispatch: "not_sent"}
+	}
+	return nil, &Failure{Code: "stream_lost", Dispatch: "not_sent"}
 }
-
-func (client *Client) peerByLabel(label string) (peer, bool) {
-	for _, p := range client.peers {
-		if p.Label == label {
-			return p, true
+func (client *Client) call(ctx context.Context, target peer, operation, method, path string, body []byte) (answer Result) {
+	defer func() {
+		if !answer.OK {
+			answer.Label = target.Label
+			answer.Machine = target.Machine
 		}
-	}
-	return peer{}, false
-}
-func (client *Client) peerByMachine(machine string) (peer, bool) {
-	for _, p := range client.peers {
-		if p.Machine == machine {
-			return p, true
-		}
-	}
-	return peer{}, false
-}
-
-func (client *Client) call(ctx context.Context, target peer, operation, path string, body []byte) Result {
+	}()
 	dispatch := "not_sent"
-	writes := operation != "list" && operation != "read"
+	writes := method != http.MethodGet
 	if ctx.Err() != nil {
-		return Failed("unavailable", dispatch)
+		return Failed("HerdrUnavailable", dispatch)
 	}
-	method := http.MethodPost
 	var reader io.Reader
-	if operation == "list" {
-		method = http.MethodGet
-	} else {
-		if operation == "space" {
-			method = http.MethodPut
-		}
-		if operation == "kill" {
-			method = http.MethodDelete
-		}
-		// No GetBody: net/http cannot replay a possibly delivered mutation.
-		reader = io.NopCloser(bytes.NewReader(body))
+	if body != nil {
+		reader = bytes.NewReader(body)
 	}
 	request, err := http.NewRequestWithContext(ctx, method, target.Origin+path, reader)
 	if err != nil {
@@ -353,7 +339,7 @@ func (client *Client) call(ctx context.Context, target peer, operation, path str
 	request.Header.Set("Authorization", "Bearer "+target.Bearer)
 	request.Header.Set("Skidbladnir-Machine", target.Machine)
 	request.Header.Set("Accept", "application/json")
-	if reader != nil {
+	if body != nil {
 		request.Header.Set("Content-Type", "application/json")
 	}
 	if writes {
@@ -361,119 +347,94 @@ func (client *Client) call(ctx context.Context, target peer, operation, path str
 	}
 	response, err := client.http.Do(request)
 	if err != nil {
-		return Failed("unavailable", dispatch)
+		return Failed("OutcomeUnknown", dispatch)
 	}
 	defer response.Body.Close()
-	limit := MaximumControlBytes
-	if operation == "list" {
-		limit = MaximumInventoryBytes
+	expected := http.StatusOK
+	if operation == "start" || operation == "shell" {
+		expected = http.StatusCreated
+	}
+	limit := MaximumErrorBytes
+	if response.StatusCode == expected {
+		limit = MaximumControlBytes
+		if operation == "list" {
+			limit = MaximumInventoryBytes
+		}
 	}
 	encoded, err := io.ReadAll(io.LimitReader(response.Body, int64(limit+1)))
 	if err != nil {
-		return Failed("unavailable", dispatch)
+		return Failed("OutcomeUnknown", dispatch)
 	}
 	if len(encoded) > limit {
 		return Failed("output_limit", dispatch)
-	}
-	if (operation == "kill" || operation == "space") && response.StatusCode == http.StatusNoContent {
-		if len(encoded) != 0 {
-			return Failed("protocol_error", dispatch)
-		}
-		if operation == "space" {
-			return success(SpaceResult{})
-		}
-		return success(KillResult{Terminal: "closed"})
 	}
 	mediaType, _, err := mime.ParseMediaType(response.Header.Get("Content-Type"))
 	if err != nil || mediaType != "application/json" {
 		return Failed("protocol_error", dispatch)
 	}
-	expected := http.StatusOK
-	if operation == "start" || operation == "shell" {
-		expected = http.StatusCreated
-	}
-	if operation == "kill" || operation == "space" {
-		expected = http.StatusNoContent
-	}
 	if response.StatusCode != expected {
-		var failure *Failure
-		if operation == "space" || operation == "start" || operation == "shell" {
-			failure = decodeMutationFailure(operation, encoded, response.StatusCode)
-		} else {
-			failure = decodeFailure(encoded, dispatch)
-		}
+		failure := decodeFailure(encoded)
 		if failure == nil {
 			return Failed("protocol_error", dispatch)
 		}
-		return Result{Error: failure}
+		return Result{Error: failure, Partial: failure.Partial}
 	}
-	value, ok := decodeResponse(operation, encoded, target)
-	if !ok {
+	value, err := decodeSuccess(operation, encoded, target)
+	if err != nil {
 		return Failed("protocol_error", dispatch)
 	}
 	return success(value)
 }
-
-func decodeFailure(encoded []byte, dispatch string) *Failure {
-	var value *struct {
-		Code     string `json:"code"`
-		Message  string `json:"message"`
-		Dispatch string `json:"dispatch,omitempty"`
+func decodeFailure(encoded []byte) *Failure {
+	var wire *struct {
+		Code     string          `json:"code"`
+		Message  string          `json:"message"`
+		Dispatch string          `json:"dispatch,omitempty"`
+		Partial  json.RawMessage `json:"partial,omitempty"`
 	}
-	if strictjson.Decode(encoded, &value) != nil || value == nil || value.Code == "" {
+	if strictjson.Decode(encoded, &wire) != nil || wire == nil || wire.Code == "" || wire.Message == "" {
 		return nil
 	}
-	if value.Dispatch == "not_sent" || knownRejection(value.Code) {
-		dispatch = "not_sent"
+	if wire.Dispatch != "" && wire.Dispatch != "not_sent" && wire.Dispatch != "sent" && wire.Dispatch != "unknown" {
+		return nil
 	}
-	return &Failure{Code: value.Code, Dispatch: dispatch}
+	return &Failure{Code: wire.Code, Message: wire.Message, Dispatch: wire.Dispatch, Partial: wire.Partial}
 }
-
-func knownRejection(code string) bool {
-	switch code {
-	case "Unauthenticated", "MachineIdentityMismatch", "InvalidRequest", "RequestTooLarge", "WorkingDirectoryInvalid", "WorkingDirectoryUnavailable", "ProfileUnknown", "SessionNameInvalid", "ObjectiveInvalid", "SpaceInvalid", "SessionNameConflict", "SessionNotFound", "SessionIdentityMismatch":
-		return true
-	default:
-		return false
+func (client *Client) peerByLabel(label string) (peer, bool) {
+	for _, p := range client.peers {
+		if p.Label == label {
+			return p, true
+		}
 	}
+	return peer{}, false
 }
-
+func (client *Client) peerByMachine(handle string) (peer, bool) {
+	for _, p := range client.peers {
+		if p.Machine == handle {
+			return p, true
+		}
+	}
+	return peer{}, false
+}
 func (result Result) Encode(operation string) ([]byte, error) {
 	encoded, err := json.Marshal(result)
 	if err != nil {
 		return nil, err
 	}
-	limit := MaximumControlBytes
-	if operation == "list" {
-		limit = MaximumInventoryBytes
-	}
-	if len(encoded)+1 > limit {
-		return nil, errOutputLimit
+	if operation != "list" && len(encoded) > MaximumControlBytes {
+		return nil, errors.New("output limit")
 	}
 	return append(encoded, '\n'), nil
 }
-
 func (result Result) ExitCode(operation string) int {
 	if !result.OK {
 		return 1
 	}
-	switch operation {
-	case "list":
-		if result.Value.(Inventory).Partial {
-			return 1
-		}
-	case "send", "keys", "interrupt":
-		var value WriteResult
-		if json.Unmarshal(result.Value.(json.RawMessage), &value) != nil || value.Outcome == "unknown" {
-			return 1
-		}
-	case "stop":
-		var value StopResult
-		if json.Unmarshal(result.Value.(json.RawMessage), &value) != nil || value.Agent == "unconfirmed" || value.Terminal != "closed" {
-			return 1
-		}
-	case "kill":
-		if result.Value.(KillResult).Terminal != "closed" {
+	if operation == "list" && result.Value.(Inventory).Partial {
+		return 1
+	}
+	if operation == "send" || operation == "keys" || operation == "interrupt" {
+		if value, ok := result.Value.(map[string]json.RawMessage); ok && string(value["outcome"]) == `"unknown"` {
 			return 1
 		}
 	}

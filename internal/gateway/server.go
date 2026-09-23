@@ -46,7 +46,7 @@ func ListenAndServe(ctx context.Context, address string, gateway *Gateway) error
 		Handler:           gateway,
 		ReadHeaderTimeout: readHeaderTimeout,
 		IdleTimeout:       idleTimeout,
-		MaxHeaderBytes:    int(MaximumBodyBytes),
+		MaxHeaderBytes:    maximumHeaderBytes,
 	}
 	serveResult := make(chan error, 1)
 	gateway.log(logging.NewGatewayStarted())

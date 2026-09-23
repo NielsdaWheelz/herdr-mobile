@@ -207,12 +207,12 @@ func MatchProfileEnvironment(profiles []Profile, provider Provider, lookup func(
 	return "", false
 }
 
-func LaunchArguments(profile Profile, tmuxName string) []string {
+func LaunchArguments(profile Profile, terminalName string) []string {
 	arguments := make([]string, 0, len(profile.Arguments)+2)
 	switch profile.Provider {
 	case ProviderCodex:
 	case ProviderClaude:
-		arguments = append(arguments, "--name", tmuxName)
+		arguments = append(arguments, "--name", terminalName)
 	default:
 		panic("invalid validated profile provider")
 	}

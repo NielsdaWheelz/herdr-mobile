@@ -91,17 +91,34 @@ internal fun TerminalKeyDeck(
                         row.forEachIndexed { columnIndex, item ->
                             val modifierPhase = item.modifierPhase(modifiers)
                             val armed = enabled && modifierPhase == TerminalModifierPhase.Armed
+                            val unavailable = when (item.accessory) {
+                                TerminalAccessory.Home, TerminalAccessory.End -> true
+                                TerminalAccessory.PageUp, TerminalAccessory.PageDown ->
+                                    modifiers.control == TerminalModifierPhase.Armed ||
+                                        modifiers.alt == TerminalModifierPhase.Armed
+                                else -> false
+                            }
+                            val keyEnabled = enabled && !unavailable
                             OutlinedButton(
                                 onClick = {
                                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                     onAccessory(item.accessory)
                                 },
-                                enabled = enabled,
+                                enabled = keyEnabled,
                                 modifier = Modifier
                                     .width(cellWidth)
                                     .heightIn(min = MINIMUM_KEY_SIZE)
                                     .semantics {
-                                        contentDescription = item.spokenName
+                                        contentDescription = when {
+                                            unavailable && item.accessory == TerminalAccessory.PageUp ->
+                                                "Modified page up unavailable with this terminal"
+                                            unavailable && item.accessory == TerminalAccessory.PageDown ->
+                                                "Modified page down unavailable with this terminal"
+                                            unavailable -> "${item.spokenName} unavailable with this terminal"
+                                            item.accessory == TerminalAccessory.PageUp -> "Page up, scroll terminal"
+                                            item.accessory == TerminalAccessory.PageDown -> "Page down, scroll terminal"
+                                            else -> item.spokenName
+                                        }
                                         traversalIndex = (rowIndex * COLUMN_COUNT + columnIndex).toFloat()
                                         if (modifierPhase != null) {
                                             toggleableState = if (armed) ToggleableState.On else ToggleableState.Off
@@ -122,7 +139,7 @@ internal fun TerminalKeyDeck(
                                 border = BorderStroke(
                                     if (armed) 2.dp else 1.dp,
                                     when {
-                                        !enabled -> Muted.copy(alpha = NidavellirMotion.DisabledAlpha.Container)
+                                        !keyEnabled -> Muted.copy(alpha = NidavellirMotion.DisabledAlpha.Container)
                                         armed -> Gold
                                         else -> Muted.copy(alpha = 0.65f)
                                     },

@@ -57,22 +57,6 @@ func classifyProcError(err error, action string) error {
 	return fmt.Errorf("%s: %w", action, err)
 }
 
-func foregroundProcessGroup(panePID PID) (PID, error) {
-	contents, err := os.ReadFile(filepath.Join("/proc", strconv.Itoa(int(panePID)), "stat"))
-	if err != nil {
-		return 0, classifyProcError(err, "read pane process stat")
-	}
-	fields, err := statFields(contents)
-	if err != nil {
-		return 0, err
-	}
-	foreground, err := strconv.Atoi(fields[5])
-	if err != nil || foreground <= 0 {
-		return 0, errors.New("pane has no foreground process group")
-	}
-	return PID(foreground), nil
-}
-
 func statFields(contents []byte) ([]string, error) {
 	closing := strings.LastIndexByte(string(contents), ')')
 	if closing < 0 {

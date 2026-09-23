@@ -69,7 +69,7 @@ internal fun DashboardScreen(
     state: SkidbladnirUiState.Dashboard,
     entry: DashboardEntryState,
     controller: SkidbladnirController,
-    onOpenTerminal: (SessionTarget) -> Unit,
+    onOpenTerminal: (TerminalTarget) -> Unit,
 ) {
     DashboardMain(state, entry, controller, controller::verifyVisibleInventory, onOpenTerminal)
 
@@ -102,14 +102,14 @@ internal fun DashboardScreen(
             ),
         )
     }
-    state.spaceEditor?.let { editor ->
-        SpaceSheet(
+    state.workspaceEditor?.let { editor ->
+        WorkspaceSheet(
             editor = editor,
             machine = state.machines.single { it.machine.handle == editor.target.machineHandle },
-            labels = observedSpaces(state.machines),
-            onChange = controller::updateSpaceDraft,
-            onDismiss = controller::dismissSpaceEditor,
-            onSubmit = controller::submitSpace,
+            workspaces = observedWorkspaces(state.machines),
+            onChange = controller::updateWorkspaceDraft,
+            onDismiss = controller::dismissWorkspaceEditor,
+            onSubmit = controller::submitWorkspace,
         )
     }
     state.kill?.let { kill ->
@@ -129,7 +129,7 @@ internal fun DashboardMain(
     entry: DashboardEntryState,
     controller: SkidbladnirController,
     onVerify: () -> Unit,
-    onOpenTerminal: (SessionTarget) -> Unit,
+    onOpenTerminal: (TerminalTarget) -> Unit,
 ) {
     var selectedPressureHandle by rememberSaveable { mutableStateOf<String?>(null) }
     val scope = entry.scope
@@ -150,7 +150,7 @@ internal fun DashboardMain(
             is DashboardScope.Machine -> machine.machine.handle == scope.handle
         }
     }
-    val sessions = visibleSessions(state.machines, scope).filter { entry.space.matches(it.target.session.space) }
+    val sessions = visibleSessions(state.machines, scope).filter { entry.workspace.matches(it.target) }
     val canForge = machines.any(MachineState::canForge)
     val showPressureRails = pressureRailsVisible(scope)
     Box(modifier = Modifier.fillMaxSize().background(Ink).systemBarsPadding()) {
@@ -161,7 +161,7 @@ internal fun DashboardMain(
             )
 
             MachineFilters(state.machines, scope, entry::selectScope)
-            SpaceSelector(entry.space, observedSpaces(state.machines), entry::selectSpace)
+            WorkspaceSelector(entry.workspace, observedWorkspaces(state.machines), entry::selectWorkspace)
             machines.forEach { machine ->
                 key(machine.machine.handle) {
                     MachineStrip(
@@ -196,7 +196,7 @@ internal fun DashboardMain(
                 onRestore = controller::restoreDashboardOnce,
                 onOpen = onOpenTerminal,
                 onKill = controller::requestKill,
-                onSpace = controller::openSpaceEditor,
+                onSpace = controller::openWorkspaceEditor,
             )
         }
 
@@ -227,9 +227,9 @@ internal fun DashboardDwarfCollection(
     entry: DashboardEntryState,
     onVerify: () -> Unit,
     onRestore: (List<DashboardItemKey>) -> Unit,
-    onOpen: (SessionTarget) -> Unit,
-    onKill: (SessionTarget) -> Unit,
-    onSpace: (SessionTarget) -> Unit,
+    onOpen: (TerminalTarget) -> Unit,
+    onKill: (TerminalTarget) -> Unit,
+    onSpace: (TerminalTarget) -> Unit,
 ) {
     val scope = entry.scope
     val machines = state.machines.filter { machine ->
@@ -238,7 +238,7 @@ internal fun DashboardDwarfCollection(
             is DashboardScope.Machine -> machine.machine.handle == scope.handle
         }
     }
-    val items = dashboardItems(state.machines, scope, entry.space)
+    val items = dashboardItems(state.machines, scope, entry.workspace)
     val keys = items.map(DashboardItem::key)
     val restorationOutcomes = machines.map { machine ->
         Triple(machine.machine.handle, machine.access, machine.inventory)
@@ -327,7 +327,7 @@ private fun DwarfCollectionPullIndicator(
         isRefreshing && !motionEnabled -> LinearProgressIndicator(
             progress = { 1f },
             modifier = indicatorModifier.semantics {
-                contentDescription = "Checking tmux sessions"
+                contentDescription = "Checking terminals"
                 progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate
             },
             color = Gold,
@@ -338,7 +338,7 @@ private fun DwarfCollectionPullIndicator(
         )
         isRefreshing -> LinearProgressIndicator(
             modifier = indicatorModifier.semantics {
-                contentDescription = "Checking tmux sessions"
+                contentDescription = "Checking terminals"
             },
             color = Gold,
             trackColor = Color.Transparent,
@@ -365,9 +365,9 @@ private fun DashboardDwarfGrid(
     items: List<DashboardItem>,
     gridState: LazyGridState,
     motionEnabled: Boolean,
-    onOpen: (SessionTarget) -> Unit,
-    onKill: (SessionTarget) -> Unit,
-    onSpace: (SessionTarget) -> Unit,
+    onOpen: (TerminalTarget) -> Unit,
+    onKill: (TerminalTarget) -> Unit,
+    onSpace: (TerminalTarget) -> Unit,
 ) {
     val topPadding = 12.dp
     val bottomPadding = 84.dp
@@ -393,10 +393,10 @@ private fun DashboardDwarfGrid(
                 ) {
                     Box(Modifier.fillMaxWidth().height(emptyItemHeight)) {
                         dashboardInventoryWaitCopy(machines)?.let {
-                            EmptyState("no matching sessions in available inventory", it.message, tone = it.tone)
+                            EmptyState("no matching terminals in available inventory", it.message, tone = it.tone)
                         } ?: EmptyState(
-                            "no sessions in this view",
-                            "Create a dwarf here, or launch tmux on the visible " +
+                            "no terminals in this view",
+                            "Create a dwarf here, or open herdr on the visible " +
                                 if (machines.size == 1) "machine." else "machines.",
                             ornament = true,
                         )
@@ -410,7 +410,7 @@ private fun DashboardDwarfGrid(
                 ) { item ->
                     when (item) {
                         is DashboardItem.Heading -> {
-                            val label = item.label?.let { "space: ${it.text}" } ?: "unassigned"
+                            val label = "workspace: ${item.workspace.workspace.label.text} · ${item.workspace.workspace.ref.takeLast(6)}"
                             Text(label, fontFamily = NidavellirType.Data, color = Muted,
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).semantics {
                                     heading()
@@ -576,8 +576,8 @@ internal fun KillConfirmation(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
-    val stoppingAgent = state.target.session.agent != null && !state.terminalOnly
-    val verb = if (stoppingAgent) "Stop" else "Kill"
+    val stoppingAgent = state.target.terminal.agent != null && !state.terminalOnly
+    val verb = if (stoppingAgent) "Stop" else "Close"
     // No ornament near destructive surfaces (design-language.md §7): the kill
     // dialog carries the cut-corner shape and nothing decorative.
     AlertDialog(
@@ -589,8 +589,8 @@ internal fun KillConfirmation(
                 !actionAdmissible ->
                     "${state.machine.label.text} inventory is not fresh. $verb is disabled. " +
                         "Cancel, return to Dwarves, then pull down to check again."
-                stoppingAgent -> "Try to halt this agent, then close its session. Halting shared work affects linked sessions; detached work may continue."
-                else -> "Close only this tmux session. Work shared with another session or hosted separately may continue."
+                stoppingAgent -> "Send one interrupt, then close this terminal. Linked workspaces and their running terminals may also close; detached work may continue."
+                else -> "Close this terminal. Linked workspaces and their running terminals may also close; detached work may continue."
             })
         },
         confirmButton = {
@@ -667,12 +667,12 @@ internal fun forgeRecoveryMessage(
             "$label: create outcome unknown. $repair"
         }
         is ForgeRecovery.ReviewReady ->
-            "$label refreshed. Review its sessions before resuming this draft."
+            "$label refreshed. Review its terminals before resuming this draft."
     }
 }
 
 internal fun dashboardSummary(sessionCount: Int, machineCount: Int): String =
-    "$sessionCount tmux ${if (sessionCount == 1) "session" else "sessions"} across " +
+    "$sessionCount ${if (sessionCount == 1) "terminal" else "terminals"} across " +
         "$machineCount ${if (machineCount == 1) "machine" else "machines"}"
 
 // Its own prose again, and its own concatenation — but not its own tone. The strip and this
@@ -685,13 +685,13 @@ internal fun dashboardInventoryWaitCopy(machines: List<MachineState>): MachineNo
         val availability = machineAvailability(machine)
         when (availability) {
             MachineAvailability.Ready -> null
-            MachineAvailability.Refreshing -> "$label: confirming the latest tmux inventory."
-            MachineAvailability.AuthRequired -> "$label: authentication required; its sessions may be out of date."
+            MachineAvailability.Refreshing -> "$label: confirming the latest terminal inventory."
+            MachineAvailability.AuthRequired -> "$label: authentication required; its terminals may be out of date."
             MachineAvailability.IdentityChanged -> "$label: identity changed; fleet reset is required."
-            MachineAvailability.Reading -> "$label: reading tmux sessions."
+            MachineAvailability.Reading -> "$label: reading terminals."
             is MachineAvailability.Stale ->
                 "$label: showing its last inventory; it is STALE and actions are disabled."
-            is MachineAvailability.Unavailable -> "$label: unavailable; its sessions cannot be read."
+            is MachineAvailability.Unavailable -> "$label: unavailable; its terminals cannot be read."
         }?.let { it to availabilityTone(availability) }
     }
     if (waiting.isEmpty()) return null
@@ -722,7 +722,7 @@ internal fun forgeUnavailableCopy(machine: MachineState): MachineNotice? {
     return when (availability) {
         MachineAvailability.Ready -> null
         MachineAvailability.Refreshing -> MachineNotice(
-            "$label is confirming its latest tmux inventory. Draft fields and Create are disabled.",
+            "$label is confirming its latest terminal inventory. Draft fields and Create are disabled.",
             tone,
         )
         MachineAvailability.AuthRequired -> MachineNotice(
@@ -734,7 +734,7 @@ internal fun forgeUnavailableCopy(machine: MachineState): MachineNotice? {
             tone,
         )
         MachineAvailability.Reading -> MachineNotice(
-            "$label is reading tmux sessions. Draft fields and Create are disabled until the inventory is fresh.",
+            "$label is reading terminals. Draft fields and Create are disabled until the inventory is fresh.",
             tone,
         )
         is MachineAvailability.Stale -> MachineNotice(

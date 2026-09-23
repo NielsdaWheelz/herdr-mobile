@@ -5,13 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"regexp"
 	"time"
-
-	"github.com/NielsdaWheelz/skidbladnir/internal/agentruntime"
 )
-
-var tmuxIDPattern = regexp.MustCompile(`^\$[0-9]+$`)
 
 type Method string
 
@@ -36,13 +31,13 @@ func (method Method) valid() bool {
 type Route string
 
 const (
-	RouteAgentControl      Route = "/v1/sessions/{tmuxId}/agent/{operation}"
+	RouteAgentControl      Route = "/v1/agents/{ref}/{operation}"
 	RouteHealth            Route = "/healthz"
-	RouteSessions          Route = "/v1/sessions"
-	RouteSession           Route = "/v1/sessions/{tmuxId}"
-	RouteSessionSpace      Route = "/v1/sessions/{tmuxId}/space"
-	RouteSessionShell      Route = "/v1/sessions/{tmuxId}/shell"
-	RouteTerminal          Route = "/v1/sessions/{tmuxId}/terminal"
+	RouteTerminals         Route = "/v1/terminals"
+	RouteTerminal          Route = "/v1/terminals/{ref}"
+	RouteTerminalWorkspace Route = "/v1/terminals/{ref}/workspace"
+	RouteTerminalShell     Route = "/v1/terminals/{ref}/shell"
+	RouteTerminalStream    Route = "/v1/terminals/{ref}/stream"
 	RoutePressure          Route = "/v1/pressure"
 	RoutePairingInvites    Route = "/v1/pairing-invites"
 	RoutePairings          Route = "/v1/pairings"
@@ -52,7 +47,9 @@ const (
 
 func (route Route) valid() bool {
 	switch route {
-	case RouteAgentControl, RouteHealth, RouteSessions, RouteSession, RouteSessionSpace, RouteSessionShell, RouteTerminal, RoutePressure, RoutePairingInvites, RoutePairings, RouteDirectoryListings, RouteUnmatched:
+	case RouteAgentControl, RouteHealth, RouteTerminals, RouteTerminal, RouteTerminalWorkspace,
+		RouteTerminalShell, RouteTerminalStream, RoutePressure, RoutePairingInvites,
+		RoutePairings, RouteDirectoryListings, RouteUnmatched:
 		return true
 	default:
 		return false
@@ -62,48 +59,43 @@ func (route Route) valid() bool {
 type ErrorCode string
 
 const (
-	ErrorAgentTargetStale            ErrorCode = "AgentTargetStale"
-	ErrorAgentBlocked                ErrorCode = "AgentBlocked"
-	ErrorAgentInputInvalid           ErrorCode = "AgentInputInvalid"
 	ErrorNone                        ErrorCode = ""
 	ErrorUnauthenticated             ErrorCode = "Unauthenticated"
+	ErrorMachineIdentityMismatch     ErrorCode = "MachineIdentityMismatch"
 	ErrorInvalidRequest              ErrorCode = "InvalidRequest"
 	ErrorRequestTooLarge             ErrorCode = "RequestTooLarge"
-	ErrorWorkingDirectoryInvalid     ErrorCode = "WorkingDirectoryInvalid"
-	ErrorWorkingDirectoryUnavailable ErrorCode = "WorkingDirectoryUnavailable"
 	ErrorDirectoryListingUnavailable ErrorCode = "DirectoryListingUnavailable"
 	ErrorDirectoryListingTooLarge    ErrorCode = "DirectoryListingTooLarge"
-	ErrorProfileUnknown              ErrorCode = "ProfileUnknown"
-	ErrorSessionNameInvalid          ErrorCode = "SessionNameInvalid"
-	ErrorObjectiveInvalid            ErrorCode = "ObjectiveInvalid"
-	ErrorSpaceInvalid                ErrorCode = "SpaceInvalid"
-	ErrorSessionNameConflict         ErrorCode = "SessionNameConflict"
-	ErrorSessionNotFound             ErrorCode = "SessionNotFound"
-	ErrorSessionIdentityMismatch     ErrorCode = "SessionIdentityMismatch"
 	ErrorPairingInviteRejected       ErrorCode = "PairingInviteRejected"
-	ErrorMachineIdentityMismatch     ErrorCode = "MachineIdentityMismatch"
+	ErrorTerminalNotFound            ErrorCode = "TerminalNotFound"
+	ErrorTerminalStale               ErrorCode = "TerminalStale"
+	ErrorAgentStale                  ErrorCode = "AgentStale"
+	ErrorWorkspaceStale              ErrorCode = "WorkspaceStale"
+	ErrorMetadataUnavailable         ErrorCode = "MetadataUnavailable"
+	ErrorProfileUnknown              ErrorCode = "ProfileUnknown"
+	ErrorWorkingDirectoryInvalid     ErrorCode = "WorkingDirectoryInvalid"
+	ErrorNameInvalid                 ErrorCode = "NameInvalid"
+	ErrorNameAmbiguous               ErrorCode = "NameAmbiguous"
+	ErrorObjectiveInvalid            ErrorCode = "ObjectiveInvalid"
+	ErrorReadinessUnconfirmed        ErrorCode = "ReadinessUnconfirmed"
+	ErrorMethodUnavailable           ErrorCode = "MethodUnavailable"
+	ErrorClosureConfirmationRequired ErrorCode = "ClosureConfirmationRequired"
+	ErrorHerdrUnavailable            ErrorCode = "HerdrUnavailable"
+	ErrorUpstreamRejected            ErrorCode = "UpstreamRejected"
+	ErrorOutcomeUnknown              ErrorCode = "OutcomeUnknown"
 	ErrorInternal                    ErrorCode = "InternalError"
 )
 
 func (code ErrorCode) valid() bool {
 	switch code {
-	case ErrorAgentTargetStale, ErrorAgentBlocked, ErrorAgentInputInvalid, ErrorUnauthenticated,
-		ErrorInvalidRequest,
-		ErrorRequestTooLarge,
-		ErrorWorkingDirectoryInvalid,
-		ErrorWorkingDirectoryUnavailable,
-		ErrorDirectoryListingUnavailable,
-		ErrorDirectoryListingTooLarge,
-		ErrorProfileUnknown,
-		ErrorSessionNameInvalid,
-		ErrorObjectiveInvalid,
-		ErrorSpaceInvalid,
-		ErrorSessionNameConflict,
-		ErrorSessionNotFound,
-		ErrorSessionIdentityMismatch,
-		ErrorPairingInviteRejected,
-		ErrorMachineIdentityMismatch,
-		ErrorInternal:
+	case ErrorUnauthenticated, ErrorMachineIdentityMismatch, ErrorInvalidRequest, ErrorRequestTooLarge,
+		ErrorDirectoryListingUnavailable, ErrorDirectoryListingTooLarge, ErrorPairingInviteRejected,
+		ErrorTerminalNotFound, ErrorTerminalStale, ErrorAgentStale, ErrorWorkspaceStale,
+		ErrorMetadataUnavailable, ErrorProfileUnknown, ErrorWorkingDirectoryInvalid,
+		ErrorNameInvalid, ErrorNameAmbiguous,
+		ErrorObjectiveInvalid, ErrorReadinessUnconfirmed, ErrorMethodUnavailable,
+		ErrorClosureConfirmationRequired, ErrorHerdrUnavailable, ErrorUpstreamRejected,
+		ErrorOutcomeUnknown, ErrorInternal:
 		return true
 	default:
 		return false
@@ -153,26 +145,19 @@ type eventKind string
 const (
 	eventGatewayStarted         eventKind = "Gateway.Started"
 	eventRequestCompleted       eventKind = "Request.Completed"
-	eventSessionsListed         eventKind = "Sessions.Listed"
-	eventSessionCreated         eventKind = "Session.Created"
-	eventSessionKilled          eventKind = "Session.Killed"
 	eventPressureSampled        eventKind = "Pressure.Sampled"
 	eventAuthenticationRejected eventKind = "Authentication.Rejected"
 )
 
 type Event struct {
-	kind          eventKind
-	method        Method
-	route         Route
-	status        int
-	duration      time.Duration
-	errorCode     ErrorCode
-	count         uint64
-	tmuxID        string
-	tmuxName      string
-	launchProfile agentruntime.ProfileKey
-	level         PressureLevel
-	reasons       []PressureReason
+	kind      eventKind
+	method    Method
+	route     Route
+	status    int
+	duration  time.Duration
+	errorCode ErrorCode
+	level     PressureLevel
+	reasons   []PressureReason
 }
 
 func NewGatewayStarted() Event { return Event{kind: eventGatewayStarted} }
@@ -181,30 +166,6 @@ func NewRequestCompleted(method Method, route Route, status int, duration time.D
 	event := Event{kind: eventRequestCompleted, method: method, route: route, status: status, duration: duration, errorCode: errorCode}
 	if !event.valid() {
 		return Event{}, errors.New("invalid request log event")
-	}
-	return event, nil
-}
-
-func NewSessionsListed(count uint64, duration time.Duration) (Event, error) {
-	event := Event{kind: eventSessionsListed, count: count, duration: duration}
-	if !event.valid() {
-		return Event{}, errors.New("invalid sessions-listed log event")
-	}
-	return event, nil
-}
-
-func NewSessionCreated(tmuxID, tmuxName string, launchProfile agentruntime.ProfileKey, duration time.Duration) (Event, error) {
-	event := Event{kind: eventSessionCreated, tmuxID: tmuxID, tmuxName: tmuxName, launchProfile: launchProfile, duration: duration}
-	if !event.valid() {
-		return Event{}, errors.New("invalid session-created log event")
-	}
-	return event, nil
-}
-
-func NewSessionKilled(tmuxID, tmuxName string, duration time.Duration) (Event, error) {
-	event := Event{kind: eventSessionKilled, tmuxID: tmuxID, tmuxName: tmuxName, duration: duration}
-	if !event.valid() {
-		return Event{}, errors.New("invalid session-killed log event")
 	}
 	return event, nil
 }
@@ -233,14 +194,7 @@ func (event Event) valid() bool {
 		if !event.method.valid() || !event.route.valid() || event.status < 100 || event.status > 599 || event.duration < 0 {
 			return false
 		}
-		return (event.status < 400 && event.errorCode == ErrorNone) || (event.status >= 400 && event.errorCode.valid())
-	case eventSessionsListed:
-		return event.duration >= 0
-	case eventSessionCreated:
-		_, profileErr := agentruntime.ParseProfileKey(string(event.launchProfile))
-		return validTmuxID(event.tmuxID) && validTmuxName(event.tmuxName) && (event.launchProfile == "" || profileErr == nil) && event.duration >= 0
-	case eventSessionKilled:
-		return validTmuxID(event.tmuxID) && validTmuxName(event.tmuxName) && event.duration >= 0
+		return event.status < 400 && event.errorCode == ErrorNone || event.status >= 400 && event.errorCode.valid()
 	case eventPressureSampled:
 		if !event.level.valid() || event.duration < 0 {
 			return false
@@ -263,18 +217,11 @@ func (event Event) valid() bool {
 	}
 }
 
-func validTmuxID(value string) bool { return tmuxIDPattern.MatchString(value) }
-
-func validTmuxName(value string) bool {
-	return value != ""
-}
-
 type Logger struct{ output io.Writer }
 
 type WriteError struct{ Err error }
 
 func (err *WriteError) Error() string { return fmt.Sprintf("write structured log: %v", err.Err) }
-
 func (err *WriteError) Unwrap() error { return err.Err }
 
 func New(output io.Writer) Logger { return Logger{output: output} }
@@ -294,20 +241,6 @@ func (logger Logger) Write(event Event) error {
 		if event.errorCode != ErrorNone {
 			fields["skidbladnir.error.code"] = event.errorCode
 		}
-	case eventSessionsListed:
-		fields["skidbladnir.count"] = event.count
-		fields["skidbladnir.duration.ms"] = event.duration.Milliseconds()
-	case eventSessionCreated:
-		fields["skidbladnir.session.tmux_id"] = event.tmuxID
-		fields["skidbladnir.session.tmux_name"] = event.tmuxName
-		if event.launchProfile != "" {
-			fields["skidbladnir.session.launch_profile"] = event.launchProfile
-		}
-		fields["skidbladnir.duration.ms"] = event.duration.Milliseconds()
-	case eventSessionKilled:
-		fields["skidbladnir.session.tmux_id"] = event.tmuxID
-		fields["skidbladnir.session.tmux_name"] = event.tmuxName
-		fields["skidbladnir.duration.ms"] = event.duration.Milliseconds()
 	case eventPressureSampled:
 		fields["skidbladnir.pressure.level"] = event.level
 		reasons := event.reasons

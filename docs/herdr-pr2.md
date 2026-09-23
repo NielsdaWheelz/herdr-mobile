@@ -1,34 +1,74 @@
 # herdr pr 2: one runtime, one product contract
 
-2026-09-22 · implementation specification, not implementation authorization.
+2026-09-22 · implementation specification. the user has since authorized work
+on this pr, conditional on its entry gate.
 one skid pr; reviewable commits, no intermediate release. [the migration plan](herdr-migration.md)
-owns delivery. [pr 1's candidate](herdr-pr1.md#candidate-pr-2-contract-proposed-not-implemented)
+owns delivery. [pr 1's candidate](herdr-pr1.md#candidate-pr-2-contract)
 owns exact wire shapes and upstream mappings; this document owns implementation
 structure and acceptance. do not maintain a second schema here.
 
-## entry gate
+## implementation and cutover gates
 
-pr 1 remains incomplete. v0.9.1 cannot receive `proceed`. before implementation:
+the user has authorized implementation in this branch with the unsupported
+key controls visibly disabled. this supersedes the earlier requirement to
+qualify a new herdr key operation before coding. herdr v0.9.1 is the target;
+no upstream patch or private protocol is part of this candidate. phone deck
+home and end remain visible but disabled with an accessible explanation.
+unmodified page up/down use herdr's public visual-scroll operation; they are
+disabled while ctrl/alt is armed. android hardware and desktop keys unsupported by herdr are
+rejected locally with an explanation; `skid keys` rejects them before dispatch.
+modified non-ascii whitespace keys are also rejected because herdr trims them
+before key parsing; unmodified committed whitespace remains text.
+no input is silently dropped or sent as guessed raw csi. this is an explicit
+feature loss at cutover, not a successful key test. [pr 1's operation
+table](herdr-pr1.md#retained-gateway-operations) owns the active key set.
 
-- qualify a public mode-aware key operation covering the retained phone and
-  desktop input vocabulary; record its exact release/source and operation map.
-  no raw-csi workaround, hidden key removal or private upstream protocol.
-- qualify the borrowed desktop input decoder for literal, bounded paste and
-  cancellation; [the recorded defects](issues/herdr-terminal-acceptance.md#pr-2-input-contract-review)
-  prevent accepting its current pin from source inspection alone.
-- close the recorded readiness, process-bound claude identity, phone typing,
-  provider scrolling, background release, linux stream/desktop and skipped human
-  phone checks. [pr 1's evidence](herdr-pr1.md#2026-09-22-reopened-qualification-at-the-accepted-scope)
-  distinguishes failures from missing proof. none becomes a pass here.
+the desktop input decoder path must preserve literal bounded paste and
+cancellation; [the recorded defects](issues/herdr-terminal-acceptance.md#pr-2-input-contract-review)
+prevent using the pinned ultraviolet `TerminalReader`. qualify the local
+composition through product code.
 
-then freeze the candidate, close its issues and obtain implementation approval.
-pr 2 repeats important proofs through product code. a disposable adapter cannot
-qualify the implementation that replaces it.
+record completed product proofs and remaining gaps separately. the
+[2026-09-23 decision](#accepted-non-blocking-follow-ups) removes the named
+remaining checks and defects as blockers; it does not turn missing proof into
+a pass. [claude submission](issues/herdr-claude-submission.md) retains the
+host-specific results.
+
+the user waived the human dictation, gboard paste, local copy and rotation
+checks for this candidate. record each as `NOT_RUN`; record later failures as
+live-repair issues. do not infer that these behaviors work.
+
+freeze the candidate's supported operation map and component interfaces before
+parallel coding. a disposable adapter cannot qualify the product implementation.
+the earlier choice to retain all live keys and defer cutover is superseded by
+the disabled-control scope above. re-enabling those controls requires a later
+qualified public herdr operation and separate acceptance.
 
 accepted 2026-09-22: ordinary `skid send` requires recognized idle and rejects
 working/unconfirmed states before dispatch; it does not wait or queue.
 `send --terminal` remains the explicit readiness override. this closes the policy
 decision, not the outstanding readiness proof.
+
+## accepted non-blocking follow-ups
+
+2026-09-23: the user accepts the following risks and does not require further
+qualification or fixes for them before pr 2 completion, merge or migration
+progress, including cutover. this supersedes earlier blocking language in the
+plan, acceptance tables and linked issue records for these items only.
+
+| deferred item | accepted cost |
+| --- | --- |
+| remaining paired-phone terminal and lifecycle journey, including rendering/bounds | behavior may fail during actual use and need live repair; all unrun checks remain `NOT_RUN`, alongside the existing human-check waivers |
+| macbook `claude-work` model turn and mac-local cli/private-ca proof | that account was signed out and the local tls path was unqualified; neither is asserted usable merely because another host passed |
+| same-pid `exec` optional profile/session carryover | descriptive identity may remain stale until another hook claim, with no guaranteed correction time; action refs still check the command fingerprint |
+| temporary public dns registration | the address record and certificate-transparency residue remain; no operator contact or removal is required for progress |
+
+keep the issue records as non-blocking follow-ups, not resolved successes.
+revisit if actual use exposes a problem or the user requests it; do not schedule
+another isolated-test campaign or quietly move these checks to a later mandatory
+gate. ordinary-send readiness, original-target validation and no-replay rules
+are unchanged. code review, jarvis alignment and release/installation integrity
+remain separate work. this decision does not itself merge, publish or deploy.
 
 ## target and limits
 
@@ -153,9 +193,14 @@ and the first full frame together; timeout releases the child and reports
 `control_unavailable`. client application of that frame must complete within its
 fifteen-second acquisition deadline or detach. input remains disabled throughout.
 
-the gateway validates frames; the phone applies the first full frame's reset,
-geometry and ansi before acknowledging it and enabling input. native code checks
-contiguous sequence numbers; decimal strings preserve uint64 through javascript.
+the gateway validates frames and withholds input until it emits a valid first
+full frame. the phone applies that frame's reset, geometry and ansi before its
+page acknowledges application to the current connection attempt, which then
+enables input. no websocket acknowledgement is added. the gateway cannot
+establish when a message queued in the opposite websocket
+direction was sent relative to that first frame; it only dispatches after the
+frame write. clients enforce the stronger local applied-frame gate. native code
+checks contiguous sequence numbers; decimal strings preserve uint64 through javascript.
 retain acknowledged rendering/backpressure. gaps, malformed data and overflow
 end only the attachment. qualify the candidate's frame/queue caps against the
 largest intended geometry/output; exceeding a cap disconnects rather than grows
@@ -173,16 +218,21 @@ selection/copy. keep the immutable copy snapshot through incremental output;
 clear it on full redraw/resize, attachment loss and explicit cancellation.
 native code owns credentials and transport. ctrl/alt apply only to proven discrete
 keys/deck actions; ime/dictation, paste and uncertain text consume them unchanged.
-retain hardware keys and enter/backspace as well as every deck key.
+retain supported hardware keys and enter/backspace, with disabled controls still
+visible in the deck.
 
-desktop input uses a qualified `ultraviolet.TerminalReader` revision, borrowing
-its utf-8/escape/paste decoder without bubbletea. promote the existing indirect
-dependency only after its [literal-paste/bounds gate](issues/herdr-terminal-acceptance.md#pr-2-input-contract-review)
-passes. map committed text, named/modified keys and bracketed paste to the shared
-wire; enable local bracketed-paste reporting, consume replies locally and never
-submit a paste. `ctrl-] d` is local detach only outside paste; unknown keyboard
-sequences end attachment with an explanation, not raw forwarding. release tty
-modes/readers on every exit. no copied parser or private upstream protocol.
+desktop input frames escapes with the already pinned `x/ansi` parser, decodes
+complete named/modified keys and terminal replies with ultraviolet's public
+`EventDecoder`, and handles utf-8 text and bounded literal bracketed paste in
+`terminalclient`. reuse its cancellable tty reader; do not use the defective
+`ultraviolet.TerminalReader` or bubbletea. map events to the shared wire, enable
+local bracketed-paste reporting, consume replies locally and never submit a
+paste. `ctrl-] d` is local detach only outside paste; unknown keyboard and
+terminfo-only sequences end attachment with an explanation, not raw forwarding.
+preserve ctrl/alt on kitty key events carrying text; resolve or explicitly
+reject ambiguous key/reply events. feed bounded chunks before paste/escape
+accumulation. release tty modes/readers on every exit. no copied parser or private upstream
+protocol.
 
 `SkidbladnirController` remains the sole owner of selected target, foreground
 state, attempt generation and navigation. `TerminalConnection` owns one socket,
@@ -217,10 +267,10 @@ convenience. android paths below are under its existing java package unless stat
 | root integration | `cmd/skidbladnir/`, `internal/{hostconfig,gateway,auth,logging}/`, `go.mod`, `go.sum`, `scripts/`, `docs/`, `AGENTS.md`; android gradle files, `app/src/main/res/`, `terminal.lock`, `xterm-6.0.0-skidbladnir.patch`; final deletion of `internal/{tmux,sessionui,space}/` |
 | independent reviewers | read/run only; no test, production or content edits |
 
-before phone parallelism, coordinate the existing
-[terminal-state ownership repair](issues/terminal-ui-state-owner.md): domain owner
-removes declarations, terminal owner houses them in `TerminalScreen.kt`; agree
-typed frame/input callbacks. no new lifecycle module. move reusable workspace
+shared terminal state and admission helpers belong in
+[TerminalScreen.kt](../android/app/src/main/java/dev/niels/skidbladnir/TerminalScreen.kt);
+the domain owner retains navigation and attempt coordination. agree typed
+frame/input callbacks before parallel edits; no new lifecycle module. move reusable workspace
 label validation out of `internal/space` before removing cosmetic grouping.
 pairing/store/scanner, polling, directory, pressure, catalogue, art, themes and
 font-sizing owners are reuse targets, not additional cleanup scope.
@@ -242,6 +292,9 @@ no new art or lore in operational errors. idle-only ordinary-send wording must
 distinguish working from readiness, not describe a busy worker as broken.
 
 ## sequence, proof and completion
+
+apply the [accepted waivers](#accepted-non-blocking-follow-ups) to the proof
+matrix below; deferred rows are not prerequisites or claimed passes.
 
 1. **contract:** close entry gates; freeze exact schemas, local configuration,
    public primitives, input mapping and slice signatures. independently review
@@ -269,8 +322,8 @@ distinguish working from readiness, not describe a busy worker as broken.
 | uncertainty + ownership | suppress one actual reply after dispatch: one effect, truthful unknown/partial, no replay. client/gateway loss preserves workers; runtime restart creates new lifetimes with resume disabled |
 | native closure | ordinary close, linked cascade and confirmation refusal; outside-group terminals survive. stop reports its separate steps, rejects observed replacement, and stops after unknown interrupt |
 | desktop | bare skid attaches existing local server and refuses absent server; `enter` qualifies typing/keys/paste, resize, detach and tty restoration through the real gateway on both platforms |
-| physical phone | shell, codex and claude: exact typing, ime/dictation, gboard/multiline paste, full key vocabulary in relevant modes, actual history scroll, local copy, sizing/rotation, takeover and return navigation; linux and darwin host stream boundaries |
-| phone lifetime + bounds | background during acquisition/first-frame/rotation and steady state; abrupt loss including retained tcp relay, and bearer revocation. desktop regains geometry within the stated deadlines, worker survives, stale callbacks/input never resume; stress intended maximum frames and overflow closure |
+| physical phone | shell, codex and claude: exact automatable typing, synthetic multiline paste, supported keys and unmodified page navigation, actual history scroll, sizing, takeover and return navigation; disabled home/end and modified page controls remain visible and inert. linux and darwin host stream boundaries. human dictation, gboard paste, local copy and rotation remain `NOT_RUN` under the user waiver above |
+| phone lifetime + bounds | background during acquisition, first frame and steady state; abrupt loss including retained tcp relay, and bearer revocation. desktop regains geometry within the stated deadlines, worker survives, stale callbacks/input never resume; stress intended maximum frames and overflow closure. rotation remains `NOT_RUN` under the user waiver |
 | retained services + retirement | pairing/machine rejection, directory and pressure smoke through actual routes; old config/routes/commands reject. source/import/build checks show no tmux/browser/local detector/native-control execution path or unused dependency |
 
 root removes `terminal_exec.go` and old tmux hook/config/logging fields; retire

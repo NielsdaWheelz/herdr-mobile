@@ -5,21 +5,31 @@ accepted feature specifications own detailed product contracts.
 [the codebase map](codebase-map.md) locates their implementation.
 this index records present scope and open work, not a release diary.
 
-## planned herdr migration
+## herdr migration
 
 [the migration plan](herdr-migration.md) owns the proposed runtime/desktop cutover,
 retained android and cli surfaces, and each pr's scope, requirements and completion
 criteria. delivery is feasibility/contract, one coherent skid cutover, jarvis
-alignment, then deployment and fleet acceptance. all stages remain uncompleted.
+alignment, then deployment and fleet acceptance. this branch contains the pr 2
+source candidate; no installation or fleet acceptance is claimed.
 isolated v0.9.1 darwin/linux and proof-phone results now supplement source
 research; each boundary keeps its own result in the pr 1 record.
 
+2026-09-23: pr 134 at `29f98e7` records passing host control and linux claude
+submission/registration proofs; hosted engineering checks passed. the user
+accepted the remaining phone/mac proof gaps, same-pid optional identity
+carryover and temporary dns residue as
+[non-blocking follow-ups](herdr-pr2.md#accepted-non-blocking-follow-ups).
+do not require another test campaign or defer these as mandatory rollout gates.
+unrun checks stay `NOT_RUN`, and known defects stay documented. this does not
+claim completed code review or authorize merge/deployment; pr 3 alignment and
+pr 4 release/installation work remain.
+
 [the pr 1 spec](herdr-pr1.md) defines the investigation and contract closure.
-it must resolve [profile/restart behavior](issues/herdr-profile-restore.md),
+remaining acceptance includes [profile/restart behavior](issues/herdr-profile-restore.md),
 [exact worker targeting](issues/herdr-agent-targeting.md), and
 [phone/desktop terminal interaction](issues/herdr-terminal-acceptance.md), plus
-[native closure disclosure and qualification](herdr-pr1.md#2026-09-22-reopened-qualification-at-the-accepted-scope) before
-implementation proceeds. current implemented scope below remains the tmux system.
+[native closure disclosure and qualification](herdr-pr1.md#2026-09-22-reopened-qualification-at-the-accepted-scope).
 the original `reconsider` finding remains historical evidence. the user-approved
 [scope amendment](herdr-pr1.md#accepted-scope-amendment) accepts native group-close
 effects with disclosure and excludes remote clicks/drags; keys, scrolling and
@@ -31,13 +41,17 @@ surviving native pane label is only a hint, as is an unmarked manual pane label;
 actions need a fresh reference until named through skid. manual phone interaction was
 explicitly skipped and remains `NOT_RUN`; provider startup/readiness and the
 full phone key deck are unresolved: physical home/end failed in
-application-cursor mode at the pinned public api. disposable heartbeat proof
-restored geometry after abrupt loss, but pr 2's actual bridge is absent. there is no `proceed`
-or pr 2 authorization.
+application-cursor mode at the pinned public api. the user later accepted
+visible disabled home/end controls, unmodified page navigation through herdr's
+public attached-scroll operation, and explicit rejection of unsupported
+hardware/desktop/cli keys. this permits pr 2 candidate implementation; it is
+a disclosed feature loss, not key acceptance. disposable heartbeat proof
+restored geometry after abrupt loss; the pr 2 bridge still needs product live
+proof. there is no deployment authorization.
 
-[the pr 2 spec](herdr-pr2.md) now defines the conditional implementation, exact
-ownership slices and acceptance. desktop input decoding remains explicit
-contract-closure work. accepted 2026-09-22: ordinary send requires recognized
+[the pr 2 spec](herdr-pr2.md) defines this branch's candidate implementation,
+exact ownership slices and acceptance. desktop input decoding remains explicit
+product qualification work. accepted 2026-09-22: ordinary send requires recognized
 idle; `--terminal` remains an explicit readiness override. readiness detection
 still needs qualification; the policy decision is not proof.
 jarvis alignment is required under the changed candidate wire format.
@@ -46,11 +60,11 @@ jarvis alignment is required under the changed candidate wire format.
 
 | capability | contract owner |
 | --- | --- |
-| host inventory, exact session lifetimes, launch, rename, kill and direct attachment | [architecture](architecture.md), [client and attachment](agent-control-ux.md), [rename](session-renaming.md) |
+| herdr-backed inventory, exact terminal lifetimes, launch, rename, move, kill and direct attachment | [architecture](architecture.md), [pr 2](herdr-pr2.md), [rename](session-renaming.md) |
 | sampled agent status, bounded reads, terminal input, interrupt and stop | [agent control](agent-control.md) |
-| session labels, client grouping/filtering and dashboard restoration | [spaces](spaces.md), [dashboard continuity](dashboard-return-continuity.md) |
+| real herdr workspaces, client grouping/filtering and dashboard restoration | [spaces](spaces.md), [dashboard continuity](dashboard-return-continuity.md) |
 | standalone terminal and new terminal here | [terminal creation](shells.md) |
-| organized desktop browser and fullscreen attachment return | [desktop browser](desktop-browser.md) |
+| local herdr desktop and exact fleet terminal attachment | [pr 2](herdr-pr2.md), [desktop history](desktop-browser.md) |
 | phone fleet connect/reconnect, encrypted pairings and quarantine | [fleet distribution](public-fleet-distribution.md), [architecture §6](architecture.md#6-android-surface) |
 | phone dashboard, directory chooser and machine pressure | [refresh](dashboard-pull-to-refresh.md), [chooser](working-directory-chooser.md), [pressure](machine-pressure-rail.md) |
 | terminal sizing, keys, touch, selection and input composition | [sizing](terminal-readable-sizing.md), [key deck](terminal-key-deck.md), [touch](terminal-touch-scroll.md), [selection](terminal-selection-copy.md) |
@@ -81,8 +95,8 @@ sessions retain their original launch policy.
 
 - [sequential cleanup](codebase-map.md): verified findings live in [issues](issues),
   one per issue. finish one reviewed pr before starting the next.
-- [darwin desktop browser](issues/desktop-browser-runtime-acceptance.md): the
-  real browser/pty/gateway/isolated-tmux journey remains skipped by user direction.
+- [desktop cutover](issues/herdr-terminal-acceptance.md): the real local herdr
+  desktop, gateway stream, and linux/darwin behavior need product live proof.
 - [spaces and shells hands-on](issues/spaces-shells-hands-on.md): human workflow
   and usability acceptance remains unperformed; automated phone results do not
   supply it.
@@ -93,9 +107,8 @@ sessions retain their original launch policy.
   tests are removed before commit. no retained suite protects the important
   behavior automatically. [testing policy](rules/testing.md) owns the workflow;
   `scripts/check verify` runs engineering checks and builds only.
-- [terminal embedding](spaces-and-shells.md): custom desktop embedding work is
-  paused while [herdr feasibility](herdr-migration.md) is qualified; there is no
-  accepted production embedding contract.
+- [retired desktop browser evidence](issues/desktop-browser-runtime-acceptance.md):
+  its tmux journey remains historical and does not qualify the herdr cutover.
 
 other unperformed visual/device checks and explicitly waived shipment checks
 remain with their feature owners. a waiver is not a pass. unavailable or

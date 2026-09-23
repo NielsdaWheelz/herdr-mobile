@@ -224,13 +224,13 @@ private fun ForgeFormContent(
             }
         }
         OutlinedTextField(
-            value = state.form.optionalTmuxName,
+            value = state.form.name,
             onValueChange = { value ->
-                actions.updateDraft { it.copy(optionalTmuxName = value) }
+                actions.updateDraft { it.copy(name = value) }
             },
             modifier = Modifier.fillMaxWidth(),
             enabled = fieldsEnabled,
-            label = { Text("tmux name (optional)") },
+            label = { Text("Terminal name") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(
                 capitalization = KeyboardCapitalization.None,
@@ -246,11 +246,12 @@ private fun ForgeFormContent(
             minLines = 2,
             maxLines = 4,
         )
-        SpaceField(
-            draft = state.form.space,
-            labels = observedSpaces(machines),
+        WorkspaceField(
+            draft = state.form.destination,
+            workspaces = observedWorkspaces(machines),
+            machineHandle = state.form.machineHandle,
             enabled = !state.pending && (selected == null || selected.canMutate),
-            onChange = { text -> actions.updateDraft { it.copy(space = SpaceDraft.Chosen(text)) } },
+            onChange = { destination -> actions.updateDraft { it.copy(destination = destination) } },
         )
         when (val failure = state.failure) {
             ForgeFailure.None -> Unit
@@ -261,7 +262,13 @@ private fun ForgeFormContent(
         }
         Button(
             onClick = actions.submit,
-            enabled = state.admissibleSubmission() != null && selected?.canMutate == true,
+            enabled = state.admissibleSubmission() != null && selected?.canMutate == true &&
+                when (val destination = state.form.destination) {
+                    is WorkspaceDraft.Existing -> inventory?.workspaces?.any {
+                        it.ref == destination.workspaceRef
+                    } == true
+                    is WorkspaceDraft.New -> true
+                },
             modifier = Modifier.fillMaxWidth().semantics {
                 contentDescription = selected?.let { forgeActionLabel(it.machine.label) }
                     ?: "Choose a machine"

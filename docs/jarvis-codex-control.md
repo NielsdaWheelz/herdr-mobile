@@ -1,5 +1,21 @@
 # Jarvis: shared local Codex control
 
+## herdr migration boundary
+
+this document is historical for worker control. pr 2 changes skid's cli and
+gateway contract to terminal, agent and workspace refs; it does not update
+jarvis. pr 3 must change jarvis's strict consumer before coordinated activation.
+jarvis must retain the original returned ref through metadata reads, use
+bounded terminal coverage for both providers, treat delivery and interrupt as
+unconfirmed effects, and disclose possible linked-workspace closure on stop
+and kill. it cannot rely on native claude status/history/stop or the retired
+`/v1/sessions` shape. [pr 1's cli/jarvis mapping](herdr-pr1.md#retained-gateway-operations)
+and [pr 2's gates](herdr-pr2.md#implementation-and-cutover-gates) supersede
+the worker-routing and acceptance claims below; shared codex runtime and
+jarvis cognition remain owned by their respective repositories.
+
+## historical shared-codex contract
+
 the accepted [agent-control target](agent-control.md) supersedes this document's
 worker routing, tools, launcher, and worker permission rules. workers now use
 direct peer `agent.*` controls; codex uses terminal state/history/control, and

@@ -1,5 +1,22 @@
 # v0 terminal touch-scroll delta
 
+## herdr pr 2 candidate
+
+the page retains one-finger gesture recognition and its fixed 8 css px
+arbitration, but it sends semantic `Scroll` with source `wheel`, direction,
+bounded lines and viewport coordinates to the gateway. herdr's public
+`terminal.scroll` owns scrollback and application mouse-wheel routing. page
+up/down use the same operation with source `page_key`, current row count and
+no coordinates. xterm remains the renderer and viewport-local selection
+owner; its old wheel router, local scrollback and synthetic key egress below
+are historical. this candidate excludes remote clicks and drags. actual
+provider scroll movement remains a live acceptance gate under
+[pr 2](herdr-pr2.md#implementation-and-cutover-gates); the exact wire is in
+[pr 1](herdr-pr1.md#candidate-pr-2-contract-proposed-not-implemented). old released-source proofs do not
+prove the new path.
+
+## historical xterm wheel contract
+
 Status: implemented, released, and deployed. The unchanged-source owner
 reds, rejected synthetic-wheel feasibility result, final five-owner signed S22+
 green, complete 60-test signed same-version S22+ candidate green, two clean

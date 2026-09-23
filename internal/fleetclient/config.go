@@ -17,6 +17,8 @@ import (
 var errConfiguration = errors.New("client configuration is invalid or unavailable")
 var errOutputLimit = errors.New("output limit")
 
+const maximumConfigBytes = 64 * 1024
+
 type peer struct {
 	Label   string `json:"label"`
 	Origin  string `json:"origin"`
@@ -35,8 +37,8 @@ func Open(path string) (*Client, error) {
 		return nil, errConfiguration
 	}
 	defer file.Close()
-	encoded, err := io.ReadAll(io.LimitReader(file, MaximumInputBytes+1))
-	if err != nil || len(encoded) > MaximumInputBytes {
+	encoded, err := io.ReadAll(io.LimitReader(file, maximumConfigBytes+1))
+	if err != nil || len(encoded) > maximumConfigBytes {
 		return nil, errConfiguration
 	}
 	var config *struct {

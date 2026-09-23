@@ -9,12 +9,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/NielsdaWheelz/skidbladnir/internal/agentruntime"
 	"github.com/NielsdaWheelz/skidbladnir/internal/logging"
 	"github.com/NielsdaWheelz/skidbladnir/internal/platform"
 	"github.com/NielsdaWheelz/skidbladnir/internal/pressure"
-	"github.com/NielsdaWheelz/skidbladnir/internal/sessions"
-	"github.com/NielsdaWheelz/skidbladnir/internal/space"
 	"github.com/NielsdaWheelz/skidbladnir/internal/workdir"
 )
 
@@ -22,6 +19,7 @@ type apiError struct {
 	Dispatch string `json:"dispatch,omitempty"`
 	Code     string `json:"code"`
 	Message  string `json:"message"`
+	Partial  any    `json:"partial,omitempty"`
 	Status   int    `json:"-"`
 	logCode  logging.ErrorCode
 }
@@ -30,17 +28,8 @@ var (
 	errorUnauthenticated             = apiError{Code: "Unauthenticated", Message: "Authentication required.", Status: http.StatusUnauthorized, logCode: logging.ErrorUnauthenticated}
 	errorInvalidRequest              = apiError{Code: "InvalidRequest", Message: "The request is not valid.", Status: http.StatusBadRequest, logCode: logging.ErrorInvalidRequest}
 	errorRequestTooLarge             = apiError{Code: "RequestTooLarge", Message: "The request is too large.", Status: http.StatusRequestEntityTooLarge, logCode: logging.ErrorRequestTooLarge}
-	errorWorkingDirectoryInvalid     = apiError{Code: "WorkingDirectoryInvalid", Message: "Choose a valid working directory.", Status: http.StatusUnprocessableEntity, logCode: logging.ErrorWorkingDirectoryInvalid}
-	errorWorkingDirectoryUnavailable = apiError{Code: "WorkingDirectoryUnavailable", Message: "That directory does not exist or cannot be opened.", Status: http.StatusUnprocessableEntity, logCode: logging.ErrorWorkingDirectoryUnavailable}
 	errorDirectoryListingUnavailable = apiError{Code: "DirectoryListingUnavailable", Message: "This directory cannot be browsed. Enter the path instead.", Status: http.StatusUnprocessableEntity, logCode: logging.ErrorDirectoryListingUnavailable}
 	errorDirectoryListingTooLarge    = apiError{Code: "DirectoryListingTooLarge", Message: "This directory has too many folders to show. Enter the path instead.", Status: http.StatusUnprocessableEntity, logCode: logging.ErrorDirectoryListingTooLarge}
-	errorProfileUnknown              = apiError{Code: "ProfileUnknown", Message: "Choose an available profile.", Status: http.StatusUnprocessableEntity, logCode: logging.ErrorProfileUnknown}
-	errorSessionNameInvalid          = apiError{Code: "SessionNameInvalid", Message: "Use 1–64 letters, numbers, underscores, or hyphens, beginning with a letter or number.", Status: http.StatusUnprocessableEntity, logCode: logging.ErrorSessionNameInvalid}
-	errorSessionNameConflict         = apiError{Code: "SessionNameConflict", Message: "A session with that name already exists.", Status: http.StatusConflict, logCode: logging.ErrorSessionNameConflict}
-	errorObjectiveInvalid            = apiError{Code: "ObjectiveInvalid", Message: "Use 1–240 characters without terminal controls.", Status: http.StatusUnprocessableEntity, logCode: logging.ErrorObjectiveInvalid}
-	errorSpaceInvalid                = apiError{Code: "SpaceInvalid", Message: space.ErrInvalid.Error(), Status: http.StatusUnprocessableEntity, logCode: logging.ErrorSpaceInvalid}
-	errorSessionNotFound             = apiError{Code: "SessionNotFound", Message: "That session no longer exists.", Status: http.StatusNotFound, logCode: logging.ErrorSessionNotFound}
-	errorSessionIdentityMismatch     = apiError{Code: "SessionIdentityMismatch", Message: "The session changed. Refresh and try again.", Status: http.StatusConflict, logCode: logging.ErrorSessionIdentityMismatch}
 	errorPairingInviteRejected       = apiError{Code: "PairingInviteRejected", Message: "This fleet invite is invalid, expired, or already used.", Status: http.StatusUnauthorized, logCode: logging.ErrorPairingInviteRejected}
 	errorMachineIdentityMismatch     = apiError{Code: "MachineIdentityMismatch", Message: "The machine identity changed. Fleet reset is required.", Status: http.StatusConflict, logCode: logging.ErrorMachineIdentityMismatch}
 	errorInternal                    = apiError{Code: "InternalError", Message: "Skíðblaðnir could not complete the request.", Status: http.StatusInternalServerError, logCode: logging.ErrorInternal}
@@ -62,46 +51,9 @@ type providerSessionDTO struct {
 	Name string `json:"name,omitempty"`
 }
 
-type agentDTO struct {
-	PaneID          string               `json:"paneId"`
-	StartIdentity   string               `json:"startIdentity"`
-	Status          agentruntime.Status  `json:"status"`
-	Methods         agentruntime.Methods `json:"methods"`
-	Provider        string               `json:"provider"`
-	PID             int                  `json:"pid"`
-	Profile         string               `json:"profile,omitempty"`
-	ProviderSession *providerSessionDTO  `json:"providerSession,omitempty"`
-}
-
-type sessionDTO struct {
-	TmuxID          string       `json:"tmuxId"`
-	TmuxName        string       `json:"tmuxName"`
-	IdentityToken   string       `json:"identityToken"`
-	Character       characterDTO `json:"character"`
-	LaunchProfile   string       `json:"launchProfile,omitempty"`
-	Agent           *agentDTO    `json:"agent,omitempty"`
-	Objective       string       `json:"objective,omitempty"`
-	Space           string       `json:"space,omitempty"`
-	CWD             string       `json:"cwd,omitempty"`
-	ActiveCommand   string       `json:"activeCommand,omitempty"`
-	AttachedClients int          `json:"attachedClients"`
-}
-
 type machineDTO struct {
 	Handle   string        `json:"handle"`
 	Platform platform.Kind `json:"platform"`
-}
-
-type sessionsResponseDTO struct {
-	Machine    machineDTO   `json:"machine"`
-	ObservedAt string       `json:"observedAt"`
-	Profiles   []profileDTO `json:"profiles"`
-	Sessions   []sessionDTO `json:"sessions"`
-}
-
-type createSessionResponseDTO struct {
-	ObservedAt string     `json:"observedAt"`
-	Session    sessionDTO `json:"session"`
 }
 
 type pairingInviteResponseDTO struct {
@@ -165,15 +117,6 @@ func mapDirectoryListing(machine machineDTO, listing workdir.Listing) (directory
 	}, nil
 }
 
-type createSessionRequest struct {
-	Kind             sessions.LaunchKind `json:"kind"`
-	CWD              stringField         `json:"cwd"`
-	Profile          stringField         `json:"profile"`
-	OptionalTmuxName stringField         `json:"optionalTmuxName"`
-	Objective        stringField         `json:"objective"`
-	Space            stringField         `json:"space"`
-}
-
 type stringField struct {
 	present bool
 	value   string
@@ -185,22 +128,6 @@ func (field *stringField) UnmarshalJSON(encoded []byte) error {
 		return errors.New("null is not a string")
 	}
 	return json.Unmarshal(encoded, &field.value)
-}
-
-type killSessionRequest struct {
-	TmuxName      string `json:"tmuxName"`
-	IdentityToken string `json:"identityToken"`
-}
-
-type renameSessionRequest struct {
-	TmuxName      stringField `json:"tmuxName"`
-	NewTmuxName   stringField `json:"newTmuxName"`
-	IdentityToken stringField `json:"identityToken"`
-}
-
-type setSessionSpaceRequest struct {
-	IdentityToken stringField `json:"identityToken"`
-	Space         stringField `json:"space"`
 }
 
 type pressureResponseDTO struct {
@@ -243,135 +170,6 @@ type memoryPressureSignalDTO struct {
 type pressureHistoryDTO struct {
 	SampledAt string `json:"sampledAt"`
 	Level     string `json:"level"`
-}
-
-func mapProfiles(profiles []agentruntime.Profile) ([]profileDTO, error) {
-	validated, err := agentruntime.ValidateProfiles(profiles)
-	if err != nil {
-		return nil, err
-	}
-	mapped := make([]profileDTO, len(validated))
-	for index, profile := range validated {
-		mapped[index] = profileDTO{Key: string(profile.Key), Label: profile.Label, Provider: profile.Provider.String()}
-	}
-	return mapped, nil
-}
-
-func mapAgent(agent *agentruntime.AgentRuntime, profiles []agentruntime.Profile) (*agentDTO, error) {
-	if agent == nil {
-		return nil, nil
-	}
-	if err := agentruntime.ValidateAgentRuntime(profiles, *agent); err != nil || agent.PaneID == "" || agent.StartIdentity == "" || !agent.Status.Valid() || !agent.Methods.Valid() {
-		return nil, errors.New("invalid agent runtime")
-	}
-	mapped := &agentDTO{
-		PaneID: agent.PaneID, StartIdentity: string(agent.StartIdentity), Status: agent.Status, Methods: agent.Methods,
-		Provider: agent.Provider.String(),
-		PID:      int(agent.PID),
-		Profile:  string(agent.Profile),
-	}
-	if agent.ProviderSession != nil {
-		id := agent.ProviderSession.ID()
-		name := agent.ProviderSession.Name()
-		mapped.ProviderSession = &providerSessionDTO{ID: id, Name: name}
-	}
-	return mapped, nil
-}
-
-func mapSession(session sessions.Session, profiles []agentruntime.Profile) (sessionDTO, error) {
-	agent, err := mapAgent(session.Agent, profiles)
-	if err != nil {
-		return sessionDTO{}, err
-	}
-	if session.LaunchProfile != "" {
-		matches := 0
-		for _, profile := range profiles {
-			if profile.Key == session.LaunchProfile {
-				matches++
-			}
-		}
-		if matches != 1 {
-			return sessionDTO{}, errors.New("invalid session launch profile")
-		}
-	}
-	card := sessionDTO{
-		TmuxID:          session.TmuxID,
-		TmuxName:        session.TmuxName,
-		IdentityToken:   session.IdentityToken,
-		Character:       characterDTO{Key: session.Character.Key, DisplayName: session.Character.DisplayName},
-		LaunchProfile:   string(session.LaunchProfile),
-		Agent:           agent,
-		Objective:       session.Objective,
-		Space:           session.Space.String(),
-		CWD:             session.CWD,
-		ActiveCommand:   session.ActiveCommand,
-		AttachedClients: session.AttachedClients,
-	}
-	if card.TmuxID == "" || card.TmuxName == "" || card.IdentityToken == "" ||
-		card.Character.Key == "" || card.Character.DisplayName == "" || card.AttachedClients < 0 {
-		return sessionDTO{}, errors.New("invalid required session facts")
-	}
-	return card, nil
-}
-
-func mapSessionsResponse(
-	machine machineDTO,
-	inventory sessions.Inventory,
-	configuredProfiles []agentruntime.Profile,
-) (sessionsResponseDTO, error) {
-	encodedObservedAt, err := formatProjectionInstant(inventory.ObservedAt)
-	if err != nil {
-		return sessionsResponseDTO{}, errors.New("invalid inventory observation time")
-	}
-	profiles, err := mapProfiles(configuredProfiles)
-	if err != nil {
-		return sessionsResponseDTO{}, err
-	}
-	cards := make([]sessionDTO, len(inventory.Sessions))
-	for index, session := range inventory.Sessions {
-		card, mapErr := mapSession(session, configuredProfiles)
-		if mapErr != nil {
-			return sessionsResponseDTO{}, mapErr
-		}
-		cards[index] = card
-	}
-	sort.Slice(cards, func(left, right int) bool {
-		if cards[left].TmuxName != cards[right].TmuxName {
-			return cards[left].TmuxName < cards[right].TmuxName
-		}
-		return cards[left].TmuxID < cards[right].TmuxID
-	})
-	return sessionsResponseDTO{
-		Machine:    machine,
-		ObservedAt: encodedObservedAt,
-		Profiles:   profiles,
-		Sessions:   cards,
-	}, nil
-}
-
-func mapCreateSessionResponse(
-	observed sessions.ObservedSession,
-	profiles []agentruntime.Profile,
-) (createSessionResponseDTO, error) {
-	encodedObservedAt, err := formatProjectionInstant(observed.ObservedAt)
-	if err != nil {
-		return createSessionResponseDTO{}, errors.New("invalid session observation time")
-	}
-	card, err := mapSession(observed.Session, profiles)
-	if err != nil {
-		return createSessionResponseDTO{}, err
-	}
-	return createSessionResponseDTO{
-		ObservedAt: encodedObservedAt,
-		Session:    card,
-	}, nil
-}
-
-func formatProjectionInstant(value time.Time) (string, error) {
-	if !sessions.ValidProjectionInstant(value) {
-		return "", errors.New("projection instant is outside canonical RFC 3339")
-	}
-	return value.UTC().Format(time.RFC3339Nano), nil
 }
 
 func mapHostSample(sample pressure.Sample, unsupported map[pressure.Metric]struct{}) (hostSampleDTO, error) {
@@ -544,6 +342,3 @@ func pressureLogValues(sample pressure.Sample) (logging.PressureLevel, []logging
 }
 
 // Shell creation addresses only the source session lifetime.
-type shellSessionRequest struct {
-	IdentityToken stringField `json:"identityToken"`
-}

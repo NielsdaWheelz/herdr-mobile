@@ -16,24 +16,27 @@ import (
 
 	"github.com/NielsdaWheelz/skidbladnir/internal/agentcontrol"
 	"github.com/NielsdaWheelz/skidbladnir/internal/auth"
+	"github.com/NielsdaWheelz/skidbladnir/internal/herdr"
 	"github.com/NielsdaWheelz/skidbladnir/internal/logging"
 	"github.com/NielsdaWheelz/skidbladnir/internal/machine"
 	"github.com/NielsdaWheelz/skidbladnir/internal/pairing"
 	"github.com/NielsdaWheelz/skidbladnir/internal/platform"
 	"github.com/NielsdaWheelz/skidbladnir/internal/pressure"
 	"github.com/NielsdaWheelz/skidbladnir/internal/sessions"
-	"github.com/NielsdaWheelz/skidbladnir/internal/space"
 	"github.com/NielsdaWheelz/skidbladnir/internal/strictjson"
 	"github.com/NielsdaWheelz/skidbladnir/internal/workdir"
 )
 
 const (
-	MaximumBodyBytes int64 = 64 * 1024
-	machineHeader          = "Skidbladnir-Machine"
+	MaximumBodyBytes      int64 = 256 * 1024
+	maximumHeaderBytes          = 64 * 1024
+	maximumDirectoryBytes       = 64 * 1024
+	machineHeader               = "Skidbladnir-Machine"
 )
 
 type Config struct {
 	Agents   *agentcontrol.Service
+	Herdr    *herdr.Client
 	Sessions *sessions.Manager
 	Workdir  *workdir.Service
 	Pressure *pressure.Monitor
@@ -46,6 +49,7 @@ type Config struct {
 
 type Gateway struct {
 	agents   *agentcontrol.Service
+	herdr    *herdr.Client
 	sessions *sessions.Manager
 	workdir  *workdir.Service
 	pressure *pressure.Monitor
@@ -69,6 +73,9 @@ type Gateway struct {
 }
 
 func New(config Config) *Gateway {
+	if config.Agents == nil || config.Sessions == nil || config.Herdr == nil || config.Pressure == nil {
+		panic("gateway runtime services are not configured") // justify-defect: the composition root must supply one concrete runtime for every terminal route.
+	}
 	if config.Workdir == nil {
 		panic("gateway working directory service is not configured") // justify-defect: main must share one concrete validated workdir service with sessions and the gateway.
 	}
@@ -86,6 +93,7 @@ func New(config Config) *Gateway {
 	unsupportedMetrics, unsupportedMetricSet := mapUnsupportedMetrics(config.Pressure.Unsupported())
 	return &Gateway{
 		agents:               config.Agents,
+		herdr:                config.Herdr,
 		sessions:             config.Sessions,
 		workdir:              config.Workdir,
 		pressure:             config.Pressure,
@@ -102,8 +110,7 @@ func New(config Config) *Gateway {
 
 func (gateway *Gateway) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	tracked := &trackedResponseWriter{ResponseWriter: writer}
-	if request.Method == http.MethodPut && strings.HasPrefix(request.URL.Path, "/v1/sessions/") && strings.HasSuffix(request.URL.Path, "/space") ||
-		request.Method == http.MethodPost && (request.URL.Path == "/v1/sessions" || strings.HasPrefix(request.URL.Path, "/v1/sessions/") && strings.HasSuffix(request.URL.Path, "/shell")) {
+	if request.Method != http.MethodGet && request.Method != http.MethodHead {
 		tracked.errorDispatch = "not_sent"
 	}
 	startedAt := time.Now()
@@ -174,26 +181,18 @@ func (gateway *Gateway) serveHTTP(writer *trackedResponseWriter, request *http.R
 	}
 
 	switch {
-	case request.Method == http.MethodPost && strings.HasPrefix(request.URL.Path, "/v1/sessions/") && strings.HasSuffix(request.URL.Path, "/shell"):
-		gateway.createShell(writer, request)
-	case request.Method == http.MethodPut && strings.HasPrefix(request.URL.Path, "/v1/sessions/") && strings.HasSuffix(request.URL.Path, "/space"):
-		gateway.setSessionSpace(writer, request)
-	case request.Method == http.MethodPost && strings.Contains(request.URL.Path, "/agent/"):
-		gateway.agentOperation(writer, request)
-	case request.Method == http.MethodGet && request.URL.Path == "/v1/sessions":
-		gateway.listSessions(writer, request)
-	case request.Method == http.MethodPost && request.URL.Path == "/v1/sessions":
-		gateway.createSession(writer, request)
 	case request.Method == http.MethodPost && request.URL.Path == "/v1/directory-listings":
 		gateway.listDirectory(writer, request)
 	case request.Method == http.MethodGet && request.URL.Path == "/v1/pressure":
+		if !requireEmptyRequest(request) {
+			writeError(writer, errorInvalidRequest)
+			return
+		}
 		gateway.readPressure(writer)
-	case request.Method == http.MethodGet && strings.HasPrefix(request.URL.Path, "/v1/sessions/") && strings.HasSuffix(request.URL.Path, "/terminal"):
-		gateway.openTerminal(writer, request)
-	case request.Method == http.MethodPatch && strings.HasPrefix(request.URL.Path, "/v1/sessions/"):
-		gateway.renameSession(writer, request)
-	case request.Method == http.MethodDelete && strings.HasPrefix(request.URL.Path, "/v1/sessions/"):
-		gateway.killSession(writer, request)
+	case strings.HasPrefix(request.URL.Path, "/v1/terminals"):
+		gateway.serveTerminalAPI(writer, request)
+	case strings.HasPrefix(request.URL.Path, "/v1/agents/"):
+		gateway.serveAgentAPI(writer, request)
 	default:
 		writeError(writer, errorInvalidRequest)
 	}
@@ -255,7 +254,7 @@ type boundedJSONBuffer struct {
 }
 
 func (buffer *boundedJSONBuffer) Write(contents []byte) (int, error) {
-	if len(contents) > int(MaximumBodyBytes)-buffer.buffer.Len() {
+	if len(contents) > maximumDirectoryBytes-buffer.buffer.Len() {
 		return 0, errDirectoryListingEncodingTooLarge
 	}
 	return buffer.buffer.Write(contents)
@@ -408,240 +407,6 @@ func requireEmptyRequest(request *http.Request) bool {
 	return read == 0 && errors.Is(err, io.EOF)
 }
 
-func (gateway *Gateway) listSessions(writer http.ResponseWriter, request *http.Request) {
-	startedAt := time.Now()
-	inventory, err := gateway.sessions.List(request.Context())
-	if err != nil {
-		writeError(writer, errorInternal)
-		return
-	}
-	gateway.agents.Enrich(request.Context(), &inventory)
-	response, err := mapSessionsResponse(gateway.machineDTO(), inventory, gateway.sessions.Profiles())
-	if err != nil {
-		writeError(writer, errorInternal)
-		return
-	}
-	event, eventErr := logging.NewSessionsListed(uint64(len(response.Sessions)), time.Since(startedAt))
-	if eventErr != nil {
-		panic("invalid sessions-listed log event") // justify-defect: count and duration are locally generated.
-	}
-	gateway.log(event)
-	writeJSON(writer, http.StatusOK, response)
-}
-
-func (gateway *Gateway) createSession(writer http.ResponseWriter, request *http.Request) {
-	startedAt := time.Now()
-	input, failure := decodeJSON[createSessionRequest](writer, request)
-	if failure != nil {
-		writeError(writer, *failure)
-		return
-	}
-	if !input.CWD.present {
-		writeError(writer, errorInvalidRequest)
-		return
-	}
-	switch input.Kind {
-	case sessions.LaunchAgent:
-		if !input.Profile.present {
-			writeError(writer, errorInvalidRequest)
-			return
-		}
-	case sessions.LaunchTerminal:
-		if input.Profile.present {
-			writeError(writer, errorInvalidRequest)
-			return
-		}
-	default:
-		writeError(writer, errorInvalidRequest)
-		return
-	}
-	optionalTmuxName := ""
-	if input.OptionalTmuxName.present {
-		if input.OptionalTmuxName.value == "" {
-			writeError(writer, errorSessionNameInvalid)
-			return
-		}
-		optionalTmuxName = input.OptionalTmuxName.value
-	}
-	objective := ""
-	if input.Objective.present {
-		if input.Objective.value == "" {
-			writeError(writer, errorObjectiveInvalid)
-			return
-		}
-		objective = input.Objective.value
-	}
-	label, err := space.Parse(input.Space.value)
-	if err != nil || input.Space.present && label.IsUnassigned() {
-		writeError(writer, errorSpaceInvalid)
-		return
-	}
-	created, err := gateway.sessions.Create(request.Context(), sessions.CreateInput{
-		Kind:             input.Kind,
-		CWD:              input.CWD.value,
-		Profile:          input.Profile.value,
-		OptionalTmuxName: optionalTmuxName,
-		Objective:        objective,
-		Space:            label,
-	})
-	gateway.completeCreation(writer, created, err, startedAt)
-}
-
-func (gateway *Gateway) createShell(writer http.ResponseWriter, request *http.Request) {
-	startedAt := time.Now()
-	id, valid := parseSessionPath(strings.TrimSuffix(request.URL.Path, "/shell"))
-	if !valid {
-		writeError(writer, errorInvalidRequest)
-		return
-	}
-	input, failure := decodeJSON[shellSessionRequest](writer, request)
-	if failure != nil {
-		writeError(writer, *failure)
-		return
-	}
-	if input.IdentityToken.value == "" {
-		writeError(writer, errorInvalidRequest)
-		return
-	}
-	created, err := gateway.sessions.CreateShell(request.Context(), sessions.ShellInput{TmuxID: id, IdentityToken: input.IdentityToken.value})
-	gateway.completeCreation(writer, created, err, startedAt)
-}
-
-func (gateway *Gateway) completeCreation(writer http.ResponseWriter, created sessions.ObservedSession, err error, startedAt time.Time) {
-	if errors.Is(err, sessions.ErrCreateDispatchUnknown) {
-		failure := errorInternal
-		failure.Dispatch = "unknown"
-		writeError(writer, failure)
-		return
-	}
-	if err != nil {
-		writeSessionError(writer, err)
-		return
-	}
-	response, err := mapCreateSessionResponse(created, gateway.sessions.Profiles())
-	if err != nil {
-		failure := errorInternal
-		failure.Dispatch = "unknown"
-		writeError(writer, failure)
-		return
-	}
-	event, eventErr := logging.NewSessionCreated(created.Session.TmuxID, created.Session.TmuxName, created.Session.LaunchProfile, time.Since(startedAt))
-	if eventErr != nil {
-		panic("invalid session-created log event") // justify-defect: creation minted the session identity and optional profile.
-	}
-	gateway.log(event)
-	writeJSON(writer, http.StatusCreated, response)
-}
-
-func (gateway *Gateway) killSession(writer http.ResponseWriter, request *http.Request) {
-	startedAt := time.Now()
-	tmuxID, validPath := parseSessionPath(request.URL.Path)
-	if !validPath {
-		writeError(writer, errorInvalidRequest)
-		return
-	}
-	input, failure := decodeJSON[killSessionRequest](writer, request)
-	if failure != nil {
-		writeError(writer, *failure)
-		return
-	}
-	if input.TmuxName == "" || input.IdentityToken == "" {
-		writeError(writer, errorInvalidRequest)
-		return
-	}
-	kill := sessions.KillInput{TmuxID: tmuxID, TmuxName: input.TmuxName, IdentityToken: input.IdentityToken}
-	gateway.terminalLifecycle.Lock()
-	defer gateway.terminalLifecycle.Unlock()
-	if err := gateway.sessions.ValidateKill(request.Context(), kill); err != nil {
-		writeSessionError(writer, err)
-		return
-	}
-	if err := gateway.closeLiveTerminals(request.Context(), tmuxID); err != nil {
-		writeError(writer, errorInternal)
-		return
-	}
-	if err := gateway.sessions.Kill(request.Context(), kill); err != nil {
-		writeSessionError(writer, err)
-		return
-	}
-	event, eventErr := logging.NewSessionKilled(tmuxID, input.TmuxName, time.Since(startedAt))
-	if eventErr != nil {
-		panic("invalid session-killed log event") // justify-defect: sessions accepted the exact owned identity pair.
-	}
-	gateway.log(event)
-	writer.WriteHeader(http.StatusNoContent)
-}
-
-func (gateway *Gateway) renameSession(writer http.ResponseWriter, request *http.Request) {
-	tmuxID, validPath := parseSessionPath(request.URL.Path)
-	if !validPath {
-		writeError(writer, errorInvalidRequest)
-		return
-	}
-	input, failure := decodeJSON[renameSessionRequest](writer, request)
-	if failure != nil {
-		writeError(writer, *failure)
-		return
-	}
-	if !input.TmuxName.present || !input.NewTmuxName.present || !input.IdentityToken.present ||
-		input.TmuxName.value == "" || input.IdentityToken.value == "" {
-		writeError(writer, errorInvalidRequest)
-		return
-	}
-	err := gateway.sessions.Rename(request.Context(), sessions.RenameInput{
-		TmuxID:        tmuxID,
-		TmuxName:      input.TmuxName.value,
-		NewTmuxName:   input.NewTmuxName.value,
-		IdentityToken: input.IdentityToken.value,
-	})
-	if err != nil {
-		writeSessionError(writer, err)
-		return
-	}
-	writer.WriteHeader(http.StatusNoContent)
-}
-
-func parseSessionPath(path string) (string, bool) {
-	tmuxID := strings.TrimPrefix(path, "/v1/sessions/")
-	return tmuxID, tmuxID != "" && tmuxID != path && !strings.ContainsRune(tmuxID, '/')
-}
-
-func (gateway *Gateway) setSessionSpace(writer http.ResponseWriter, request *http.Request) {
-	id, valid := parseSessionPath(strings.TrimSuffix(request.URL.Path, "/space"))
-	if !valid || len(id) < 2 || id[0] != '$' || strings.IndexFunc(id[1:], func(value rune) bool { return value < '0' || value > '9' }) >= 0 {
-		writeError(writer, errorInvalidRequest)
-		return
-	}
-	input, failure := decodeJSON[setSessionSpaceRequest](writer, request)
-	if failure != nil {
-		writeError(writer, *failure)
-		return
-	}
-	if input.IdentityToken.value == "" || !input.Space.present {
-		writeError(writer, errorInvalidRequest)
-		return
-	}
-	label, err := space.Parse(input.Space.value)
-	if err != nil {
-		writeError(writer, errorSpaceInvalid)
-		return
-	}
-	err = gateway.sessions.SetSpace(request.Context(), sessions.SetSpaceInput{
-		TmuxID: id, IdentityToken: input.IdentityToken.value, Space: label,
-	})
-	if errors.Is(err, sessions.ErrSpaceDispatchUnknown) {
-		failure := errorInternal
-		failure.Dispatch = "unknown"
-		writeError(writer, failure)
-		return
-	}
-	if err != nil {
-		writeSessionError(writer, err)
-		return
-	}
-	writer.WriteHeader(http.StatusNoContent)
-}
-
 func (gateway *Gateway) readPressure(writer http.ResponseWriter) {
 	startedAt := time.Now()
 	snapshot := gateway.pressure.Snapshot()
@@ -712,34 +477,6 @@ func decodeJSON[T any](writer http.ResponseWriter, request *http.Request) (T, *a
 	return *decoded, nil
 }
 
-func writeSessionError(writer http.ResponseWriter, err error) {
-	var sessionError *sessions.Error
-	if !errors.As(err, &sessionError) {
-		writeError(writer, errorInternal)
-		return
-	}
-	switch sessionError.Code {
-	case sessions.ErrorWorkingDirectoryInvalid:
-		writeError(writer, errorWorkingDirectoryInvalid)
-	case sessions.ErrorWorkingDirectoryUnavailable:
-		writeError(writer, errorWorkingDirectoryUnavailable)
-	case sessions.ErrorProfileUnknown:
-		writeError(writer, errorProfileUnknown)
-	case sessions.ErrorSessionNameInvalid:
-		writeError(writer, errorSessionNameInvalid)
-	case sessions.ErrorSessionNameConflict:
-		writeError(writer, errorSessionNameConflict)
-	case sessions.ErrorObjectiveInvalid:
-		writeError(writer, errorObjectiveInvalid)
-	case sessions.ErrorSessionNotFound:
-		writeError(writer, errorSessionNotFound)
-	case sessions.ErrorSessionIdentityMismatch:
-		writeError(writer, errorSessionIdentityMismatch)
-	default:
-		writeError(writer, errorInternal)
-	}
-}
-
 func writeJSON(writer http.ResponseWriter, status int, value any) {
 	payload, err := json.Marshal(value)
 	if err != nil {
@@ -801,8 +538,6 @@ func requestRoute(path string) logging.Route {
 	switch {
 	case path == "/healthz":
 		return logging.RouteHealth
-	case path == "/v1/sessions":
-		return logging.RouteSessions
 	case path == "/v1/pairing-invites":
 		return logging.RoutePairingInvites
 	case path == "/v1/pairings":
@@ -811,16 +546,18 @@ func requestRoute(path string) logging.Route {
 		return logging.RoutePressure
 	case path == "/v1/directory-listings":
 		return logging.RouteDirectoryListings
-	case strings.HasPrefix(path, "/v1/sessions/") && strings.Contains(path, "/agent/"):
+	case strings.HasPrefix(path, "/v1/agents/"):
 		return logging.RouteAgentControl
-	case strings.HasPrefix(path, "/v1/sessions/") && strings.HasSuffix(path, "/shell"):
-		return logging.RouteSessionShell
-	case strings.HasPrefix(path, "/v1/sessions/") && strings.HasSuffix(path, "/space"):
-		return logging.RouteSessionSpace
-	case strings.HasPrefix(path, "/v1/sessions/") && strings.HasSuffix(path, "/terminal"):
+	case strings.HasPrefix(path, "/v1/terminals/") && strings.HasSuffix(path, "/stream"):
+		return logging.RouteTerminalStream
+	case strings.HasPrefix(path, "/v1/terminals/") && strings.HasSuffix(path, "/shell"):
+		return logging.RouteTerminalShell
+	case strings.HasPrefix(path, "/v1/terminals/") && strings.HasSuffix(path, "/workspace"):
+		return logging.RouteTerminalWorkspace
+	case path == "/v1/terminals":
+		return logging.RouteTerminals
+	case strings.HasPrefix(path, "/v1/terminals/"):
 		return logging.RouteTerminal
-	case strings.HasPrefix(path, "/v1/sessions/"):
-		return logging.RouteSession
 	default:
 		return logging.RouteUnmatched
 	}

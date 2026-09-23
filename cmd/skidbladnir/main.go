@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,9 +10,9 @@ import (
 	"mime"
 	"net/http"
 	"os"
-	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -22,19 +21,23 @@ import (
 	"github.com/NielsdaWheelz/skidbladnir/internal/agenthook"
 	"github.com/NielsdaWheelz/skidbladnir/internal/auth"
 	"github.com/NielsdaWheelz/skidbladnir/internal/gateway"
+	"github.com/NielsdaWheelz/skidbladnir/internal/herdr"
 	"github.com/NielsdaWheelz/skidbladnir/internal/hostconfig"
 	"github.com/NielsdaWheelz/skidbladnir/internal/logging"
 	"github.com/NielsdaWheelz/skidbladnir/internal/machine"
 	"github.com/NielsdaWheelz/skidbladnir/internal/pairing"
 	"github.com/NielsdaWheelz/skidbladnir/internal/platform"
 	"github.com/NielsdaWheelz/skidbladnir/internal/pressure"
+	"github.com/NielsdaWheelz/skidbladnir/internal/process"
 	"github.com/NielsdaWheelz/skidbladnir/internal/sessions"
 	"github.com/NielsdaWheelz/skidbladnir/internal/strictjson"
 	"github.com/NielsdaWheelz/skidbladnir/internal/workdir"
+	"golang.org/x/term"
 )
 
 const (
 	exitFailure          = 1
+	exitDesktopUsage     = 2
 	exitUsage            = 64
 	pairingInviteOrigin  = "http://127.0.0.1:7341"
 	pairingInviteTimeout = 5 * time.Second
@@ -50,15 +53,17 @@ func main() {
 }
 
 func run(arguments []string, stdin *os.File, stdout, stderr io.Writer) int {
-	if len(arguments) != 0 && arguments[0] == "terminal-exec" {
-		if err := terminalExec(arguments[1:]); err != nil {
-			_, _ = io.WriteString(stderr, "terminal startup failed\n") // justify-ignore-error: a broken terminal output cannot be recovered.
+	if len(arguments) == 0 || arguments[0] == "--host-config" {
+		output, outputIsFile := stdout.(*os.File)
+		if !term.IsTerminal(int(stdin.Fd())) || !outputIsFile || !term.IsTerminal(int(output.Fd())) {
+			_, _ = io.WriteString(stderr, "local herdr desktop requires a tty\n") // justify-ignore-error: a broken CLI output stream cannot be recovered.
+			return exitDesktopUsage
+		}
+		if err := runDesktop(arguments); err != nil {
+			_, _ = io.WriteString(stderr, "local herdr desktop is unavailable\n") // justify-ignore-error: a broken CLI output stream cannot be recovered.
 			return exitFailure
 		}
 		return 0
-	}
-	if len(arguments) == 0 {
-		return agentcli.Run(context.Background(), arguments, stdin, stdout, stderr)
 	}
 	switch arguments[0] {
 	case "version", "gateway", "machine", "bearer", "pairing-invite", "agent-hook":
@@ -105,10 +110,10 @@ func run(arguments []string, stdin *os.File, stdout, stderr io.Writer) int {
 		}
 		// Without a pane there is no projection to publish. Input admission and
 		// draining still precede this no-op; host tooling is irrelevant to it.
-		if os.Getenv("TMUX_PANE") == "" {
+		if os.Getenv("HERDR_PANE_ID") == "" {
 			return 0
 		}
-		config, configErr := loadRuntimeHostConfig(ctx, *hostConfigPath, platform.Current().Kind)
+		config, client, configErr := loadRuntimeHostConfig(ctx, *hostConfigPath, platform.Current().Kind)
 		if configErr != nil {
 			// A host-configuration defect is the deployment's to fix, not the
 			// provider's to pay for. This command stays out of the provider's way.
@@ -116,8 +121,9 @@ func run(arguments []string, stdin *os.File, stdout, stderr io.Writer) int {
 			return 0
 		}
 		if err := agenthook.Run(ctx, agenthook.Config{
-			TmuxPath: config.TmuxPath,
-			Profiles: config.Profiles,
+			Herdr:      client,
+			SocketPath: config.Herdr.SocketPath,
+			Profiles:   config.Profiles,
 		}, prepared); err != nil {
 			// The hook is a passive projection of pane-local facts. Publication
 			// failure must not prevent the provider session from starting, so only
@@ -287,17 +293,12 @@ func awaitAgentHookInput(
 }
 
 func serveGateway(listen, bearerPath, machineHandlePath, hostConfigPath, cataloguePath, home string, logOutput io.Writer) error {
-	for _, name := range []string{"TMUX", "TMUX_PANE", "TMUX_TMPDIR"} {
-		if err := os.Unsetenv(name); err != nil {
-			return fmt.Errorf("clear inherited tmux environment: %w", err)
-		}
-	}
 	handle, err := machine.Load(machineHandlePath)
 	if err != nil {
 		return fmt.Errorf("load machine handle: %w", err)
 	}
 	descriptor := platform.Current()
-	host, err := loadRuntimeHostConfig(context.Background(), hostConfigPath, descriptor.Kind)
+	host, client, err := loadRuntimeHostConfig(context.Background(), hostConfigPath, descriptor.Kind)
 	if err != nil {
 		return fmt.Errorf("validate host configuration: %w", err)
 	}
@@ -306,15 +307,23 @@ func serveGateway(listen, bearerPath, machineHandlePath, hostConfigPath, catalog
 		return fmt.Errorf("initialize working directories: %w", err)
 	}
 	manager, err := sessions.New(sessions.Config{
-		TmuxPath:      host.TmuxPath,
+		Herdr:         client,
 		Workdir:       workingDirectories,
 		CataloguePath: cataloguePath,
 		Profiles:      host.Profiles,
+		MachineHandle: handle.String(),
+		Fingerprint: func(observation process.Observation) (string, error) {
+			credential, err := (auth.FileVerifier{Path: bearerPath}).Read()
+			if err != nil {
+				return "", err
+			}
+			return credential.CommandFingerprint(observation.Executable, observation.Argv), nil
+		},
 	})
 	if err != nil {
-		return fmt.Errorf("initialize tmux sessions: %w", err)
+		return fmt.Errorf("initialize terminal sessions: %w", err)
 	}
-	agents, err := agentcontrol.New(manager, host.NativeControlPath)
+	agents, err := agentcontrol.New(manager, client)
 	if err != nil {
 		return fmt.Errorf("initialize agent control: %w", err)
 	}
@@ -324,6 +333,7 @@ func serveGateway(listen, bearerPath, machineHandlePath, hostConfigPath, catalog
 	go monitor.Run(ctx)
 	handler := gateway.New(gateway.Config{
 		Agents:   agents,
+		Herdr:    client,
 		Sessions: manager,
 		Workdir:  workingDirectories,
 		Pressure: monitor,
@@ -339,27 +349,53 @@ func serveGateway(listen, bearerPath, machineHandlePath, hostConfigPath, catalog
 	return nil
 }
 
-func loadRuntimeHostConfig(ctx context.Context, path string, runtime platform.Kind) (hostconfig.Config, error) {
+func loadRuntimeHostConfig(ctx context.Context, path string, runtime platform.Kind) (hostconfig.Config, *herdr.Client, error) {
 	config, err := hostconfig.Load(path, runtime)
 	if err != nil {
-		return hostconfig.Config{}, err
+		return hostconfig.Config{}, nil, err
 	}
-	tmuxVersion, err := observedTmuxVersion(ctx, config.TmuxPath)
+	client, err := herdr.New(ctx, config.Herdr.Path, config.Herdr.SocketPath, config.Herdr.TestedVersion)
 	if err != nil {
-		return hostconfig.Config{}, err
+		return hostconfig.Config{}, nil, err
 	}
-	if err := hostconfig.ValidateTmuxVersion(tmuxVersion); err != nil {
-		return hostconfig.Config{}, err
-	}
-	return config, nil
+	return config, client, nil
 }
 
-func observedTmuxVersion(ctx context.Context, path string) (string, error) {
-	output, err := exec.CommandContext(ctx, path, "-V").Output()
-	if err != nil || len(output) < 2 || output[len(output)-1] != '\n' || bytes.ContainsRune(output[:len(output)-1], '\n') {
-		return "", errors.New("read configured tmux version")
+func runDesktop(arguments []string) error {
+	var configPath string
+	if len(arguments) == 0 {
+		executable, err := os.Executable()
+		if err != nil {
+			return err
+		}
+		resolved, err := filepath.EvalSymlinks(executable)
+		if err != nil {
+			return err
+		}
+		configPath = filepath.Join(filepath.Dir(resolved), "host-config.json")
+	} else {
+		if len(arguments) != 2 || arguments[0] != "--host-config" || !filepath.IsAbs(arguments[1]) {
+			return errors.New("usage: skid --host-config /absolute/path")
+		}
+		configPath = arguments[1]
 	}
-	return string(output[:len(output)-1]), nil
+	host, client, err := loadRuntimeHostConfig(context.Background(), configPath, platform.Current().Kind)
+	if err != nil {
+		return err
+	}
+	pingContext, cancelPing := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelPing()
+	if err := client.Ping(pingContext); err != nil {
+		return err
+	}
+	environment := make([]string, 0, len(os.Environ())+1)
+	for _, entry := range os.Environ() {
+		if !strings.HasPrefix(entry, "HERDR_SOCKET_PATH=") {
+			environment = append(environment, entry)
+		}
+	}
+	environment = append(environment, "HERDR_SOCKET_PATH="+host.Herdr.SocketPath)
+	return syscall.Exec(host.Herdr.Path, []string{host.Herdr.Path, "client"}, environment)
 }
 
 type pairingInvitation struct {

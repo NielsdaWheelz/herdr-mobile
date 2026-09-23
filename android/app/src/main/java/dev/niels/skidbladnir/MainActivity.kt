@@ -82,7 +82,7 @@ internal fun DashboardTerminalHost(
     state: SkidbladnirUiState.Workspace,
     entry: DashboardEntryState,
     controller: SkidbladnirController,
-    onOpenTerminal: (SessionTarget) -> Unit,
+    onOpenTerminal: (TerminalTarget) -> Unit,
     onDetach: () -> Unit,
 ) {
     val terminalVisible = when (state) {

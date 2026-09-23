@@ -1,5 +1,27 @@
 # agent control
 
+## herdr pr 2 candidate
+
+this document records the superseded tmux/native-control generation. its
+`/v1/sessions` routes, pane-shaped targets, native claude status/history/stop,
+and acceptance claims below are historical. the current candidate contract is
+[the pr 1 operation table](herdr-pr1.md#retained-gateway-operations), with
+implementation and cutover gates in [pr 2](herdr-pr2.md).
+
+one dwarf is one herdr terminal; an optional observed foreground agent has its
+own opaque ref. `GET /v1/terminals` discovers both, while `/v1/agents/R/read`,
+`send`, `keys`, `interrupt` and `stop` address the original agent lifetime.
+reads are bounded terminal `recent` or `visible` coverage for either provider.
+status and readiness are separate sampled facts; ordinary send requires
+recognized idle, while explicit terminal mode bypasses readiness only. a
+successful write means upstream input was accepted, not that the provider acted.
+stop interrupts once, revalidates the original worker, then requests native
+terminal closure; a lost interrupt reply prevents closure. claude has no native
+history, status or halt confirmation in this candidate. close can affect linked
+workspaces, and an upstream confirmation refusal remains a refusal.
+
+## historical tmux contract
+
 2026-09-12 · accepted v1 implementation target; 2026-09-13 terminal-codex/profile amendment.
 implemented and deployed in v0.3.1; [acceptance and limitations](roadmap.md).
 current client/attachment contract: [usable client and direct attachment](agent-control-ux.md).

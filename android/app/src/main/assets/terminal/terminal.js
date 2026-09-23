@@ -8,10 +8,10 @@
     var fitScheduled = false;
     var fontsSettled = false;
     var modifiers = { control: "Off", alt: "Off" };
-    var pendingProvenKey = null;
     var compositionActive = false;
-    var maximumInputBytes = 1024 * 1024;
+    var maximumInputBytes = 32 * 1024;
     var maximumSelectionBytes = 256 * 1024;
+    var maximumFrameBytes = 2 * 1024 * 1024;
     // The gateway's Resize bounds; the page fits down to them and never up.
     var minimumColumns = 20;
     var maximumColumns = 1024;
@@ -84,15 +84,10 @@
         if (pagePort) pagePort.postMessage(JSON.stringify(payload));
     }
 
-    function clearProvenKey() {
-        pendingProvenKey = null;
-    }
-
     function failPage() {
         if (pageFailed) return;
         pageFailed = true;
         if (terminalTouchInteraction) terminalTouchInteraction.dispose();
-        clearProvenKey();
         setModifiers("Off", "Off");
         send({ kind: "PageFailure" });
         pagePort = null;
@@ -113,7 +108,6 @@
     }
 
     function resetInputState() {
-        clearProvenKey();
         if (terminalTouchInteraction) terminalTouchInteraction.cancel();
         setModifiers("Off", "Off");
     }
@@ -152,36 +146,31 @@
         return true;
     }
 
-    function sendInput(value) {
-        if (typeof value !== "string" || utf8ByteCount(value, maximumInputBytes) === null) {
-            failPage();
+    function sendText(value) {
+        if (typeof value !== "string" || value.length === 0 ||
+            /[\u0000-\u001f\u007f]/.test(value) ||
+            utf8ByteCount(value, maximumInputBytes) === null) {
+            terminalStatus.textContent = "Text unavailable with this terminal";
             return;
         }
-        send({ kind: "Input", value: value });
+        setModifiers("Off", "Off");
+        send({ kind: "Text", text: value });
     }
 
-    function controlValue(value) {
-        if (value.length !== 1) return value;
-        var code = value.charCodeAt(0);
-        if (code >= 0x61 && code <= 0x7a) code -= 0x20;
-        if (code >= 0x40 && code <= 0x5f) return String.fromCharCode(code & 0x1f);
-        if (code === 0x3f) return "\u007f";
-        return value;
-    }
-
-    function acceptInput(value, keyProven) {
+    function sendKey(key, shift, physicalControl, physicalAlt) {
         var armed = modifiers;
         setModifiers("Off", "Off");
-        if (keyProven && armed.control === "Armed") value = controlValue(value);
-        if (keyProven && armed.alt === "Armed") value = "\u001b" + value;
-        sendInput(value);
+        var keyModifiers = [];
+        if (armed.control === "Armed" || physicalControl) keyModifiers.push("ctrl");
+        if (armed.alt === "Armed" || physicalAlt) keyModifiers.push("alt");
+        if (shift) keyModifiers.push("shift");
+        send({ kind: "Key", key: key, modifiers: keyModifiers });
     }
 
     function pasteInput(value) {
-        acceptInput(
-            terminal.modes.bracketedPasteMode ? "\u001b[200~" + value + "\u001b[201~" : value,
-            false
-        );
+        if (value.length === 0) return;
+        setModifiers("Off", "Off");
+        send({ kind: "Paste", text: value });
     }
 
     function sanitizePaste(value) {
@@ -225,7 +214,10 @@
         }
         var columns = Math.min(maximumColumns, dimensions.cols);
         var rows = Math.min(maximumRows, dimensions.rows);
-        if (terminal.cols !== columns || terminal.rows !== rows) terminal.resize(columns, rows);
+        if (terminal.cols !== columns || terminal.rows !== rows) {
+            if (terminalTouchInteraction) terminalTouchInteraction.cancel();
+            terminal.resize(columns, rows);
+        }
         if (!fontsSettled || !pagePort) return;
         if (viewportTooSmallPublished || columns !== lastPublishedColumns || rows !== lastPublishedRows) {
             viewportTooSmallPublished = false;
@@ -265,12 +257,14 @@
     }
 
     function decodeBase64(value) {
-        if (typeof value !== "string" || value.length % 4 !== 0 ||
+        if (typeof value !== "string" || value.length > Math.ceil(maximumFrameBytes / 3) * 4 ||
+            value.length % 4 !== 0 ||
             !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value)) {
             return null;
         }
         try {
             var decoded = window.atob(value);
+            if (decoded.length > maximumFrameBytes) return null;
             var bytes = new Uint8Array(decoded.length);
             for (var index = 0; index < decoded.length; index += 1) bytes[index] = decoded.charCodeAt(index);
             return bytes;
@@ -279,33 +273,67 @@
         }
     }
 
-    function keyIsProven(event) {
-        var domEvent = event && event.domEvent;
-        if (!domEvent || domEvent.isTrusted !== true || compositionActive || domEvent.isComposing) return false;
-        if (domEvent.type !== "keydown" && domEvent.type !== "keypress") return false;
-        if (domEvent.keyCode === 229 || domEvent.which === 229) return false;
-        if (domEvent.key === "Process" || domEvent.key === "Unidentified") return false;
-        if (typeof domEvent.key !== "string" || typeof event.key !== "string") return false;
-        if (domEvent.key !== event.key || event.key.length !== 1) return false;
-        var code = event.key.charCodeAt(0);
-        return code >= 0x20 && code <= 0x7e;
+    function rejectKey(event) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        terminalStatus.textContent = "Key unavailable with this terminal";
     }
 
-    terminal.onKey(function (event) {
-        clearProvenKey();
-        if (!keyIsProven(event)) return;
-        var candidate = { value: event.key };
-        pendingProvenKey = candidate;
-        Promise.resolve().then(function () {
-            if (pendingProvenKey === candidate) clearProvenKey();
-        });
-    });
-
-    terminal.onData(function (value) {
-        var keyProven = pendingProvenKey !== null && pendingProvenKey.value === value;
-        clearProvenKey();
-        acceptInput(value, keyProven);
-    });
+    function acceptHardwareKey(event) {
+        if (pageFailed || event.target !== input || event.isTrusted !== true ||
+            compositionActive || event.isComposing || event.keyCode === 229) return;
+        var name = event.key;
+        if (typeof name !== "string" || name === "Process" || name === "Unidentified") return;
+        if (name === "Home" || name === "End" || name === "Insert" || name === "Delete") {
+            rejectKey(event);
+            return;
+        }
+        if (name === "PageUp" || name === "PageDown") {
+            if (event.ctrlKey || event.altKey || event.shiftKey || event.metaKey ||
+                modifiers.control === "Armed" || modifiers.alt === "Armed") {
+                rejectKey(event);
+                return;
+            }
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            send({
+                kind: "Scroll", source: "PageKey",
+                direction: name === "PageUp" ? "Up" : "Down", lines: terminal.rows
+            });
+            return;
+        }
+        var names = {
+            Enter: "enter", Escape: "escape", Tab: "tab", Backspace: "backspace",
+            ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right"
+        };
+        var key = names[name];
+        if (key === undefined && /^F(?:[1-9]|1[0-2])$/.test(name)) key = name.toLowerCase();
+        var modified = event.ctrlKey || event.altKey || modifiers.control === "Armed" ||
+            modifiers.alt === "Armed";
+        if (key === undefined && Array.from(name).length === 1 && modified) {
+            if (name !== " " && (/^[\p{White_Space}\p{Zs}]$/u.test(name) ||
+                /^[\u0000-\u001f\u007f-\u009f]$/.test(name))) {
+                rejectKey(event);
+                return;
+            }
+            key = name;
+        }
+        if (key === undefined) {
+            if (name === "Dead" || name === "Compose" ||
+                name === "Shift" || name === "Control" || name === "Alt" ||
+                name === "Meta" || name === "AltGraph" ||
+                name === "CapsLock" || name === "NumLock") return;
+            if (event.metaKey || Array.from(name).length !== 1) rejectKey(event);
+            return;
+        }
+        if (event.metaKey) {
+            rejectKey(event);
+            return;
+        }
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        sendKey(key, event.shiftKey, event.ctrlKey, event.altKey);
+    }
 
     function createTerminalTouchInteraction(options) {
         var ownerTerminal = options.terminal;
@@ -474,13 +502,22 @@
         }
 
         function sendWheelLines(deltaLines, clientX, clientY) {
-            ownerTerminal.handleWheelInput({
-                deltaLines: deltaLines,
-                clientX: clientX,
-                clientY: clientY,
-                altKey: false,
-                ctrlKey: false,
-                shiftKey: false
+            if (deltaLines === 0) return;
+            var bounds = ownerScreen.getBoundingClientRect();
+            if (bounds.width <= 0 || bounds.height <= 0 ||
+                ownerTerminal.cols <= 0 || ownerTerminal.rows <= 0) return;
+            var column = Math.max(0, Math.min(
+                ownerTerminal.cols - 1,
+                Math.floor((clientX - bounds.left) * ownerTerminal.cols / bounds.width)
+            ));
+            var row = Math.max(0, Math.min(
+                ownerTerminal.rows - 1,
+                Math.floor((clientY - bounds.top) * ownerTerminal.rows / bounds.height)
+            ));
+            send({
+                kind: "Scroll", source: "Wheel",
+                direction: deltaLines < 0 ? "Up" : "Down",
+                lines: Math.abs(deltaLines), column: column, row: row
             });
         }
 
@@ -785,12 +822,6 @@
                 gesture = null;
                 focusTerminal();
                 if (pageFailed) return;
-                try {
-                    ownerTerminal.handleTapInput({ clientX: touch.clientX, clientY: touch.clientY });
-                } catch (error) {
-                    failPage();
-                    return;
-                }
                 send({ kind: "ImeRequested" });
                 return;
             }
@@ -974,13 +1005,34 @@
         .forEach(function (eventName) {
             input.addEventListener(eventName, scheduleImeContainment);
         });
-    input.addEventListener("beforeinput", clearProvenKey, true);
+    window.addEventListener("keydown", acceptHardwareKey, true);
+    input.addEventListener("beforeinput", function (event) {
+        if (event.isTrusted !== true) return;
+        if (event.inputType === "insertText" || event.inputType === "insertFromComposition") {
+            if (!event.isComposing && typeof event.data === "string" && event.data.length > 0) {
+                sendText(event.data);
+            }
+            return;
+        }
+        if (event.inputType === "insertLineBreak" || event.inputType === "insertParagraph") {
+            event.preventDefault();
+            sendKey("enter", false, false, false);
+            return;
+        }
+        if (event.inputType === "deleteContentBackward") {
+            event.preventDefault();
+            sendKey("backspace", false, false, false);
+            return;
+        }
+        if (event.inputType !== "insertCompositionText" &&
+            event.inputType !== "insertFromPaste") {
+            terminalStatus.textContent = "Input unavailable with this terminal";
+        }
+    }, true);
     input.addEventListener("compositionstart", function () {
         compositionActive = true;
-        clearProvenKey();
     }, true);
     input.addEventListener("compositionend", function () {
-        clearProvenKey();
         compositionActive = false;
     }, true);
     input.addEventListener("compositionupdate", function (event) {
@@ -990,12 +1042,11 @@
         scheduleImeContainment();
     });
     input.addEventListener("paste", function (event) {
-        clearProvenKey();
         event.preventDefault();
         event.stopImmediatePropagation();
         var sanitized = sanitizePaste(event.clipboardData ? event.clipboardData.getData("text/plain") : "");
         if (sanitized === null) {
-            failPage();
+            terminalStatus.textContent = "Paste exceeds the terminal input limit";
         } else {
             pasteInput(sanitized);
         }
@@ -1026,50 +1077,7 @@
         document.fonts.load('bold 14px "JetBrains Mono"')
     ]).then(settleFonts, settleFonts);
 
-    function accessoryInput(key) {
-        var literals = {
-            Escape: "\u001b",
-            Slash: "/",
-            Hyphen: "-",
-            Tab: "\t"
-        };
-        if (Object.prototype.hasOwnProperty.call(literals, key)) {
-            return { value: literals[key], modifiersEligible: true };
-        }
-        var suffixes = {
-            Left: "D",
-            Up: "A",
-            Down: "B",
-            Right: "C",
-            Home: "H",
-            End: "F"
-        };
-        var pageParameters = { PageUp: "5", PageDown: "6" };
-        var controlArmed = modifiers.control === "Armed";
-        var altArmed = modifiers.alt === "Armed";
-        var modified = controlArmed || altArmed;
-        var parameter = 1 + (altArmed ? 2 : 0) + (controlArmed ? 4 : 0);
-        if (Object.prototype.hasOwnProperty.call(suffixes, key)) {
-            if (modified) {
-                return { value: "\u001b[1;" + parameter + suffixes[key], modifiersEligible: false };
-            }
-            return {
-                value: "\u001b" + (terminal.modes.applicationCursorKeysMode ? "O" : "[") + suffixes[key],
-                modifiersEligible: false
-            };
-        }
-        if (Object.prototype.hasOwnProperty.call(pageParameters, key)) {
-            var page = pageParameters[key];
-            return {
-                value: "\u001b[" + page + (modified ? ";" + parameter : "") + "~",
-                modifiersEligible: false
-            };
-        }
-        return null;
-    }
-
     function acceptAccessory(key) {
-        clearProvenKey();
         if (key === "Control") {
             setModifiers(modifiers.control === "Off" ? "Armed" : "Off", modifiers.alt);
             focusTerminal();
@@ -1080,12 +1088,25 @@
             focusTerminal();
             return;
         }
-        var input = accessoryInput(key);
-        if (input === null) {
+        if (key === "Home" || key === "End") return;
+        if (key === "PageUp" || key === "PageDown") {
+            if (modifiers.control === "Armed" || modifiers.alt === "Armed") return;
+            send({
+                kind: "Scroll", source: "PageKey",
+                direction: key === "PageUp" ? "Up" : "Down", lines: terminal.rows
+            });
+            focusTerminal();
+            return;
+        }
+        var keys = {
+            Escape: "escape", Slash: "/", Hyphen: "-", Tab: "tab",
+            Up: "up", Down: "down", Left: "left", Right: "right"
+        };
+        if (!Object.prototype.hasOwnProperty.call(keys, key)) {
             failPage();
             return;
         }
-        acceptInput(input.value, input.modifiersEligible);
+        sendKey(keys[key], false, false, false);
         focusTerminal();
     }
 
@@ -1096,16 +1117,31 @@
             failPage();
             return;
         }
-        if (payload.kind === "Output" && exactObject(payload, ["kind", "sequence", "data"]) &&
-            typeof payload.sequence === "string") {
-            var bytes = decodeBase64(payload.data);
-            if (bytes === null) {
+        if (payload.kind === "Frame" &&
+            exactObject(payload, ["kind", "seq", "columns", "rows", "full", "ansiBase64"])) {
+            var validSequence = typeof payload.seq === "string" &&
+                /^[1-9][0-9]*$/.test(payload.seq) &&
+                (payload.seq.length < 20 || payload.seq.length === 20 &&
+                    payload.seq <= "18446744073709551615");
+            var validGeometry = Number.isInteger(payload.columns) &&
+                payload.columns >= minimumColumns && payload.columns <= maximumColumns &&
+                Number.isInteger(payload.rows) &&
+                payload.rows >= minimumRows && payload.rows <= maximumRows;
+            var bytes = decodeBase64(payload.ansiBase64);
+            if (!validSequence || !validGeometry || typeof payload.full !== "boolean" ||
+                bytes === null || !payload.full &&
+                (terminal.cols !== payload.columns || terminal.rows !== payload.rows)) {
                 failPage();
                 return;
             }
+            if (payload.full) {
+                if (terminalTouchInteraction) terminalTouchInteraction.cancel();
+                terminal.reset();
+                terminal.resize(payload.columns, payload.rows);
+            }
             terminal.write(bytes, function () {
                 terminalStatus.textContent = "Terminal connected";
-                send({ kind: "OutputApplied", sequence: payload.sequence });
+                send({ kind: "OutputApplied", sequence: payload.seq });
             });
             return;
         }
@@ -1130,13 +1166,11 @@
         }
         if (payload.kind === "Scroll" && exactObject(payload, ["kind", "direction"]) &&
             (payload.direction === "Backward" || payload.direction === "Forward")) {
-            clearProvenKey();
             terminalTouchInteraction.scroll(payload.direction);
             return;
         }
         if (payload.kind === "ClearSelection" && exactObject(payload, ["kind", "generation"]) &&
             typeof payload.generation === "string") {
-            clearProvenKey();
             terminalTouchInteraction.clearSelection(payload.generation);
             return;
         }

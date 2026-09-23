@@ -146,7 +146,7 @@ stop result    = separately observed agent outcome + terminal closure outcome
   startup wait. later failure may leave a visible terminal. report uncertainty,
   never retry creation or compensate with an unproven kill.
 - retain bounded input/read/error envelopes and logical keys from
-  [agent control](agent-control.md#capability-and-api-contract). `written` means
+  [the operation table](#retained-gateway-operations). `written` means
   delivery only; interrupt does not prove cancellation; closure does not prove
   detached descendants stopped. no automatic write retry or reconnect replay.
 
@@ -166,21 +166,30 @@ tab/workspace and native linked-group closure under the
 [accepted scope](#accepted-scope-amendment). see
 [closure disclosure and qualification](#2026-09-22-reopened-qualification-at-the-accepted-scope).
 
-## candidate pr 2 contract (proposed, not implemented)
+<a id="candidate-pr-2-contract-proposed-not-implemented"></a>
+## candidate pr 2 contract
 
 this section is the sole candidate wire contract. the preceding requirements
-state its acceptance tests. the original tmux contract remains implemented until
-pr 2. facts below refer only to pinned v0.9.1; proposed skid mappings are not
-live product claims. [the evidence](#investigation-result-at-the-pinned-baseline)
-and subsequent results determine whether this candidate can be authorized.
+state its acceptance tests. this branch implements the candidate source; live
+acceptance and deployment remain open. facts below refer only to pinned v0.9.1;
+they are not claims about the installed product. [the evidence](#investigation-result-at-the-pinned-baseline)
+and subsequent results determine whether this candidate can be activated.
 
 ### identity, inventory and metadata
 
 all `/v1` calls retain the current bearer and pinned `Skidbladnir-Machine`
 header, strict json, peer-oriented partial results, observation timestamps,
-64-kib http request/control-response caps, 1-mib inventory cap and 15-second
-client deadline. host operations spend at most ten seconds. no upstream error
+256-kib http request/control-success caps, 64-kib error-response cap, 1-mib
+inventory cap and 15-second client deadline. a 32768-byte read can exceed
+64 kib on the wire when json escapes control bytes; 256 kib admits its worst
+case plus the response envelope. host operations spend at most ten seconds. no upstream error
 text, terminal content, cwd, argv, provider home or token value enters logs.
+the inventory cap applies to each gateway response. the phone admits that cap
+only on `/v1/terminals`; its other successful http response cap is 256 kib
+and its error-response cap remains 64 kib. the fleet
+cli emits every accepted peer projection, bounded by the existing 64-kib peer
+configuration file and each peer's inventory cap, without a separate 1-mib
+aggregate limit.
 
 three opaque refs are unpadded canonical base64url of strict json, at most 4096
 characters, with no null or extra fields:
@@ -245,7 +254,8 @@ launchProfile?,objective?,agent?}`. `nativeLabel` is the observed upstream pane
 label, when present; it is a secondary hint and never a name selector. without
 an eligible `name`, clients display `unnamed terminal` plus a short id and,
 if present, `herdr label: <nativeLabel>`; actions require a fresh ref.
-`character` is a deterministic catalogue selection from the machine and terminal
+the gateway omits an observed native label containing controls or bidi direction
+formatting before projection; it remains a hint, never identity. `character` is a deterministic catalogue selection from the machine and terminal
 lifetime, so manual panes need no stored persona. a cold-restored new lifetime
 gets a new assignment, as accepted. `agent` is
 `{ref,provider,provenRuntimeProfile?,providerSession?,status,readiness,methods}`;
@@ -388,10 +398,10 @@ literal send text. unqualified name selection refuses a partial fleet result.
 | `POST /v1/terminals`; `skid start` | `{kind:"agent",profile,cwd,name,objective?,destination?}` or `{kind:"terminal",cwd,name,destination?}`; `destination` is `{kind:"existing",workspaceRef}` or `{kind:"new",label?}`; omitted means a new workspace labelled with the terminal name; `201 {observedAt,terminal,launch:"submitted"|"not_requested",dispatch:"sent"}` | validate cwd/profile/destination before create. `workspace.create` or `tab.create` with `focus:false`, chosen `cwd` and profile `env` allocates one root pane; `pane.rename` sets its validated label before `pane.report_metadata` sets/readbacks `skid_named` and other metadata, then one shell-quoted `exec` of the configured absolute command plus `agentruntime.LaunchArguments` goes through `pane.send_input`: claude-work prepends `--name` and the terminal name; codex uses configured arguments. objective is never a prompt. creation success precedes readiness and does not assert startup. if create succeeds but a later step fails, return the new terminal and partial stage when known; unknown create reply leaves the effect unknown, never a second launch or compensating close |
 | `POST /v1/terminals/R/shell`; `skid shell` | `{}`; same `201` terminal envelope with `launch:"not_requested",dispatch:"sent"` | revalidate original source terminal, sample its `foreground_cwd` when available or `cwd` and exact workspace, then `tab.create` with `focus:false` for one independent shell there. `pane.rename` sets its generated label before `pane.report_metadata` sets/readbacks `skid_named`. unreadable cwd fails before create; no split, source replacement or profile inheritance |
 | `PATCH /v1/terminals/R`; `skid rename` | `{name}`; `{observedAt,terminal,dispatch:"sent"}` | original terminal; one `pane.rename` on the current pane id after revalidation. if `skid_named` is absent, set/read back that marker; a known marker refusal returns http 502 `{code:"MetadataUnavailable",message,dispatch:"sent",partial:{terminal}}`, whose current projection has the new native hint but no product name. a lost reply remains `OutcomeUnknown`, never retried. a later competing native rename can win; client confirms by inventory |
-| `PUT /v1/terminals/R/workspace`; `skid move` | `{destination}` in the create union; `{observedAt,terminal,dispatch:"sent"}` | original terminal and exact destination workspace ref, or explicit new workspace; `pane.move` to `new_tab` or `new_workspace`. no label-based upstream mutation, no exact-layout lock; report current workspace after response |
+| `PUT /v1/terminals/R/workspace`; `skid move` | `{destination}` in the create union, with `label` required for `kind:"new"`; `{observedAt,terminal,dispatch:"sent"}` | original terminal and exact destination workspace ref, or explicitly labelled new workspace; `pane.move` to `new_tab` or `new_workspace`. no label-based upstream mutation, no exact-layout lock; report current workspace after response |
 | `POST /v1/agents/R/read`; `skid read` | `{coverage?:"recent"|"visible",maxBytes?}`; coverage defaults `recent`, bytes default 16384, max 32768; `{text,source:"terminal",scope:"visible"|"terminal_history",truncated}` | original agent; `recent` maps to upstream `pane.read` `recent_unwrapped`, max 1000 lines, and scope `terminal_history`; `visible` maps to `pane.read` `visible` and scope `visible`. keep the newest complete-utf-8-codepoint suffix under the byte limit for either scope and mark truncation; upstream line truncation also marks it. `truncated:false` never means complete provider history; failed read returns typed failure |
 | `POST /v1/agents/R/send`; `skid send` | `{text,mode:"auto"|"terminal"}` (mode defaults auto); `{method:"terminal",outcome:"written"|"unknown",dispatch}` | original agent; 1–32768 utf-8 bytes. auto requires independently recognized readiness; terminal mode deliberately addresses a dialog/unclassified screen. one `pane.send_input{text,keys:["enter"]}` queues paste plus submit. `written` means accepted into the upstream pty queue, not provider processing or task success |
-| `POST /v1/agents/R/keys`; `skid keys` | `{keys:[logicalKey]}` with 1–16 keys from `enter,escape,ctrl-c,up,down,left,right,tab,backspace,page-up,page-down`; same write result | original agent; validate the entire list before one mode-aware `pane.send_input{keys}`. page-key support requires the qualified upstream revision, not a fixed-csi substitute. invalid key fails before dispatch |
+| `POST /v1/agents/R/keys`; `skid keys` | `{keys:[logicalKey]}` with 1–16 keys from `enter,escape,ctrl-c,up,down,left,right,tab,backspace`; same write result | original agent; validate the entire list before one mode-aware `pane.send_input{keys}`. unsupported keys, including page keys, fail before dispatch |
 | `POST /v1/agents/R/interrupt`; `skid interrupt` | `{}`; same write result | original agent; one `pane.send_input` key: codex `escape`, claude `ctrl-c`; `written` does not prove cancellation |
 | `POST /v1/agents/R/stop`; `skid stop` | `{}`; success `{agent:"interrupt_sent"|"exited",terminal:"closed",dispatch:"sent"}`; other outcomes use the partial error above | original agent; send one interrupt, then revalidate original terminal. `exited` requires observing the original pid/start absent through `internal/process`, not merely no longer foreground; a live replacement rejects closure. unknown interrupt reply stops before closure. one `pane.close` follows; `confirmation_required` is a partial refusal, never a broader command. closure does not confirm descendant or linked-provider halt |
 | `DELETE /v1/terminals/R`; `skid kill` | `{}`; success `{terminal:"closed",dispatch:"sent"}`; other outcomes use the partial error above | original terminal; one `pane.close` after revalidation. final-pane closure may remove its workspace and linked worktree group; no exact affected-set or halt claim. `confirmation_required` remains a refusal; no `workspace.close` fallback |
@@ -415,9 +425,10 @@ failure is before any herdr mutation. pairing slot effects are governed by the
 existing pairing contract, not by `dispatch` for terminal writes.
 
 `skid start` and `skid move` accept mutually exclusive `--workspace-ref REF`
-or `--new-workspace LABEL`; move requires one, start defaults to a new workspace
-labelled with its terminal name. destinations are host-bound; name-based workspace
-lookup is not a cli mutation interface. retain the existing exact target,
+or `--new-workspace LABEL`; move requires one and its new-workspace label is
+required. start defaults to a new workspace labelled with its terminal name.
+destinations are host-bound; name-based workspace lookup is not a cli mutation
+interface. retain the existing exact target,
 profile/terminal, cwd, name, stdin and json options where applicable.
 
 `skid` without operands and with a tty execs the configured local pinned
@@ -465,14 +476,15 @@ server `{"kind":"Frame","seq":string,"columns":uint16,"rows":uint16,
 `seq,width,height,full,encoding:"ansi",bytes`; `{"kind":"End","code":
 "control_unavailable"|"stream_lost"|"detached"|"protocol_error"}` is final.
 `terminal.closed.reason` remains sanitized diagnostic prose, never a typed
-conflict code. `seq` is canonical unsigned decimal (`0` or a nonzero leading
+conflict code. `seq` is positive canonical unsigned decimal (a nonzero leading
 digit followed by digits), within uint64. native clients validate it numerically;
 javascript receives/acknowledges the unchanged string, never a rounded number.
 before a first full frame, any upstream refusal is
 `control_unavailable`; after one, unexpected closure is `stream_lost`.
-the first full frame resets xterm and sets geometry; input waits for acknowledgement
-that the client applied it. later frames must have increasing contiguous sequence
-numbers. a gap or malformed frame
+the first full frame resets xterm and sets geometry; the phone page acknowledges
+application to its native connection owner before that owner admits input. this
+acknowledgement is local to the phone, not a websocket message. later frames must
+have increasing contiguous sequence numbers. a gap or malformed frame
 closes this attachment, not its worker.
 
 initial geometry and acquisition follow [pr 2's bounded admission](herdr-pr2.md#attached-terminal).
@@ -483,14 +495,17 @@ the product bridge. heartbeat and credential revalidation have separate purposes
 client messages are `{"kind":"Text","text":string}`,
 `{"kind":"Paste","text":string}`, `{"kind":"Key","key":logicalKey,
 "modifiers":["ctrl"|"alt"|"shift"]}`. `logicalKey` is
-`enter|escape|tab|backspace|delete|insert|home|end|up|down|left|right|page-up|page-down|f1…f12`
-or one printable unicode scalar (including space, excluding control characters).
+`enter|escape|tab|backspace|up|down|left|right|f1…f12`
+or one printable non-whitespace unicode scalar, plus ascii space (excluding
+control characters). herdr trims other whitespace before parsing named keys;
+those scalars remain available as unmodified committed `Text`, while modified
+whitespace keys are locally rejected with an explanation.
 modifiers are unique, in `ctrl,alt,shift` order, and may be empty. the phone's
 slash/hyphen buttons send `/` and `-`; upstream aliases belong only in the gateway.
 this vocabulary covers committed input, hardware keyboards and desktop `enter`,
 not just the visible deck. ctrl/alt toggles are phone-local
 state and never standalone remote keys. other client messages are
-`{"kind":"Scroll","direction":"up"|"down","lines":uint16,
+`{"kind":"Scroll","source":"wheel"|"page_key","direction":"up"|"down","lines":uint16,
 "column"?:uint16,"row"?:uint16}`, `{"kind":"Resize","columns":uint16,
 "rows":uint16,"cellWidthPx"?:uint32,"cellHeightPx"?:uint32}` and
 `{"kind":"Detach"}`. the gateway serializes text, paste and supported keys
@@ -500,35 +515,43 @@ logical keys. use the qualified upstream key names and canonical modifier order;
 map space, plus and punctuation to their public parser aliases. `Text` carries
 committed utf-8, without c0/del controls; enter/tab/backspace/control chords use
 `Key`, and pasted newlines remain `Paste`, never implicit submit.
-`Scroll` maps to upstream `terminal.scroll` with `source:"wheel"`
-and original coordinates when present, with zero modifiers; unmodified page keys use
-`source:"page_key"` there. touch scroll has no modifiers; modified page keys
-require the qualified public key operation. `Resize` maps to `terminal.resize`; `Detach` to
+`Scroll` maps to upstream `terminal.scroll` with zero modifiers. wheel scroll
+retains original coordinates when present; unmodified page up/down uses
+`source:"page_key"`, the current row count as `lines`, and no coordinates.
+herdr moves its scrollback in a normal shell and sends the page key in an
+alternate-screen app. `Resize` maps to `terminal.resize`; `Detach` to
 `terminal.release` and child cleanup. keyboard ordering holds within that one
 queue; concurrent desktop input or direct scroll has no total order with it.
-the existing phone key deck also offers home/end and modified navigation keys.
-v0.9.1 `pane.send_input` rejects them, and direct raw csi lacks public
-application-mode encoding. the physical proof deck failed home/end against a
-test-owned application-cursor-mode worker while page-up/down passed. this is a
-failed retained-input requirement, not an accepted loss. the smallest responsible
-remedy is to extend upstream's public key parser/encoder, qualify a release
-containing it, then map the same `Key` messages to that public primitive.
-the same upstream qualification must cover desktop insert/delete/page keys,
-ordinary control chords and shifted keys; the v0.9.1 parser is not a complete
-desktop input contract. [the desktop decoder gate](issues/herdr-terminal-acceptance.md#pr-2-input-contract-review)
-records the reusable library candidate and its source-level defects. no raw-byte
-fallback or silently dropped keyboard input; unsupported input ends the attachment
-with a local explanation, leaving the worker alive. terminal replies stay local.
+the phone keeps home and end visible but disabled. page up/down remain active
+for unmodified visual navigation and are disabled while ctrl/alt is armed,
+without consuming that modifier. hardware/desktop home/end/insert/delete and
+modified page keys are locally rejected with an explanation; unmodified page
+keys use the same public scroll operation as the deck. direct agent-control
+page keys remain unavailable. v0.9.1 rejects these named keys through
+`pane.send_input`, and raw csi lacks public application-mode encoding. this
+accepted feature loss replaces the former full-key cutover gate. ordinary
+supported control chords and shifted keys still require proof. no upstream
+change has been requested or submitted. [the desktop decoder
+gate](issues/herdr-terminal-acceptance.md#pr-2-input-contract-review)
+records the pinned reader's defects and a skid-side composition of its public
+decoder primitives. no raw-byte fallback or silently dropped keyboard input;
+known unsupported keys are consumed locally with an explanation and leave the
+attachment alive. undecodable sequences end the attachment with an explanation,
+leaving the worker alive. terminal replies stay local.
 do not forward xterm's emulator-generated replies as user text: herdr already
 emulates the provider terminal. selection/copy stay in the phone's rendered
 viewport and invalidate on full redraw/resize; neither becomes remote selection.
 phone text/paste is at most 32768 utf-8 bytes, one key per message, scroll
 lines 1–512, and geometry uses the current 20–1024 columns/5–512 rows. proposed
-admission caps are 2 mib websocket/upstream json line, 1 mib decoded ansi frame
-and 2 mib encoded outbound queue (large enough for one maximal valid frame);
-overflow ends this attachment with `protocol_error`
-and leaves the worker alive. these bounds are larger than today's 64-kib tmux
-frame and require a pr 2 stress check; observed proof frames are much smaller.
+admission caps are 2 mib for client websocket input, 3 mib for upstream json
+lines and outbound websocket frames, 2 mib for decoded ansi, and 3 mib for
+the encoded outbound queue. the public terminal attach producer caps its
+serialized terminal frame at 2 mib; its control reader's separate 32-mib cap
+does not enlarge that output. base64 of the emitted frame fits below 3 mib.
+the earlier 1/2-mib proposal rejected valid measured full frames. overflow
+ends this attachment with `protocol_error` and leaves the worker alive. the
+larger bounds require pr 2 stress checks for actual phone rendering, memory and
+attachment-only overflow closure; source limits alone are not live proof.
 server websocket ping/pong every two seconds with a six-second unanswered
 deadline must close its controller child so upstream returns geometry to the
 desktop even when adb reverse retains a dead tcp connection. backgrounding
@@ -654,7 +677,7 @@ any additional file or test-ingress configuration needs an explicit scope review
 | launch/readiness | all four profiles preserve configured executable/environment/cwd/flags; verify internally and report equality only. shell and zero-profile host work; startup dialog/timeout differs from failed creation. restart the isolated server with resume disabled and prove no unintended provider relaunch. |
 | observation/read | codex and claude working, input wait, idle, unfamiliar screen and unavailable observation have honest source/readiness; reads declare bounded visible/history coverage. no inferred task success or hidden native-capability loss. |
 | uncertainty/lifetime owners | suppress a reply after one real synthetic mutation: caller reports unknown within budget, dispatch count remains one after reconnect. kill the probe client/bridge and gateway separately; workers survive and rediscover. cold server restart is tested separately. |
-| phone/desktop | attach one shell, codex or claude terminal, without herdr chrome: typing, ime/dictation, multiline paste, keys, actual swipe/history movement, local selection/copy, keyboard resize, rotation, conflict/takeover, detach, background and abrupt loss. taps focus input without remote clicks. desktop shares the worker and regains sizing. qualify host stream/lifetime behavior on linux and darwin, without multiplying every input case across every profile. |
+| phone/desktop | attach one shell, codex or claude terminal, without herdr chrome: typing, synthetic multiline paste, supported keys, actual swipe/history movement, keyboard resize, conflict/takeover, detach, background and abrupt loss. disabled deck keys stay visible and inert; unsupported hardware/desktop keys explain their rejection. taps focus input without remote clicks. desktop shares the worker and regains sizing. qualify host stream/lifetime behavior on linux and darwin, without multiplying every input case across every profile. user-waived dictation, gboard paste, local copy and rotation stay `NOT_RUN` |
 
 no live operations are authorized by this document. obtain explicit current-turn
 approval for live/tmux/device work under [AGENTS.md](../AGENTS.md); use isolated
@@ -823,8 +846,9 @@ the reviewer challenged assertion sensitivity, partial creates, source versus
 product boundaries, conflict wording, frame caps and the retained key deck.
 the decoded full/incremental phone frames measured at most 1,617/1,019 bytes
 in the sampled shell session, and the largest observed json line was 2,382
-bytes. these are lower-bound samples, not proof that the proposed 1-mib decoded
-cap admits every upstream-valid frame (upstream permits 32 mib). exceeding the
+bytes. these are lower-bound samples, not proof that the then-proposed 1-mib
+decoded cap admits every upstream-valid frame (the public reader permits
+32 mib, while terminal attach production is capped at 2 mib). exceeding the
 cap deliberately disconnects the phone and leaves the worker alive; pr 2 needs
 a largest-intended-geometry/output stress check before fixing the cap.
 
@@ -846,4 +870,25 @@ provider readiness, process-bound claude identity, provider phone journey and
 skipped human phone actions have no acceptance or
 proof. at pinned v0.9.1 the home/end failure alone prevents `proceed`; a
 qualified public mode-aware key addition is the smallest responsible remedy.
-pr 1 status is **incomplete**, with no pr 2 implementation authorization.
+pr 1 status was **incomplete** at that record. the user later authorized work
+on pr 2, conditional on its entry gate, and chose to defer cutover while the
+retained key vocabulary lacks a qualified public herdr operation.
+
+after that record, an isolated official v0.9.1 darwin probe reached recognized
+blocked, ready, working and done observations for codex and delivered one
+submission. claude reached `agent.get:idle` with matched visible idle, but
+successful public one-call input, separately delayed text/enter input, and
+`agent.prompt` on fresh workers produced no observed processing or reply
+within 25–35 seconds. this is an open [claude submission
+issue](issues/herdr-claude-submission.md), not proof that the provider received
+or rejected text. process-bound claude identity was `NOT_RUN`. the isolated
+resources were removed; no account or provider configuration changed.
+
+a separate later physical-phone proof against official v0.9.1 matched nine
+adb-injected synthetic typing bytes once, then failed a fresh repeat despite
+nine foreground input messages. exact typing remains open.
+background release failed through the temporary `onStop` path and passed one
+temporary `onPause` repair: herdr returned geometry to desktop within two
+seconds and kept the worker alive. repeatability and product-controller proof
+remain open. dictation, gboard paste, local copy and rotation remain `NOT_RUN`
+under the user's waiver.
