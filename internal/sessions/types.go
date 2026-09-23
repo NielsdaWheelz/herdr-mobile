@@ -91,6 +91,12 @@ type Closed struct {
 	Dispatch string
 }
 
+type StopClosure struct {
+	Closed         Closed
+	AgentExited    bool
+	CloseAttempted bool
+}
+
 type ResolvedTerminal struct {
 	Terminal Terminal
 	PaneID   string

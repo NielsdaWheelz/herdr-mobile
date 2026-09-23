@@ -323,10 +323,28 @@ func (manager *Manager) Kill(ctx context.Context, target TerminalTarget) (Closed
 	if err != nil {
 		return Closed{}, err
 	}
+	return manager.closePane(ctx, resolved.PaneID)
+}
+
+// CloseAfterInterrupt keeps stop's final check and native close in one
+// mutation. A separate Herdr client can still change the pane between them.
+func (manager *Manager) CloseAfterInterrupt(ctx context.Context, target AgentTarget) (StopClosure, error) {
+	manager.mutations.Lock()
+	defer manager.mutations.Unlock()
+	paneID, exited, err := manager.revalidateStop(ctx, target)
+	if err != nil {
+		return StopClosure{}, err
+	}
+	result := StopClosure{AgentExited: exited, CloseAttempted: true}
+	result.Closed, err = manager.closePane(ctx, paneID)
+	return result, err
+}
+
+func (manager *Manager) closePane(ctx context.Context, paneID string) (Closed, error) {
 	var result struct {
 		Type string `json:"type"`
 	}
-	if err := manager.herdr.Call(ctx, "pane.close", map[string]string{"pane_id": resolved.PaneID}, &result); err != nil {
+	if err := manager.herdr.Call(ctx, "pane.close", map[string]string{"pane_id": paneID}, &result); err != nil {
 		return Closed{}, mapHerdrError(err)
 	}
 	if result.Type != "ok" {

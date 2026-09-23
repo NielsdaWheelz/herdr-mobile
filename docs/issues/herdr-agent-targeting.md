@@ -1,12 +1,12 @@
 # herdr exact worker targeting
 
-problem: a herdr name or pane selector addresses its current occupant. the proposed
-adapter has not established how an older skid reference prevents mutation of a
-replacement worker, particularly across separate lookup and dispatch operations.
+problem: a herdr name or pane selector addresses its current occupant. skid's
+original references now reject observed replacement, but revalidation and
+upstream dispatch remain separate operations.
 
-impact: wrapping a fresh lookup in an opaque reference cannot by itself preserve
-the original worker's observed identity. rename, pane movement and server restart
-also need explicit terminal-lifetime semantics.
+impact: another direct herdr writer can replace a worker between skid's final
+check and dispatch. rename, pane movement and server restart require distinct
+terminal and worker lifetime semantics.
 
 accepted 2026-09-22: retain pre-dispatch revalidation and no implicit retargeting;
 replacement between check and write remains possible. the retired tmux skid
@@ -75,3 +75,51 @@ stale terminal rejection after websocket admission and one partial dispatch
 path; they were removed. a full live original-agent-ref replacement matrix,
 lost-reply uncertainty, native closure cascade and real cross-worker product
 orchestration remain open. the check/write gap remains accepted and explicit.
+
+2026-09-23 pr 134 host proofs: a test-owned unix relay forwarded one real
+`workspace.create` to herdr, read its success, then dropped the reply. the
+darwin product gateway returned http 504 `OutcomeUnknown`, dispatch `unknown`;
+one new labelled workspace existed afterward and the upstream create count was
+one. the same drop-after-success product result, single creation and cleanup
+passed on arch linux. no request was retried. both workspaces and relays were
+removed. ordinary pane closure through the product passed on darwin and arch
+linux with official v0.9.1. a public-herdr-created linked worktree cascaded
+when its parent was closed on both hosts. an unrelated terminal and both
+checkout directories survived. on the isolated linux `confirm_close=true` fixture,
+product close returned http 409 `ClosureConfirmationRequired`, dispatch `sent`
+and partial terminal `refused`; parent, linked pane and unrelated terminal
+survived. all closure resources were removed.
+
+the darwin and arch linux product gateways then preserved one original codex
+agent ref through rename, move and gateway restart. after that worker exited
+and a successor occupied the same pane, stale read, send, keys, interrupt and
+stop each returned http 409 `AgentStale`, dispatch `not_sent`. the successor,
+an unfocused second worker and a separate name-reuse shell survived. a real
+separate official v0.9.1 runtime-restart proof on each host rejected old
+terminal info/kill and old agent read/send/stop with `TerminalNotFound`,
+dispatch `not_sent`, after a new real worker started; its new ref survived.
+the stop repair translated public `ctrl-c` to herdr's `ctrl+c` spelling and
+held skid's mutation lock across final original-ref revalidation and native
+close. live negatives rejected an unclassified foreground successor and a
+same-pid `exec` successor; a returned shell and a still-original worker took
+their intended stop paths. direct external herdr mutation can still race the
+upstream close.
+a real linux codex source used the candidate cli through private https to
+control a separate linux codex target, which performed one synthetic filesystem
+effect.
+a real darwin codex source invoked the same cli over ssh on linux to control a
+separate darwin codex target, which performed a distinct synthetic effect.
+both source workers processed one instruction and both target effects were
+observed. the mac-local cli was not qualified with the private test ca because
+darwin's verifier did not use the process-local trust file; no system or
+keychain trust was changed. test-owned panes, tunnels and certificate material
+were removed. the accepted external check/write race remains; this proof
+does not claim atomic protection against another direct herdr writer.
+
+the claude product proof separately showed process-bound optional identity on
+one original ready worker. after it exited, a different recognized foreground
+worker in the same pane did not inherit its profile/session metadata, and the
+old agent ref's read returned http 409 `AgentStale`. the retained registration
+binds pid, start identity and provider; a same-pid `exec` may retain optional
+fields until a new hook claim, while action refs also bind the command
+fingerprint. no stronger optional identity claim is made.

@@ -94,7 +94,7 @@ func Run(parent context.Context, config Config, prepared Prepared) error {
 		Type string `json:"type"`
 	}
 	if err := config.Herdr.Call(ctx, "pane.report_metadata", map[string]any{"pane_id": paneID, "source": "user:skidbladnir",
-		"tokens": map[string]string{agentruntime.RegistrationToken: registration}}, &report); err != nil || report.Type != "ok" {
+		"tokens": registration}, &report); err != nil || report.Type != "ok" {
 		return errors.New("publish herdr pane identity")
 	}
 	return nil

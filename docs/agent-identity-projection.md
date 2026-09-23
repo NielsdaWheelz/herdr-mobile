@@ -11,7 +11,18 @@ and process ancestry; it never supplies status or history. a launch row is
 `launchProfile`, not proof of `provenRuntimeProfile`. absence of proof omits the
 field, while a replaced worker invalidates its old agent ref. provider/session
 names are descriptive, never authority. the process-bound claude registration
-still needs live qualification before pr 2 can claim acceptance. [pr 1's
+passed on an isolated official v0.9.1 devbox worker through the pr 2 product
+gateway. herdr limits each metadata value to 80 characters, so the candidate
+publishes one `v2:<fragment-count>:<sha256>` commitment under
+`skid_agent_runtime` and up to four consecutive 80-character
+`skid_agent_runtime_00..03` fragments in one public metadata update. unused
+fragments are cleared. projection requires the complete committed value and
+the current pid, start identity, provider and configured profile; it omits
+invalid or stale registration. the commitment detects damaged or mixed
+fragments; it is not an authenticity claim against another local writer.
+registration binds the process lifetime, so a same-pid `exec` can change the
+command before a new hook claim; action refs separately bind the command
+fingerprint. [pr 1's
 identity contract](herdr-pr1.md#identity-inventory-and-metadata) and
 [pr 2's gates](herdr-pr2.md#implementation-and-cutover-gates) govern the
 candidate.

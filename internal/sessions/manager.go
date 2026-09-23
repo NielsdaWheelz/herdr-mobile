@@ -182,6 +182,56 @@ func (manager *Manager) ResolveAgent(ctx context.Context, target AgentTarget) (R
 	return ResolvedAgent{Terminal: resolved.Terminal, PaneID: resolved.PaneID, Process: observation}, nil
 }
 
+// revalidateStop checks the original worker after an interrupt. A vanished
+// worker permits native close only when the pane has returned to its shell;
+// an unclassified foreground successor is still a different worker.
+func (manager *Manager) revalidateStop(ctx context.Context, target AgentTarget) (string, bool, error) {
+	resolved, err := manager.resolveTerminal(ctx, target.TerminalTarget)
+	if err != nil {
+		return "", false, err
+	}
+	stale := func() error {
+		return &Error{Code: ErrorAgentStale, Message: "The selected agent changed.", Dispatch: "not_sent"}
+	}
+	if resolved.Terminal.Agent != nil && resolved.Terminal.Agent.Target != target {
+		return "", false, stale()
+	}
+	observed, observationErr := process.Observe(target.PID)
+	if observationErr == nil && observed.StartIdentity == target.StartIdentity {
+		if resolved.Terminal.Agent == nil {
+			return "", false, stale()
+		}
+		fingerprint, err := manager.fingerprint(observed)
+		if err != nil || fingerprint != target.CommandFingerprint {
+			return "", false, stale()
+		}
+		return resolved.PaneID, false, nil
+	}
+	if observationErr != nil && !errors.Is(observationErr, process.ErrProcessAbsent) {
+		return "", false, stale()
+	}
+	if resolved.Terminal.Agent != nil {
+		return "", false, stale()
+	}
+	info, err := manager.processInfo(ctx, resolved.PaneID)
+	if err != nil || info.ShellPID == nil || info.ForegroundPGID == nil || *info.ForegroundPGID == 0 || len(info.Foreground) == 0 {
+		return "", false, stale()
+	}
+	for _, foreground := range info.Foreground {
+		if foreground.PID != *info.ShellPID || process.PID(foreground.PID) == target.PID {
+			return "", false, stale()
+		}
+	}
+	shell, err := process.Observe(process.PID(*info.ShellPID))
+	if err != nil || shell.ProcessGroup != process.PID(*info.ForegroundPGID) || shell.ForegroundProcessGroup != shell.ProcessGroup {
+		return "", false, stale()
+	}
+	if !isShell(shell.ExecutableBase()) {
+		return "", false, stale()
+	}
+	return resolved.PaneID, true, nil
+}
+
 func (manager *Manager) project(ctx context.Context, pane paneInfo, target TerminalTarget, workspaceTarget WorkspaceTarget) Terminal {
 	characters := manager.catalogue.Characters()
 	seed := sha256.Sum256([]byte(manager.machineHandle + "\x00" + pane.TerminalID + "\x00" + target.IdentityToken))
@@ -233,7 +283,8 @@ func (manager *Manager) observeAgent(ctx context.Context, pane paneInfo, termina
 		if err != nil || uint32(observed.ProcessGroup) != *info.ForegroundPGID {
 			continue
 		}
-		if info.ShellPID != nil && listed.PID == *info.ShellPID {
+		// The launch shell may exec the worker without changing its PID.
+		if info.ShellPID != nil && listed.PID == *info.ShellPID && isShell(observed.ExecutableBase()) {
 			continue
 		}
 		foreground = append(foreground, observed)
@@ -282,13 +333,24 @@ func (manager *Manager) observeAgent(ctx context.Context, pane paneInfo, termina
 		CommandFingerprint: fingerprint, Provider: provider}
 	agent := &Agent{Target: target, Provider: provider, Status: agentruntime.Status{State: "unknown", Source: "unavailable", Reason: "unrecognized"},
 		Readiness: "unconfirmed", Methods: agentruntime.Methods{Read: "terminal", Send: "terminal", Interrupt: "terminal"}}
-	if encoded := pane.Tokens[agentruntime.RegistrationToken]; encoded != "" {
-		if registration, ok := agentruntime.ProjectRegistration(manager.profiles, candidate, provider, encoded); ok {
+	if pane.Tokens[agentruntime.RegistrationToken] != "" {
+		if registration, ok := agentruntime.ProjectRegistration(manager.profiles, candidate, provider, pane.Tokens); ok {
 			agent.ProvenRuntimeProfile = registration.Profile
 			agent.ProviderSession = registration.ProviderSession
 		}
 	}
 	return agent
+}
+
+func isShell(executable string) bool {
+	name := strings.ToLower(strings.TrimSuffix(strings.TrimLeft(executable, "-"), ".exe"))
+	switch name {
+	case "sh", "bash", "dash", "ash", "zsh", "fish", "ksh", "mksh", "csh", "tcsh",
+		"elvish", "xonsh", "nu", "pwsh", "powershell", "cmd":
+		return true
+	default:
+		return false
+	}
 }
 
 func (manager *Manager) resolveWorkspace(ctx context.Context, target WorkspaceTarget) (workspaceInfo, error) {

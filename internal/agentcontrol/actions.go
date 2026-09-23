@@ -8,7 +8,6 @@ import (
 
 	"github.com/NielsdaWheelz/skidbladnir/internal/agentruntime"
 	"github.com/NielsdaWheelz/skidbladnir/internal/herdr"
-	"github.com/NielsdaWheelz/skidbladnir/internal/process"
 	"github.com/NielsdaWheelz/skidbladnir/internal/sessions"
 )
 
@@ -66,10 +65,17 @@ func (service *Service) Interrupt(ctx context.Context, target sessions.AgentTarg
 }
 
 func (service *Service) write(ctx context.Context, paneID, text string, keys []string) (WriteResult, error) {
+	nativeKeys := make([]string, len(keys))
+	for index, key := range keys {
+		if key == "ctrl-c" {
+			key = "ctrl+c"
+		}
+		nativeKeys[index] = key
+	}
 	var result struct {
 		Type string `json:"type"`
 	}
-	if err := service.herdr.Call(ctx, "pane.send_input", map[string]any{"pane_id": paneID, "text": text, "keys": keys}, &result); err != nil {
+	if err := service.herdr.Call(ctx, "pane.send_input", map[string]any{"pane_id": paneID, "text": text, "keys": nativeKeys}, &result); err != nil {
 		return WriteResult{}, controlFailure(err)
 	}
 	if result.Type != "ok" {
@@ -94,28 +100,16 @@ func (service *Service) Stop(ctx context.Context, target sessions.AgentTarget) (
 			Partial: &sessions.Partial{AgentOutcome: "unconfirmed", TerminalOutcome: "not_attempted"}}
 	}
 	agentOutcome := "interrupt_sent"
-	terminal, err := service.sessions.ResolveTerminal(ctx, target.TerminalTarget)
-	if err != nil {
-		return StopResult{}, stopFailure(err, agentOutcome, false)
-	}
-	if terminal.Terminal.Agent != nil && terminal.Terminal.Agent.Target != target {
-		return StopResult{}, stopFailure(&sessions.Error{Code: sessions.ErrorAgentStale, Message: "The selected agent changed.", Dispatch: "not_sent"}, agentOutcome, false)
-	}
-	observed, observationErr := process.Observe(target.PID)
-	if errors.Is(observationErr, process.ErrProcessAbsent) || observationErr == nil && observed.StartIdentity != target.StartIdentity {
+	// The original terminal ref remains the closure target. Sessions holds
+	// its mutation lock through final revalidation and native close.
+	closure, err := service.sessions.CloseAfterInterrupt(ctx, target)
+	if closure.AgentExited {
 		agentOutcome = "exited"
-	} else if observationErr != nil {
-		return StopResult{}, stopFailure(&sessions.Error{Code: sessions.ErrorAgentStale, Message: "The selected agent could not be revalidated.", Dispatch: "not_sent"}, agentOutcome, false)
-	} else if terminal.Terminal.Agent == nil {
-		return StopResult{}, stopFailure(&sessions.Error{Code: sessions.ErrorAgentStale, Message: "The selected agent is no longer foreground.", Dispatch: "not_sent"}, agentOutcome, false)
 	}
-	// The original terminal ref remains the closure target. Sessions owns the
-	// final native close and its refusal policy; no broader primitive follows.
-	closed, err := service.sessions.Kill(ctx, target.TerminalTarget)
 	if err != nil {
-		return StopResult{}, stopFailure(err, agentOutcome, true)
+		return StopResult{}, stopFailure(err, agentOutcome, closure.CloseAttempted)
 	}
-	return StopResult{Agent: agentOutcome, Terminal: closed.Terminal, Dispatch: closed.Dispatch}, nil
+	return StopResult{Agent: agentOutcome, Terminal: closure.Closed.Terminal, Dispatch: closure.Closed.Dispatch}, nil
 }
 
 func stopFailure(err error, agentOutcome string, closeAttempted bool) error {

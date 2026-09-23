@@ -222,3 +222,17 @@ transport or pairing bypass was used. exact phone typing, synthetic paste,
 scroll, takeover, background/acquisition release, loss, bearer revocation,
 largest-frame rendering and phone geometry return remain unproved. dictation,
 gboard paste, local copy and rotation remain user-waived `NOT_RUN`.
+
+## pr 134 phone attempt, 2026-09-23
+
+three isolated candidate gateways were reachable from the physical phone at
+distinct canonical https origins through a temporary adb network tunnel. phone
+curl validated the public certificate chain and received the expected
+unauthenticated response from each gateway. the proof app opened the real qr
+scanner, but no invite was created or scanned. the user stopped the qr work
+before pairing, so the phone terminal journey and all phone lifetime checks
+above remain `NOT_RUN`. no scanner result, pairing, tls or product-code bypass
+was used. the proof app, display, proxy, tunnel and local certificate/key were
+removed; the production app remains. the public dns registration could not be
+removed through the service api and is tracked in
+[its own issue](temporary-dns-registration.md).
