@@ -6,11 +6,16 @@ native herdr closure effects and single-terminal phone interaction without remot
 click/drag parity. the user subsequently authorized the pr 2 source candidate
 with unsupported keys visibly disabled or locally rejected. this branch contains
 that candidate; its live acceptance and fleet deployment remain incomplete.
-[the architecture](architecture.md) describes the candidate. [pr 1's contract](herdr-pr1.md#candidate-pr-2-contract-proposed-not-implemented)
+[the architecture](architecture.md) describes the candidate. [pr 1's contract](herdr-pr1.md#candidate-pr-2-contract)
 owns exact wire shapes, and [pr 2](herdr-pr2.md) owns the implementation and
 remaining gates. interactive provider readiness and the user-waived human phone
 actions remain `NOT_RUN`; source completion is not a `proceed` or deployment
 decision.
+
+2026-09-23: [the accepted non-blocking follow-ups](herdr-pr2.md#accepted-non-blocking-follow-ups)
+supersede blocking language below for the remaining phone/mac proofs, optional
+identity carryover and dns residue. retain their evidence and revisit only on
+actual-use failure or user request; do not move them to a later mandatory gate.
 
 ## outcome and scope
 
@@ -74,7 +79,7 @@ spaces/shells delivery sequence.
 | pr | repository | dependency | status |
 | --- | --- | --- | --- |
 | 1. feasibility and contract | skid | isolated proof resources and applicable live/device approval | candidate contract accepted for implementation; remaining live proofs open |
-| 2. complete skid cutover | skid | user-authorized candidate scope | source candidate in this branch; engineering checks pass, live acceptance pending |
+| 2. complete skid cutover | skid | user-authorized candidate scope | source candidate; engineering and recorded host proofs pass, named remaining gaps accepted as non-blocking |
 | 3. jarvis alignment | jarvis | pr 2's final cli contract and runnable candidate | required by the changed strict consumer schema; blocked on pr 2 |
 | 4. deployment and fleet acceptance | dev-server, consuming skid release artifacts | pr 2 and pr 3 | blocked on the preceding stages |
 
@@ -256,6 +261,8 @@ retirement. no production deletion belongs to pr 1.
    new implementation. temporary proof code is removed before commit.
 
 completion supplies a release candidate, not fleet deployment acceptance.
+the [dated waivers](herdr-pr2.md#accepted-non-blocking-follow-ups) apply to the
+criteria above and later rollout criteria; waived checks remain unrun, not passed.
 
 ## pr 3: jarvis consumer alignment
 

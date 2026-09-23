@@ -1,5 +1,11 @@
 # herdr exact worker targeting
 
+status 2026-09-23: the host proofs below passed. the external check/write race
+remains accepted; same-pid optional identity carryover and the mac-local cli
+proof are [accepted non-blocking follow-ups](../herdr-pr2.md#accepted-non-blocking-follow-ups).
+stale descriptive metadata is not a successful identity proof and has no
+guaranteed correction time. action-ref checks remain required and unchanged.
+
 problem: a herdr name or pane selector addresses its current occupant. skid's
 original references now reject observed replacement, but revalidation and
 upstream dispatch remain separate operations.

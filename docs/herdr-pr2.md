@@ -3,7 +3,7 @@
 2026-09-22 · implementation specification. the user has since authorized work
 on this pr, conditional on its entry gate.
 one skid pr; reviewable commits, no intermediate release. [the migration plan](herdr-migration.md)
-owns delivery. [pr 1's candidate](herdr-pr1.md#candidate-pr-2-contract-proposed-not-implemented)
+owns delivery. [pr 1's candidate](herdr-pr1.md#candidate-pr-2-contract)
 owns exact wire shapes and upstream mappings; this document owns implementation
 structure and acceptance. do not maintain a second schema here.
 
@@ -28,12 +28,11 @@ cancellation; [the recorded defects](issues/herdr-terminal-acceptance.md#pr-2-in
 prevent using the pinned ultraviolet `TerminalReader`. qualify the local
 composition through product code.
 
-before declaring pr 2 complete, close the recorded readiness, process-bound
-claude identity, phone typing, provider scrolling, background release and linux
-stream/desktop checks through the implemented product. [pr 1's
-evidence](herdr-pr1.md#2026-09-22-reopened-qualification-at-the-accepted-scope)
-distinguishes failures from missing proof; none becomes a pass here.
-[claude submission](issues/herdr-claude-submission.md) is separately open.
+record completed product proofs and remaining gaps separately. the
+[2026-09-23 decision](#accepted-non-blocking-follow-ups) removes the named
+remaining checks and defects as blockers; it does not turn missing proof into
+a pass. [claude submission](issues/herdr-claude-submission.md) retains the
+host-specific results.
 
 the user waived the human dictation, gboard paste, local copy and rotation
 checks for this candidate. record each as `NOT_RUN`; record later failures as
@@ -49,6 +48,27 @@ accepted 2026-09-22: ordinary `skid send` requires recognized idle and rejects
 working/unconfirmed states before dispatch; it does not wait or queue.
 `send --terminal` remains the explicit readiness override. this closes the policy
 decision, not the outstanding readiness proof.
+
+## accepted non-blocking follow-ups
+
+2026-09-23: the user accepts the following risks and does not require further
+qualification or fixes for them before pr 2 completion, merge or migration
+progress, including cutover. this supersedes earlier blocking language in the
+plan, acceptance tables and linked issue records for these items only.
+
+| deferred item | accepted cost |
+| --- | --- |
+| remaining paired-phone terminal and lifecycle journey, including rendering/bounds | behavior may fail during actual use and need live repair; all unrun checks remain `NOT_RUN`, alongside the existing human-check waivers |
+| macbook `claude-work` model turn and mac-local cli/private-ca proof | that account was signed out and the local tls path was unqualified; neither is asserted usable merely because another host passed |
+| same-pid `exec` optional profile/session carryover | descriptive identity may remain stale until another hook claim, with no guaranteed correction time; action refs still check the command fingerprint |
+| temporary public dns registration | the address record and certificate-transparency residue remain; no operator contact or removal is required for progress |
+
+keep the issue records as non-blocking follow-ups, not resolved successes.
+revisit if actual use exposes a problem or the user requests it; do not schedule
+another isolated-test campaign or quietly move these checks to a later mandatory
+gate. ordinary-send readiness, original-target validation and no-replay rules
+are unchanged. code review, jarvis alignment and release/installation integrity
+remain separate work. this decision does not itself merge, publish or deploy.
 
 ## target and limits
 
@@ -247,10 +267,10 @@ convenience. android paths below are under its existing java package unless stat
 | root integration | `cmd/skidbladnir/`, `internal/{hostconfig,gateway,auth,logging}/`, `go.mod`, `go.sum`, `scripts/`, `docs/`, `AGENTS.md`; android gradle files, `app/src/main/res/`, `terminal.lock`, `xterm-6.0.0-skidbladnir.patch`; final deletion of `internal/{tmux,sessionui,space}/` |
 | independent reviewers | read/run only; no test, production or content edits |
 
-before phone parallelism, coordinate the existing
-[terminal-state ownership repair](issues/terminal-ui-state-owner.md): domain owner
-removes declarations, terminal owner houses them in `TerminalScreen.kt`; agree
-typed frame/input callbacks. no new lifecycle module. move reusable workspace
+shared terminal state and admission helpers belong in
+[TerminalScreen.kt](../android/app/src/main/java/dev/niels/skidbladnir/TerminalScreen.kt);
+the domain owner retains navigation and attempt coordination. agree typed
+frame/input callbacks before parallel edits; no new lifecycle module. move reusable workspace
 label validation out of `internal/space` before removing cosmetic grouping.
 pairing/store/scanner, polling, directory, pressure, catalogue, art, themes and
 font-sizing owners are reuse targets, not additional cleanup scope.
@@ -272,6 +292,9 @@ no new art or lore in operational errors. idle-only ordinary-send wording must
 distinguish working from readiness, not describe a busy worker as broken.
 
 ## sequence, proof and completion
+
+apply the [accepted waivers](#accepted-non-blocking-follow-ups) to the proof
+matrix below; deferred rows are not prerequisites or claimed passes.
 
 1. **contract:** close entry gates; freeze exact schemas, local configuration,
    public primitives, input mapping and slice signatures. independently review

@@ -1,5 +1,10 @@
 # herdr phone and desktop terminal acceptance
 
+status 2026-09-23: the remaining phone journey and mac-local cli/private-ca
+checks are [accepted non-blocking follow-ups](../herdr-pr2.md#accepted-non-blocking-follow-ups).
+no new test campaign is required; unrun checks remain `NOT_RUN`. the resolution
+criteria below describe future verification, not a merge or cutover gate.
+
 problem: herdr's rendered-frame bridge has not been exercised through skid's
 complete retained android input/scroll/lifecycle journey. its direct controller
 owns sizing while desktop input can still reach the same terminal.

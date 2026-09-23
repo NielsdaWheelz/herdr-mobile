@@ -22,7 +22,9 @@ invalid or stale registration. the commitment detects damaged or mixed
 fragments; it is not an authenticity claim against another local writer.
 registration binds the process lifetime, so a same-pid `exec` can change the
 command before a new hook claim; action refs separately bind the command
-fingerprint. [pr 1's
+fingerprint. the user accepted this descriptive-metadata carryover as a
+[non-blocking follow-up](herdr-pr2.md#accepted-non-blocking-follow-ups) on
+2026-09-23; it need not self-correct if no new hook claim arrives. [pr 1's
 identity contract](herdr-pr1.md#identity-inventory-and-metadata) and
 [pr 2's gates](herdr-pr2.md#implementation-and-cutover-gates) govern the
 candidate.

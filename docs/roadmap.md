@@ -15,6 +15,16 @@ source candidate; no installation or fleet acceptance is claimed.
 isolated v0.9.1 darwin/linux and proof-phone results now supplement source
 research; each boundary keeps its own result in the pr 1 record.
 
+2026-09-23: pr 134 at `29f98e7` records passing host control and linux claude
+submission/registration proofs; hosted engineering checks passed. the user
+accepted the remaining phone/mac proof gaps, same-pid optional identity
+carryover and temporary dns residue as
+[non-blocking follow-ups](herdr-pr2.md#accepted-non-blocking-follow-ups).
+do not require another test campaign or defer these as mandatory rollout gates.
+unrun checks stay `NOT_RUN`, and known defects stay documented. this does not
+claim completed code review or authorize merge/deployment; pr 3 alignment and
+pr 4 release/installation work remain.
+
 [the pr 1 spec](herdr-pr1.md) defines the investigation and contract closure.
 remaining acceptance includes [profile/restart behavior](issues/herdr-profile-restore.md),
 [exact worker targeting](issues/herdr-agent-targeting.md), and

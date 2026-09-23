@@ -1,5 +1,8 @@
 # temporary phone-fixture dns registration
 
+status 2026-09-23: [accepted non-blocking residue](../herdr-pr2.md#accepted-non-blocking-follow-ups).
+keep the record; operator contact or removal is not required for progress.
+
 problem: the pr 134 physical-phone fixture registered `bright-garden.lancert.dev`
 and its wildcard to the mac's private lan address. the phone journey was stopped
 before any pairing invitation was created or scanned. test servers, proxy, proof

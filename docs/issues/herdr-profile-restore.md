@@ -1,5 +1,9 @@
 # herdr account profiles and cold restore
 
+status 2026-09-23: the remaining macbook qualification is an
+[accepted non-blocking follow-up](../herdr-pr2.md#accepted-non-blocking-follow-ups),
+not a merge or cutover gate. preserve the host-specific evidence below.
+
 problem: the inspected herdr v0.9.1 cold-restore path does not retain per-pane
 environment overrides. skid's account profiles rely on distinct provider homes.
 

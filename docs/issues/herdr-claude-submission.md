@@ -1,5 +1,10 @@
 # herdr claude submission qualification
 
+status 2026-09-23: the remaining macbook model-turn proof is an
+[accepted non-blocking follow-up](../herdr-pr2.md#accepted-non-blocking-follow-ups).
+no sign-in or proof is required for migration progress; actual use may still
+require authentication. the missing proof is not a pass.
+
 problem: earlier wrapper-launched claude workers reached public idle, but
 accepted public input did not produce observed processing. the current devbox
 product proof closes that gap on linux; the macbook work profile is signed out.
