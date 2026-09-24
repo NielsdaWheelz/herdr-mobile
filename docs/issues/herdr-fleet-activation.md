@@ -20,6 +20,15 @@ boundary proofs ran on isolated resources and were deleted; every live row is
 instead of the zero-pending rule; dev-server carries explicit deployment
 identity, and the darwin lifecycle proofs ran on this mac through a disposable
 deployment under native launchd (report section "2026-09-23 herdr pr 4 round 2").
+2026-09-23, round 3: dev-server `8a794be` waits for supervisor teardown before
+restarting a restored service and fixes three restore defects the proofs
+surfaced (prior verified against the candidate's version, a failed first
+activation disabling the label, `UP TO DATE` for a herdr launchd had parked);
+the herdr restore, its genuine-prior-failure path and the skid restores ran
+again on this mac under a disposable deployment; jarvis `23c830c` ran the real
+`activate-release` one-shot, `serve` startup, recovery over compatible rows and
+a clean stop in an isolated systemd container with no egress (report section
+"round 3"). release-bytes qualification waits for the draft.
 
 ## release tuple
 
@@ -32,6 +41,7 @@ deployment under native launchd (report section "2026-09-23 herdr pr 4 round 2")
 | skid rollback | `v0.6.0`, source `2d6184c63d62396f69342200e4229cc902ca140c`, the pin at skid and dev-server main today and the release every host advertises through `readlink ~/.local/share/skidbladnir/current` |
 | dev-server candidate | the `herdr-pr4` tip after its v0.7.0 pin commit. the installer's behavior is its tree, not its commit, so the later merge into main must leave the main tree identical to that tip (`git diff <tip> main` empty) |
 | dev-server rollback | commit `bb8e218bbfb10a9077aadce2983d510c8366a2f9`: origin/main, the `herdr-pr4` merge-base, and the library the deleted rollback proof re-applied over herdr-era state (darwin only; the linux rollback runs in isolated qualification). rollback is that checkout plus `./workstation apply` or `./devbox apply`; it reinstalls v0.6.0 with the retained native-control copies and leaves herdr supervised. the macbook checkout is at it; confirm devbox's and arch's last applied checkout read the same commit (read-only) before the window |
+| qualified artifact digests | the draft's five `SHA256SUMS` lines, copied here when step 2 finishes on both platforms; publication (`gh release edit --draft=false`) changes no asset, and step 3 diffs `gh release download v0.7.0 --pattern SHA256SUMS` against this row before `check published-release`. empty until then |
 | jarvis candidate | the merge of `herdr-pr4` into main, made before qualification: jarvis keys releases by commit, so the commit installed on the isolated host must be the one production activates |
 | jarvis rollback | none through `activate-release`: production `f4e2ce6129c0add09ddb50355a8997a1c589d3d1` predates `check-activation` and is refused, not skipped. if the candidate fails, keep jarvis stopped and repair forward. from the candidate on, rollback targets carry the check. transitional `51f62c86322a66224d1576395b5795ae823c1f75` for the admission-journal cutover |
 
@@ -62,17 +72,29 @@ gates.
      refs without provider resume; failed gateway activation restoring the
      prior bytes and unit with the worker alive, and the restore path where the
      prior also fails to start; the codex completion bell inside a herdr pane.
-   - darwin: done 2026-09-23 on this mac through the disposable explicit-identity
-     deployment (root `/private/tmp/skq`, labels `dev.niels.skq.*`, port 7351;
-     recipe in dev-server `SPEC.md`), same installer, units and unmodified
-     binaries, stand-in workers, no ingress: supervision, gateway restart
-     preserving worker, terminal ref and agent ref, cold herdr restart
-     invalidating old refs with no resume, failed activation restoring the
-     prior installation, truthful failure when the restore also fails, herdr
-     restore rc 3 (reached through a launchd bootstrap race, recorded in
-     dev-server's issues) and the changed-inputs `ACTION` all PASS on a local
-     build of `2a6bfaf`. rerun only if the installer or the candidate bytes change.
-     production was not touched (pids and installed plist unchanged).
+   - darwin: no nonproduction host. lifecycle evidence ran 2026-09-23 on this
+     mac through the disposable explicit-identity deployment (root
+     `/private/tmp/skq`, labels `dev.niels.skq.*`, port 7351; recipe in
+     dev-server `SPEC.md`), same installer, units and unmodified binaries,
+     stand-in workers, no ingress: supervision, gateway restart preserving
+     worker, terminal ref and agent ref, cold herdr restart invalidating old
+     refs with no resume, failed activation restoring the prior installation,
+     truthful failure when the restore also fails, herdr restore (round 3: the
+     stop waits for launchd's teardown, the prior herdr is restored and
+     restarted, and a prior that cannot verify is reported as such) and the
+     changed-inputs `ACTION` all PASS on a LOCAL build of `2a6bfaf`. that
+     qualifies the installer and units, not the release. release-bytes
+     qualification is pending and repeats the decisive boundaries with the
+     draft's own artifact: `gh release download v0.7.0 --pattern SHA256SUMS
+     --pattern skidbladnir-darwin-arm64.tar.gz`, `shasum -a 256 -c` on the
+     tarball line, seed the disposable root's `artifacts/<darwin sha>/` as the
+     linux bullet describes, apply (`STARTED  skid.runtime: v0.7.0` with
+     `skidbladnir version` reading the merge commit), second apply
+     `UP TO DATE`, gateway restart preserving the worker and refs, cold herdr
+     restart invalidating old refs, failed activation restoring the prior,
+     truthful failure when the restore fails; then copy the five `SHA256SUMS`
+     lines into the release tuple. production was not touched (pids and
+     installed plist unchanged) and must stay so.
    - the unmodified codex + claude journey through installed jarvis (spec §7
      row), provider spend approved; jarvis stopped recovery of a paid decision
      and dispatched read across activation; admission charges and history
@@ -81,7 +103,9 @@ gates.
      candidate in place, then v0.7.1 in place, pairings intact both ways.
    record each row in the jarvis report. if candidate bytes change, delete the
    draft, rerun `scripts/release` and only the affected boundary.
-3. publish: `gh release edit v0.7.0 --draft=false --latest`;
+3. publish: `gh release download v0.7.0 --pattern SHA256SUMS` must equal the
+   tuple's qualified digests (the qualified bytes are the published bytes);
+   `gh release edit v0.7.0 --draft=false --latest`;
    `scripts/check published-release v0.7.0 <sha>`; skid pin commit; dev-server
    pr out of draft and merged, with `git diff <candidate tip> main` empty.
 4. before any host: on macbook move `~/.config/herdr/session.json` aside (pr 1

@@ -165,10 +165,13 @@ inputs; installer/service behavior still requires qualification.
    with its own root, labels and port under native launchd, stand-in workers
    and no ingress. it proves supervision, gateway restart preserving the worker,
    cold herdr restart invalidating old refs, failed activation restoring the
-   previous installation and truthful failure when restoration also fails. it
-   cannot prove the cli/phone path or the provider journey; those stay with the
-   linux host and the window's smoke checks. it never touches production
-   services, workers, credentials, pairings or network mappings.
+   previous installation and truthful failure when restoration also fails. the
+   bytes it qualifies are the draft release's own artifact checked against
+   `SHA256SUMS`; a local build of the same commit proves the installer and
+   units, not the release. it cannot prove the cli/phone path or the provider
+   journey; those stay with the linux host and the window's smoke checks. it
+   never touches production services, workers, credentials, pairings or
+   network mappings.
 3. publish via existing exact-main draft/release-integrity flow; publication
    remains separately authorized. record final artifact identities; if qualification
    bytes change, rerun only the affected boundary. stage validated artifacts and
