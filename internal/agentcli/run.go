@@ -46,8 +46,11 @@ require --machine or --ref. native herdr labels do not select names.
 
 start defaults to a new workspace labelled with NAME. move requires a destination.
 closing a final pane may close linked workspaces and running terminals. stop first
-interrupts its observed worker, then attempts that close. closure may be refused;
-never infer that a descendant stopped. a sent input is queue delivery, not provider
+interrupts its observed worker, then attempts that close. closure may be refused. a
+failed stop's partial terminal is not_attempted when no close was sent, refused
+when herdr rejected the close request (the terminal's state is not implied), and
+unconfirmed when the close reply was lost; none means the worker stopped. never
+infer that a descendant stopped. a sent input is queue delivery, not provider
 processing or task success. unknown dispatch may have taken effect: inspect before
 any retry. ordinary send requires recognized readiness; --terminal explicitly
 bypasses readiness, while retaining exact worker validation. read defaults to

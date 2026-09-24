@@ -66,7 +66,7 @@ func run(arguments []string, stdin *os.File, stdout, stderr io.Writer) int {
 		return 0
 	}
 	switch arguments[0] {
-	case "version", "gateway", "machine", "bearer", "pairing-invite", "agent-hook":
+	case "version", "validate-host-config", "gateway", "machine", "bearer", "pairing-invite", "agent-hook":
 	default:
 		return agentcli.Run(context.Background(), arguments, stdin, stdout, stderr)
 	}
@@ -77,6 +77,26 @@ func run(arguments []string, stdin *os.File, stdout, stderr io.Writer) int {
 		}
 		if _, err := fmt.Fprintf(stdout, "%s %s\n", releaseVersion, releaseSHA); err != nil {
 			_, _ = io.WriteString(stderr, "write version: output failed\n") // justify-ignore-error: both CLI output streams are unavailable.
+			return exitFailure
+		}
+		return 0
+	}
+	if arguments[0] == "validate-host-config" {
+		// Validates configuration only: no herdr binary, socket or home is read.
+		path, found := "", false
+		if len(arguments) == 2 {
+			path, found = strings.CutPrefix(arguments[1], "--host-config=")
+		}
+		if !found || !filepath.IsAbs(path) {
+			_, _ = io.WriteString(stderr, "usage: skidbladnir validate-host-config --host-config=ABSOLUTE_PATH\n") // justify-ignore-error: a broken CLI output stream cannot be recovered.
+			return exitUsage
+		}
+		if _, err := hostconfig.Load(path, platform.Current().Kind); err != nil {
+			_, _ = fmt.Fprintf(stderr, "validate-host-config: %s\n", strings.ReplaceAll(err.Error(), "\n", "; ")) // justify-ignore-error: a broken CLI output stream cannot be recovered.
+			return exitFailure
+		}
+		if _, err := io.WriteString(stdout, "host config valid\n"); err != nil {
+			_, _ = io.WriteString(stderr, "write validation: output failed\n") // justify-ignore-error: both CLI output streams are unavailable.
 			return exitFailure
 		}
 		return 0
@@ -236,7 +256,7 @@ func run(arguments []string, stdin *os.File, stdout, stderr io.Writer) int {
 		}
 		return 0
 	default:
-		_, _ = io.WriteString(stderr, "usage: skidbladnir {version|gateway|machine init|bearer mint|pairing-invite create|agent-hook PROVIDER EVENT}\n") // justify-ignore-error: a broken CLI output stream cannot be recovered.
+		_, _ = io.WriteString(stderr, "usage: skidbladnir {version|validate-host-config|gateway|machine init|bearer mint|pairing-invite create|agent-hook PROVIDER EVENT}\n") // justify-ignore-error: a broken CLI output stream cannot be recovered.
 		return exitUsage
 	}
 }

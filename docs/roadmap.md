@@ -11,8 +11,13 @@ this index records present scope and open work, not a release diary.
 [pr 3](herdr-pr3.md) is merged in jarvis at `fb5e4a9`; recorded boundary proofs
 do not qualify the unmodified live provider journey. [the pr 4 spec](herdr-pr4.md)
 now defines installation, that isolated proof, two bounded contract corrections,
-coordinated activation and rollback. implementation and deployment are pending.
-the earlier candidate/proof notes below retain their historical scope.
+coordinated activation and rollback. its source prerequisites are implemented:
+truthful stop partials and `skidbladnir validate-host-config` in skid, the herdr
+installer and herdr-era host configuration in dev-server, and stop-gated jarvis
+activation with the cutover runbook in jarvis. no release is published and no
+host is changed; [the activation record](issues/herdr-fleet-activation.md) lists
+the remaining approved-window steps. the earlier candidate/proof notes below
+retain their historical scope.
 
 [the migration plan](herdr-migration.md) owns the proposed runtime/desktop cutover,
 retained android and cli surfaces, and each pr's scope, requirements and completion

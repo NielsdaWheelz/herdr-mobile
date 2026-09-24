@@ -1,6 +1,10 @@
 # herdr pr 4: installation and coordinated activation
 
 2026-09-23: implementation specification; no deployment authorized or claimed.
+2026-09-23: amended after review: explicit deployment identity, darwin
+qualification on the production mac through a disposable deployment, a jarvis
+compatibility check in place of the zero-pending-action rule, and removal of
+android's dead `launch_submitted` decoding.
 baseline: skid `056d491` (includes merged pr 2), jarvis `fb5e4a9` (pr 3),
 dev-server `bb8e218`. recheck exact revisions before implementation.
 [the migration plan](herdr-migration.md) owns sequencing;
@@ -122,6 +126,16 @@ artifact checksums are not a reproducible-build claim.
   changed operational inputs on a running runtime return `ACTION`/exit `2`
   without switching those inputs. operator explicitly stops that runtime under
   separate approval, then reapplies. no new restart flag or live-handoff machinery.
+- deployment identity is explicit and has three values with production
+  defaults: dev-server's `dev_server_home_dir` (root of every owned path,
+  socket, state and cache directory), `dev_server_fleet_label_prefix` (launchd
+  labels of herdr and the gateway only) and `dev_server_gateway_port` (loopback
+  listen port). the macbook plists, host config and agent hooks are rendered
+  from tracked templates; production renders byte-identical apart from an
+  explicit `HOME`. tailscale ingress is host-level: `workstation` and ansible
+  reconcile it after the gateway; a second deployment has none. on arch and
+  devbox identity is the systemd user account. no deployment name, test mode,
+  shim or multi-instance framework.
 - keep skid's artifact cache, immutable generations, `current`/`previous`,
   nonblocking lock and verified per-host rollback. a failed gateway activation
   restores the previous gateway/config/unit only; it does not stop herdr.
@@ -146,6 +160,18 @@ inputs; installer/service behavior still requires qualification.
    origin/tls checks, copy production databases or run a second production bot.
    exercise real jarvis tools, dispatcher, gate and recorder through the actual
    cli/gateway, with real codex and claude. no scripted gateway counts as this proof.
+   darwin has no nonproduction host: qualify the same installer, units and
+   unmodified binaries on the production mac through a disposable deployment
+   with its own root, labels and port under native launchd, stand-in workers
+   and no ingress. it proves supervision, gateway restart preserving the worker,
+   cold herdr restart invalidating old refs, failed activation restoring the
+   previous installation and truthful failure when restoration also fails. the
+   bytes it qualifies are the draft release's own artifact checked against
+   `SHA256SUMS`; a local build of the same commit proves the installer and
+   units, not the release. it cannot prove the cli/phone path or the provider
+   journey; those stay with the linux host and the window's smoke checks. it
+   never touches production services, workers, credentials, pairings or
+   network mappings.
 3. publish via existing exact-main draft/release-integrity flow; publication
    remains separately authorized. record final artifact identities; if qualification
    bytes change, rerun only the affected boundary. stage validated artifacts and
@@ -168,8 +194,14 @@ inputs; installer/service behavior still requires qualification.
 6. close phone/interactive fleet callers; owner-pause jarvis under the old release,
    verify durable pause and settled active work, then stop it cooperatively. require
    confirmed inactive service and no main pid before replacing its unit, cli or
-   release. repeat the inventory in a stopped one-shot under existing
-   `deployment_ownership`; release that connection's lock before service startup.
+   release. in the stopped one-shot under existing `deployment_ownership`, run
+   the target release's own read-only `check-activation`: it composes the
+   target plan from the deployment's configuration, loads every `queued`,
+   `awaiting_approval` and `executing` action and applies the runtime contract
+   validator. compatible queued actions and approvals stay untouched for
+   startup recovery; incompatible or in-flight rows refuse activation. no
+   override, cancellation, rewrite or replay; a release without the check is
+   refused, not skipped. release that connection's lock before service startup.
    no concurrent dream/rebuild/operator process during the window; no maintenance
    daemon. untouched ingress/outbox and settled historical
    records remain intact. the current swallowed stop error must be removed.
@@ -199,8 +231,9 @@ zero downtime is promised. health is not model-turn acceptance.
   rollback baseline. do not downgrade herdr or stop its workers to undo a gateway.
   rollback restores required prior hook/helper inputs before starting the old
   gateway; a binary alone is not the prior operational configuration.
-- before new jarvis durable work, a qualified same-schema previous release may
-  return with its matching cli and unit. after new receipts/positions exist,
+- before new jarvis durable work, a qualified same-schema previous release
+  carrying `check-activation` may return with its matching cli and unit; older
+  releases are refused by activation. after new receipts/positions exist,
   use only a reader qualified for them; otherwise keep jarvis stopped and repair
   forward. check stored contract revisions, successful receipts as well as staged
   `agent_control_v2`, pending plans/scopes and admission compatibility. the zero
@@ -236,9 +269,10 @@ shared specifications/composition; reviewers are read-only.
 | jarvis activation | jarvis `deploy/install-release`, `deploy/activate-release`, `docs/operations.md`, narrow stop descriptions in `src/jarvis/agent_tools.py` | pending work and discarded approvals are explicit; unknown is not retryable; service active is not live qualification |
 | root release/integration | skid `scripts/fleet`, build/release/install helpers only where needed, skid `release-pin.json`, dev-server `assets/skidbladnir/release-pin.json`, migration/roadmap/architecture; jarvis qualification/issues; dev-server `SPEC.md`/`README.md`/issues | separate staged, published, active and accepted; record per-boundary limits without printing content or credentials |
 
-no android production change is planned. preserve encrypted pairing format and
-keystore identity; losing old dashboard/scroll restoration is an accepted cost,
-not permission to lose pairings. no visual assets or new ui copy system.
+android changes only by removing the dead `launch_submitted` decoding; no
+emitted shape changes behavior. preserve encrypted pairing format and keystore
+identity; losing old dashboard/scroll restoration is an accepted cost, not
+permission to lose pairings. no visual assets or new ui copy system.
 
 operator evidence is one dated markdown table, not a proof ledger or api:
 `target | boundary | exact revision/artifact | operation | observed outcome |
@@ -259,9 +293,9 @@ exception to jarvis's testing reset, not a testing redesign.
 | --- | --- |
 | contract corrections | through real gateway/cli decoding, non-confirmation close rejection produces `refused`; pre-close failure stays `not_attempted`; lost close reply stays unknown with no replay; jarvis stages/settles each correctly. deterministic error injection is allowed for this narrow temporary proof, not the live journey |
 | config/install | candidate validator agrees with gateway admission; invalid config/digest fails before activation; second apply is unchanged; failed gateway activation restores exact prior bytes/unit and leaves herdr worker alive |
-| linux + darwin lifecycle | native supervision, shared desktop/gateway socket, gateway restart preserves exact worker/ref; isolated cold herdr restart invalidates old refs without provider auto-resume; no unrelated process touched |
+| linux + darwin lifecycle | native supervision, shared desktop/gateway socket, gateway restart preserves exact worker/ref; isolated cold herdr restart invalidates old refs without provider auto-resume; no unrelated process touched. darwin through the disposable explicit-identity deployment on the production mac; linux on the nonproduction host |
 | unmodified linux journey | both providers: list/start → info/current agent → inspect/readiness → one literal submission → distinct observed response → follow-up → interrupt. also ordinary-send refusal at unconfirmed readiness, deliberate terminal override after inspection, original-target replacement rejection, known refusal and lost-reply non-replay through jarvis |
-| jarvis activation | failed stop or unresolved incompatible work prevents switch; selected unit/cli/release agree; journal charges/history persist; tested stopped recovery never redispatches a paid decision/read/write; rollback obeys receipt compatibility |
+| jarvis activation | failed stop, in-flight or incompatible unfinished work prevents switch through `check-activation`; compatible queued actions and approvals survive it byte-identical; selected unit/cli/release agree; journal charges/history persist; tested stopped recovery never redispatches a paid decision/read/write; rollback obeys receipt compatibility |
 | android package/data | signed candidate installs in place; encrypted pairings remain usable without reenrollment. isolated emergency-apk roundtrip preserves them. waived terminal/lifecycle/manual journeys remain `NOT_RUN` |
 | fleet | all three hosts advertise exact intended versions/config/profiles; configured launches use intended executable/environment/cwd/flags. one unavailable peer does not block control of another; installed jarvis reads each peer and controls approved test workers. do not repeat every paid journey on every host or reopen the waived mac claude model turn |
 

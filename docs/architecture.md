@@ -146,6 +146,9 @@ composes these concrete modules with auth, pairing, pressure, directory, http,
 and websocket lifetimes. `fleetclient` and `agentcli` own peer routing, strict
 result decoding, and exact selection. `terminal` and `terminalclient` own typed
 stream frames and cancellable local tty input.
+`skidbladnir validate-host-config` admits a deployment-owned configuration
+through the same `hostconfig` loader without reading the runtime; dev-server
+calls it before staging a generation. validity is not runtime readiness.
 
 terminal, agent, and workspace refs encode different lifetimes. rename, move,
 and gateway restart preserve a terminal ref; runtime restart makes it stale.

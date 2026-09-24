@@ -358,7 +358,7 @@ infer safety to retry from http status or process exit.
 
 create and shell are ordered multi-step mutations. a non-201 response is the
 same error shape with optional `partial:{stage,terminal?}`. `stage` is
-`resource_created | identified | launch_submitted`; `terminal` appears only
+`resource_created | identified`; `terminal` appears only with `identified`,
 after token readback produced a valid ref. an unknown create reply has
 `OutcomeUnknown,dispatch:unknown` and no partial ref. a known create followed
 by failed token claim has `stage:resource_created` and no ref; inventory counts
@@ -370,13 +370,20 @@ validation is `dispatch:not_sent`; upstream refusal is `dispatch:sent` with
 no claimed effect; deadline or lost reply after dispatch is `unknown`.
 for kill, an upstream `confirmation_required` is http 409
 `{code:"ClosureConfirmationRequired",message,dispatch:"sent",
-partial:{terminal:"refused"}}`; stop uses the same error with
-`partial:{agent:"interrupt_sent"|"exited"|"unconfirmed",
-terminal:"refused"}`. a lost close reply is http 504 `OutcomeUnknown`
-with the known agent step, if any, and `terminal:"unconfirmed"` in partial.
-unknown interrupt reply returns `terminal:"not_attempted"`. these are
-errors, never successful close results; cli wraps them as `ok:false` and exits
-1. the phone and jarvis show the partial outcome, not a success toast.
+partial:{terminal:"refused"}}`. stop reports its close in
+`partial.terminal`, with `partial.agent` as
+`"interrupt_sent"|"exited"|"unconfirmed"`. the error code and http status
+follow the failing step; `partial.terminal` alone classifies the close.
+`not_attempted` means no close was dispatched (rejected or lost interrupt reply,
+failed revalidation or herdr preflight); an unreadable inventory during
+revalidation after a sent interrupt is http 504 `OutcomeUnknown`, dispatch
+`sent`, `terminal:"not_attempted"`. `refused` means herdr acknowledged and
+rejected the close request, under the code herdr's rejection maps to,
+`ClosureConfirmationRequired` being one case, and the terminal's state is not
+implied. `unconfirmed` means the close reply was lost (dispatch `unknown`) and
+the close may have taken effect. none of these reports a stopped worker. these
+are errors, never successful close results; cli wraps them as `ok:false` and
+exits 1. the phone and jarvis show the partial outcome, not a success toast.
 
 for every selected-host cli command below except `list`, the successful
 `--json` result is the named host success shape plus `label` (fleet peer label)

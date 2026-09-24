@@ -69,7 +69,6 @@ internal fun gatewayFailureMessage(failure: GatewayFailure): String = when (fail
             when (partial.stage) {
                 "resource_created" -> append(" A terminal was created, but its identity was not confirmed.")
                 "identified" -> append(" The terminal was identified; launch was not confirmed.")
-                "launch_submitted" -> append(" Launch was submitted; startup was not confirmed.")
                 null -> Unit
                 else -> error("unknown creation stage")
             }
@@ -431,7 +430,7 @@ private fun decodeApiHttpFailure(status: Int, encoded: String, requireDispatch: 
         val terminalStatus = if (terminal != null && terminalRecord == null) objectValue.requiredString("terminal") else null
         val stage = objectValue["stage"]?.let { objectValue.requiredString("stage") }
         val agentStatus = objectValue["agent"]?.let { objectValue.requiredString("agent") }
-        require(stage == null || stage in setOf("resource_created", "identified", "launch_submitted"))
+        require(stage == null || stage in setOf("resource_created", "identified"))
         require(agentStatus == null || agentStatus in setOf("interrupt_sent", "exited", "unconfirmed"))
         require(terminalStatus == null || terminalStatus in setOf("refused", "unconfirmed", "not_attempted"))
         MutationPartial(

@@ -81,7 +81,7 @@ spaces/shells delivery sequence.
 | 1. feasibility and contract | skid | isolated proof resources and applicable live/device approval | candidate contract accepted for implementation; remaining live proofs open |
 | 2. complete skid cutover | skid | user-authorized candidate scope | merged as pr 134 at `9999033`; named remaining gaps accepted as non-blocking; not deployed |
 | 3. jarvis alignment | jarvis | pr 2's final cli contract and runnable candidate | merged at `fb5e4a9`; boundary proofs recorded; unmodified live journey remains `NOT_RUN` |
-| 4. deployment and fleet acceptance | dev-server, skid, jarvis | merged candidates, exact artifacts and applicable execution approval | [implementation spec](herdr-pr4.md) written; installation, qualification and activation pending |
+| 4. deployment and fleet acceptance | dev-server, skid, jarvis | merged candidates, exact artifacts and applicable execution approval | source prerequisites implemented on `herdr-pr4` branches in all three repositories with deleted boundary proofs; merges, nonproduction qualification, publication, installation and activation pending approval ([activation record](issues/herdr-fleet-activation.md)) |
 
 pr 2 changes gateway, cli and android together. use reviewable commits inside that
 pr; do not release an intermediate schema that its consumers cannot read. pr 3
