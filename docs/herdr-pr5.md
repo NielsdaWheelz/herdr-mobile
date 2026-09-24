@@ -122,9 +122,17 @@ inside those routes the gateway stops re-implementing herdr:
 
 ## 5. jarvis over herdr
 
-transport. jarvis on devbox holds one ssh key (0600, `jarvis`). each host's
-owner account (`niels` on devbox, `nnandal` on macbook and arch) authorizes it
-once as `restrict,command="/usr/local/libexec/herdr-gate" <key>`. devbox reaches
+transport. dev-server owns jarvis's side of the gate on devbox:
+`/etc/jarvis-herdr/` holds jarvis's key (`id_ed25519`, jarvis 0600, generated on
+devbox; its public half is committed to dev-server as the trust root), an
+`ssh_config` naming the three hosts (`devbox` as `niels@localhost`, `macbook`
+and `arch` as `nnandal` over the tailnet; `BatchMode`, `IdentitiesOnly`,
+`StrictHostKeyChecking yes`) and a `known_hosts` built from committed host
+keys. jarvis runs `ssh -F /etc/jarvis-herdr/ssh_config <label> <herdr args>`.
+each host's owner account (`niels` on devbox, `nnandal` on macbook and arch)
+authorizes the key once as `restrict,command="$HOME/.local/libexec/herdr-gate"
+<key>`; the gate lives in the owner's account because it guards jarvis, not the
+owner. devbox reaches
 itself as `niels@localhost` through the same gate, so all three hosts look the
 same. the gate splits `SSH_ORIGINAL_COMMAND` into argv without a shell, accepts
 only the allowlist below, and execs the host's own pinned herdr, which talks to
@@ -194,9 +202,10 @@ account wrappers. `agent start` types the bare `codex`/`claude`, and a pane's
 `--env` sets the new shell's environment at spawn (it is not persisted across a
 herdr restore). the `codex` wrapper today forces `CODEX_HOME` to the personal
 home, so a pane created for work or work2 would still run personal. the bare
-`codex` and `claude` wrappers change to respect a preset home and default to
-personal (`: "${CODEX_HOME:=…}"`); `codex-work`, `codex-work2` and
-`claude-work` keep forcing theirs, because their name is the choice. proven in
+`codex` wrapper changes to respect a preset home and default to personal
+(`: "${CODEX_HOME:=…}"`); `codex-work` and `codex-work2` keep forcing theirs,
+because their name is the choice. bare `claude` is the real binary and already
+honors `CLAUDE_CONFIG_DIR`; `claude-work` keeps forcing its dir. proven in
 isolation: with the respecting wrapper the pane's home reaches the codex
 process; with today's it does not.
 
@@ -205,8 +214,10 @@ account home and `claude` once per claude config dir, with `CODEX_HOME` or
 `CLAUDE_CONFIG_DIR` set. codex gets `herdr-agent-state.sh`, a SessionStart hook
 in `hooks.json` and `[features] hooks = true`; claude gets
 `hooks/herdr-agent-state.sh` and a SessionStart hook in `settings.json`. the
-hook needs python3 and runs only inside a herdr pane. it is added beside skid's
-hook in delivery step 1, and skid's entry goes in step 4. codex asks once per
+hook needs python3 and runs only inside a herdr pane. herdr's installer and
+skid's both write `hooks.json` and `settings.json`, so the switch happens at
+once in delivery step 4, when skid's hook goes; nothing in steps 2 and 3 needs
+herdr's hook. codex asks once per
 profile and host to trust the new hook; answer it deliberately as in pr 4.
 
 ## 7. settled questions
@@ -236,16 +247,19 @@ catch them.
 
 ## 8. delivery
 
-1. dev-server (additive): gate, jarvis key, authorized keys, herdr integrations
-   next to skid's hooks, respecting `codex`/`claude` wrappers, saved machines
-   with keys and known hosts. skid and jarvis are unchanged.
+1. dev-server (additive): the gate on every host, jarvis's key, ssh config
+   and known hosts on devbox, the authorized key in each owner account, the
+   respecting `codex` wrapper, and saved machines with keys and known hosts on
+   the workstations. skid and jarvis are unchanged. arch's part waits until
+   arch is reachable.
 2. jarvis: the herdr codec release, qualified in isolation against the gate,
    then activated under the pr 4 runbook (pause, stop, check, activate,
    containment, resume).
 3. skid v0.8.0: the reductions in §3 and §4, qualified on the phone's journeys
    (list, launch per profile, stream, interrupt, stop, pairing continuity).
 4. dev-server: pin v0.8.0; remove the skid link, hooks, notifier, plugin and
-   the jarvis cli copy.
+   the jarvis cli copy; install herdr's codex and claude integrations in their
+   place.
 
 each step keeps the previous one working: jarvis switches before the cli
 disappears, and the phone's routes never change shape.
