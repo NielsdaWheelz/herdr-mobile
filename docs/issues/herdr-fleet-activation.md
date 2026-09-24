@@ -16,6 +16,10 @@ host configs; jarvis `herdr-pr4` adds stop-gated activation and the
 it merges after skid).
 boundary proofs ran on isolated resources and were deleted; every live row is
 `NOT_RUN` in jarvis `docs/qualification/2026-09-23-herdr-pr4.md`.
+2026-09-23, round 2: jarvis activation runs the read-only `check-activation`
+instead of the zero-pending rule; dev-server carries explicit deployment
+identity, and the darwin lifecycle proofs ran on this mac through a disposable
+deployment under native launchd (report section "2026-09-23 herdr pr 4 round 2").
 
 ## release tuple
 
@@ -29,7 +33,7 @@ boundary proofs ran on isolated resources and were deleted; every live row is
 | dev-server candidate | the `herdr-pr4` tip after its v0.7.0 pin commit. the installer's behavior is its tree, not its commit, so the later merge into main must leave the main tree identical to that tip (`git diff <tip> main` empty) |
 | dev-server rollback | commit `bb8e218bbfb10a9077aadce2983d510c8366a2f9`: origin/main, the `herdr-pr4` merge-base, and the library the deleted rollback proof re-applied over herdr-era state (darwin only; the linux rollback runs in isolated qualification). rollback is that checkout plus `./workstation apply` or `./devbox apply`; it reinstalls v0.6.0 with the retained native-control copies and leaves herdr supervised. the macbook checkout is at it; confirm devbox's and arch's last applied checkout read the same commit (read-only) before the window |
 | jarvis candidate | the merge of `herdr-pr4` into main, made before qualification: jarvis keys releases by commit, so the commit installed on the isolated host must be the one production activates |
-| jarvis rollback | production `f4e2ce6129c0add09ddb50355a8997a1c589d3d1` with its own cli and unit, allowed only before new receipts or positions exist (spec §5) and only once qualified against the normalized admission journal (adr 0047, runbook rollback section); that qualification is not recorded, so until it is, keep jarvis stopped and repair forward. transitional `51f62c86322a66224d1576395b5795ae823c1f75` for the admission-journal cutover |
+| jarvis rollback | none through `activate-release`: production `f4e2ce6129c0add09ddb50355a8997a1c589d3d1` predates `check-activation` and is refused, not skipped. if the candidate fails, keep jarvis stopped and repair forward. from the candidate on, rollback targets carry the check. transitional `51f62c86322a66224d1576395b5795ae823c1f75` for the admission-journal cutover |
 
 ## remaining steps, each under its own approval
 
@@ -58,9 +62,17 @@ gates.
      refs without provider resume; failed gateway activation restoring the
      prior bytes and unit with the worker alive, and the restore path where the
      prior also fails to start; the codex completion bell inside a herdr pane.
-   - darwin has no isolated host: the macbook runs the production gateway. its
-     launchd supervision is first observed in the window, macbook before the
-     linux hosts, with the dev-server rollback checkout ready.
+   - darwin: done 2026-09-23 on this mac through the disposable explicit-identity
+     deployment (root `/private/tmp/skq`, labels `dev.niels.skq.*`, port 7351;
+     recipe in dev-server `SPEC.md`), same installer, units and unmodified
+     binaries, stand-in workers, no ingress: supervision, gateway restart
+     preserving worker, terminal ref and agent ref, cold herdr restart
+     invalidating old refs with no resume, failed activation restoring the
+     prior installation, truthful failure when the restore also fails, herdr
+     restore rc 3 (reached through a launchd bootstrap race, recorded in
+     dev-server's issues) and the changed-inputs `ACTION` all PASS on a local
+     build of `2a6bfaf`. rerun only if the installer or the candidate bytes change.
+     production was not touched (pids and installed plist unchanged).
    - the unmodified codex + claude journey through installed jarvis (spec §7
      row), provider spend approved; jarvis stopped recovery of a paid decision
      and dispatched read across activation; admission charges and history
@@ -77,18 +89,27 @@ gates.
    refuses both with an `ACTION`, never deletes them.
 5. stage artifacts on every host under the installer lock with the standalone
    `herdr_prepare_artifact` and `skidbladnir_prepare_artifact` calls documented
-   in dev-server; nothing switches.
+   in dev-server (the recipe copies and renders the assets first); nothing
+   switches.
 6. jarvis: run the runbook's read-only inventory, resolve pending work, owner
    `pause`, stop, admission-journal cutover, `deploy/install-release`.
-7. window: `./workstation apply` on the macbook first (darwin supervision is
-   unobserved until then), then on arch, then `./devbox apply` (jarvis
-   stopped); `scripts/fleet verify` from the macbook; do not run bare `herdr`
-   between a stop and a reapply.
+7. window: `./devbox apply` (jarvis stopped), `./workstation apply` on arch and
+   macbook; expect `CHANGED  skid.unit` once on the macbook (the explicit `HOME`
+   line) with bootout and bootstrap rather than kickstart; `scripts/fleet
+   verify` from the macbook; do not run bare `herdr` between a stop and a
+   reapply. smoke checks, not qualification: `launchctl print` shows `HOME` in
+   the gateway's environment and a new pid; the installed plist equals the
+   default rendering; `/v1/pressure` answers on 7341; `tailscale serve status`
+   still reads the `/v1` mapping (ingress now runs after retention from
+   `workstation`); `dev.niels.herdr` runs with ping `0.9.1`/`22` and
+   `~/.config/herdr/session.json` under the real home; a second apply is
+   `UP TO DATE`.
 8. `scripts/install-android` in place; check pairing continuity only. the
    waived terminal, lifecycle and manual phone journeys stay `NOT_RUN` and
    gate nothing.
-9. `deploy/activate-release <commit>` (it refuses any pending action; there is
-   no override), `deploy/verify-containment`, owner `resume`.
+9. `deploy/activate-release <commit>` (its `check-activation` refuses in-flight
+   or incompatible unfinished work and leaves compatible rows untouched; no
+   override), `deploy/verify-containment`, owner `resume`.
 10. after acceptance: remove the inventoried legacy assets per dev-server
     `docs/issues/skid-legacy-asset-retirement.md`; reconcile this record and the
     migration plan; delete this file.
@@ -97,5 +118,6 @@ resolved when: all three hosts advertise the pinned release and herdr; installed
 jarvis reads each peer and controls approved test workers, and one unavailable
 peer does not block the others; the signed apk is installed in place with
 pairings intact; rollback, including its failure handling, was exercised on
-isolated linux resources; and every row of the jarvis evidence table is `PASS`
-or a recorded waiver, with no `NOT_RUN` row that the spec requires.
+isolated resources (darwin done 2026-09-23, linux pending); and every row of
+the jarvis evidence table is `PASS` or a recorded waiver, with no `NOT_RUN` row
+that the spec requires.
