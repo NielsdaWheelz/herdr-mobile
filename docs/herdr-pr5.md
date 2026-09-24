@@ -68,7 +68,7 @@ skid:
 - routes `GET /v1/terminals/{ref}`, `POST /v1/agents/{ref}/read|send|keys`,
   `GET /healthz`.
 - `scripts/fleet provision-clients`; per-host `client.json` except the
-  macbook's credential file that `scripts/fleet verify` and `invite` read.
+  macbook's credential file that `scripts/fleet invite` reads.
 - superseded docs: `agent-control*.md`, `agent-identity-projection.md`,
   `jarvis-codex-control.md`; pr 1 to 4 specs stay as history.
 
@@ -102,24 +102,39 @@ inside those routes the gateway stops re-implementing herdr:
   (`CODEX_HOME` or `CLAUDE_CONFIG_DIR`), then `agent start <name> --kind`,
   instead of typing `exec <wrapper>`. `agent start` types the bare `codex` or
   `claude` at the pane shell's prompt, so the account wrappers must respect a
-  preset account home (§6). the agent's herdr name is its dwarf's name in
+  preset account home (§6), and the owner's interactive aliases apply: they add
+  `--yolo` and `--dangerously-skip-permissions`, codex rejects the flag twice,
+  so no launch passes agent arguments and dev-server's aliases define the
+  permission posture of every launch, by hand, phone or jarvis. host-config
+  profiles keep key, label, provider and environment; `command`, `arguments`
+  and `foregroundSignatures` go, and the v0.8.0 validator and the v0.7.0 one
+  reject each other's configs, so dev-server rewrites them in the apply that
+  pins v0.8.0. herdr's `resume_agents_on_restore` stays false: a resumed agent
+  would come back without its pane's account home. the agent's herdr name is its dwarf's name in
   herdr's grammar (`[a-z][a-z0-9_-]{0,31}`, unique among a server's live
   agents, e.g. `haugspori` for `norse.haugspori`), so the phone's name and
-  herdr's are one.
+  herdr's are one; a collision on the same server becomes `<name>-2`.
 - status shows herdr's `agent get`/`agent explain` result as it is. the phone's
   readiness label stays a projection, with no second rule.
 - stop stays: herdr has no single stop, so it remains interrupt, re-check and
   `pane close`, with its truthful partials.
-- references become thin encodings of herdr ids: machine, pane id and
-  `terminal_id`, plus the agent name for agent references. herdr reissues pane
-  ids after a restart but never repeats a `terminal_id`, and it clears an
-  agent's name when the agent exits or is replaced. before a write the gateway
-  re-reads the pane and requires the same `terminal_id` (and, for an agent, the
-  same name), which is herdr's own check in `agent start`. the check is not
-  atomic; the race stays accepted. references stay opaque to the phone.
+- references become thin encodings of herdr ids: machine and `terminal_id`,
+  plus the agent name for agent references. herdr reissues pane ids after a
+  restart and renumbers a pane that moves between workspaces, but never
+  repeats a `terminal_id`, and it clears an agent's name when the agent exits
+  or is replaced. before a write the gateway finds the pane now hosting that
+  `terminal_id` and, for an agent, requires the same name; herdr's own `agent
+  start` checks the same way. the check is not atomic; the race stays accepted.
+  workspace references are herdr's workspace ids, which a restart can reissue;
+  they only place a new tab or a moved pane, so that is accepted. an agent herdr
+  detected without a name (typed by hand) is identified by its terminal alone,
+  so an unnamed replacement in the same terminal is indistinguishable.
+  references stay opaque to the phone.
 - the phone's session card loses `provenRuntimeProfile` (it came from the
-  deleted hook) and shows `launchProfile`. android changes only if its decoder
-  requires the field.
+  deleted hook) and shows `launchProfile`. the app's decoder is strict, so the
+  v0.8.0 app installs after every gateway runs v0.8.0; until then the old app
+  shows new gateways' agents with an unknown profile. dwarf and card keys change
+  once at the upgrade because they derive from the new references.
 
 ## 5. jarvis over herdr
 
