@@ -30,9 +30,10 @@ type WorkspaceTarget struct {
 	WorkspaceID string
 }
 
-// AgentTarget is one agent lifetime in one terminal: herdr clears an agent's
-// name when that agent exits or another replaces it. An agent that herdr
-// detected without a name has an empty Name and is identified by its terminal.
+// AgentTarget is one named agent lifetime in one terminal: herdr clears an
+// agent's name when that agent exits or another replaces it, and names are
+// unique among a server's live agents. Name is never empty; an agent herdr
+// detected without a name has no target.
 type AgentTarget struct {
 	Terminal TerminalTarget
 	Name     string
@@ -49,8 +50,10 @@ type Status struct {
 	Reason string `json:"reason,omitempty"`
 }
 
+// Agent is herdr's agent in a terminal. Name is herdr's agent name, empty when
+// herdr detected the agent without one; only a named agent can be addressed.
 type Agent struct {
-	Target    AgentTarget
+	Name      string
 	Provider  profile.Provider
 	Status    Status
 	Readiness string
@@ -96,7 +99,6 @@ type Closed struct {
 }
 
 type WriteResult struct {
-	Method   string `json:"method"`
 	Outcome  string `json:"outcome"`
 	Dispatch string `json:"dispatch"`
 }

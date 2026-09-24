@@ -17,14 +17,22 @@ import (
 	"github.com/NielsdaWheelz/skidbladnir/internal/workdir"
 )
 
-// A dwarf's name is a herdr agent name ([a-z][a-z0-9_-]{0,31}) with room for
-// the numbered variant that a name collision takes.
-var dwarfNamePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,23}$`)
+// A dwarf's name is a herdr agent name ([a-z][a-z0-9_-]{0,31}) with room for,
+// and not itself ending in, the numbered variant that a collision takes.
+var (
+	dwarfNamePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,23}$`)
+	numberedVariant  = regexp.MustCompile(`-[0-9]+$`)
+)
 
+// Manager is one host's view of its herdr server. Reads observe herdr without
+// the mutation lock; every write re-reads its target and dispatches under it,
+// so the gateway's own writes never interleave between a check and its write.
+// Another herdr client still can.
 type Manager struct {
 	herdr         *herdr.Client
 	workdir       *workdir.Service
-	catalogue     catalog.Catalogue
+	dwarves       []catalog.Character
+	dwarfByName   map[string]catalog.Character
 	profiles      []profile.Profile
 	profilesByKey map[profile.Key]profile.Profile
 	machineHandle string
@@ -35,17 +43,18 @@ func New(config Config) (*Manager, error) {
 	if config.Herdr == nil || config.Workdir == nil || config.MachineHandle == "" {
 		return nil, errors.New("terminal discovery is not configured")
 	}
-	characters, err := catalog.Load(config.CataloguePath)
+	catalogue, err := catalog.Load(config.CataloguePath)
 	if err != nil {
 		return nil, err
 	}
-	names := make(map[string]bool)
-	for _, character := range characters.Characters() {
-		name := agentName(character)
-		if !dwarfNamePattern.MatchString(name) || names[name] {
-			return nil, fmt.Errorf("character %s has no unique herdr agent name", character.Key)
+	dwarves := catalogue.Characters()
+	byName := make(map[string]catalog.Character, len(dwarves))
+	for _, dwarf := range dwarves {
+		name := agentName(dwarf)
+		if _, duplicate := byName[name]; duplicate || !dwarfNamePattern.MatchString(name) || numberedVariant.MatchString(name) {
+			return nil, fmt.Errorf("character %s has no unique herdr agent name", dwarf.Key)
 		}
-		names[name] = true
+		byName[name] = dwarf
 	}
 	profiles, err := profile.Validate(config.Profiles)
 	if err != nil {
@@ -55,7 +64,7 @@ func New(config Config) (*Manager, error) {
 	for _, launch := range profiles {
 		byKey[launch.Key] = launch
 	}
-	return &Manager{herdr: config.Herdr, workdir: config.Workdir, catalogue: characters,
+	return &Manager{herdr: config.Herdr, workdir: config.Workdir, dwarves: dwarves, dwarfByName: byName,
 		profiles: profiles, profilesByKey: byKey, machineHandle: config.MachineHandle}, nil
 }
 
@@ -64,8 +73,6 @@ func (manager *Manager) Profiles() []profile.Profile {
 }
 
 func (manager *Manager) List(ctx context.Context) (Inventory, error) {
-	manager.mutations.Lock()
-	defer manager.mutations.Unlock()
 	workspaces, err := manager.workspaces(ctx)
 	if err != nil {
 		return Inventory{}, err
@@ -73,6 +80,14 @@ func (manager *Manager) List(ctx context.Context) (Inventory, error) {
 	panes, err := manager.panes(ctx)
 	if err != nil {
 		return Inventory{}, err
+	}
+	agents, err := manager.agents(ctx)
+	if err != nil {
+		return Inventory{}, err
+	}
+	agentByTerminal := make(map[string]agentInfo, len(agents))
+	for _, agent := range agents {
+		agentByTerminal[agent.TerminalID] = agent
 	}
 	inventory := Inventory{Workspaces: make([]Workspace, 0, len(workspaces)), Terminals: make([]Terminal, 0, len(panes))}
 	addressable := make(map[string]bool, len(workspaces))
@@ -89,20 +104,18 @@ func (manager *Manager) List(ctx context.Context) (Inventory, error) {
 			inventory.UnaddressableTerminals++
 			continue
 		}
-		inventory.Terminals = append(inventory.Terminals, manager.project(ctx, pane))
+		agent, found := agentByTerminal[pane.TerminalID]
+		inventory.Terminals = append(inventory.Terminals, manager.project(ctx, pane, agent, found))
 	}
 	inventory.ObservedAt = time.Now().UTC()
 	inventory.Partial = inventory.UnaddressableWorkspaces > 0 || inventory.UnaddressableTerminals > 0
 	return inventory, nil
 }
 
-// ResolveTerminal re-reads which pane hosts target's terminal now and returns
-// that pane's id for one terminal write.
-func (manager *Manager) ResolveTerminal(ctx context.Context, target TerminalTarget) (string, error) {
-	manager.mutations.Lock()
-	defer manager.mutations.Unlock()
-	pane, err := manager.resolvePane(ctx, target)
-	return pane.ID, err
+// CheckTerminal re-reads that target's terminal still exists.
+func (manager *Manager) CheckTerminal(ctx context.Context, target TerminalTarget) error {
+	_, err := manager.resolvePane(ctx, target)
+	return err
 }
 
 func (manager *Manager) resolvePane(ctx context.Context, target TerminalTarget) (paneInfo, error) {
@@ -123,16 +136,26 @@ func (manager *Manager) observe(ctx context.Context, target TerminalTarget) (Ter
 	if err != nil {
 		return Terminal{}, err
 	}
-	return manager.project(ctx, pane), nil
+	agent, found, err := manager.agent(ctx, pane.ID)
+	if err != nil {
+		return Terminal{}, err
+	}
+	return manager.project(ctx, pane, agent, found), nil
 }
 
-func (manager *Manager) project(ctx context.Context, pane paneInfo) Terminal {
-	characters := manager.catalogue.Characters()
-	seed := sha256.Sum256([]byte(manager.machineHandle + "\x00" + pane.TerminalID))
+// project maps one pane and herdr's agent there, if any, to a terminal. A
+// terminal's dwarf is the one its agent's herdr name names, and otherwise the
+// one seeded by its terminal id.
+func (manager *Manager) project(ctx context.Context, pane paneInfo, agent agentInfo, hasAgent bool) Terminal {
 	terminal := Terminal{
 		Target:          TerminalTarget{TerminalID: pane.TerminalID},
 		WorkspaceTarget: WorkspaceTarget{WorkspaceID: pane.WorkspaceID},
-		Character:       characters[binary.BigEndian.Uint64(seed[:8])%uint64(len(characters))],
+		Character:       manager.dwarves[manager.seed(pane.TerminalID)],
+	}
+	if hasAgent {
+		if dwarf, found := manager.dwarfOf(nameOf(agent)); found {
+			terminal.Character = dwarf
+		}
 	}
 	if pane.Label != nil {
 		terminal.NativeLabel = *pane.Label
@@ -149,28 +172,25 @@ func (manager *Manager) project(ctx context.Context, pane paneInfo) Terminal {
 		}
 	}
 	terminal.Objective = decodeObjective(pane.Tokens)
-	terminal.Agent = manager.observeAgent(ctx, pane)
+	if hasAgent {
+		terminal.Agent = manager.observeAgent(ctx, pane, agent)
+	}
 	return terminal
 }
 
 // observeAgent projects herdr's agent in one pane as herdr reports it: the
-// status from agent get, and readiness only when agent explain matched the
-// idle or blocked screen rule for that same observed state. It parses no
-// terminal text.
-func (manager *Manager) observeAgent(ctx context.Context, pane paneInfo) *Agent {
-	if pane.Agent == nil {
+// status from herdr's agent state, and readiness only when agent explain
+// matched the idle or blocked screen rule for that same unchanged state. It
+// parses no terminal text.
+func (manager *Manager) observeAgent(ctx context.Context, pane paneInfo, observed agentInfo) *Agent {
+	if pane.Agent == nil || observed.TerminalID != pane.TerminalID || observed.Agent == nil || *observed.Agent != *pane.Agent {
 		return nil
 	}
 	provider, known := providerOf(*pane.Agent)
 	if !known {
 		return nil
 	}
-	observed, found, err := manager.agent(ctx, pane.ID)
-	if err != nil || !found || observed.TerminalID != pane.TerminalID || observed.Agent == nil || *observed.Agent != *pane.Agent {
-		return nil
-	}
-	agent := &Agent{Target: AgentTarget{Terminal: TerminalTarget{TerminalID: pane.TerminalID}, Name: nameOf(observed)},
-		Provider: provider, Status: Status{Source: "herdr"}, Readiness: "unconfirmed"}
+	agent := &Agent{Name: nameOf(observed), Provider: provider, Status: Status{Source: "herdr"}, Readiness: "unconfirmed"}
 	switch observed.Status {
 	case "working", "blocked", "idle":
 		agent.Status.State = observed.Status
@@ -195,11 +215,11 @@ func (manager *Manager) observeAgent(ctx context.Context, pane paneInfo) *Agent 
 		return agent
 	}
 	explain := explanation.Explain
-	if explain.FallbackReason != nil && *explain.FallbackReason == "default_known_agent_idle_fallback" {
+	if agent.Status.State == "idle" && explain.FallbackReason != nil && *explain.FallbackReason == "default_known_agent_idle_fallback" {
 		agent.Status.Reason = "default_idle"
 	}
 	latest, found, err := manager.agent(ctx, pane.ID)
-	if err != nil || !found || !sameAgent(latest, agent.Target) || latest.Status != observed.Status || latest.Seq != observed.Seq {
+	if err != nil || !found || latest.TerminalID != observed.TerminalID || nameOf(latest) != agent.Name || latest.Status != observed.Status || latest.Seq != observed.Seq {
 		agent.Status = Status{State: "unknown", Source: "unavailable", Reason: "observation_failed"}
 		return agent
 	}
@@ -232,14 +252,31 @@ func nameOf(agent agentInfo) string {
 	return *agent.Name
 }
 
+// sameAgent says whether herdr's agent is the target's: the same terminal and
+// the same, non-empty, herdr name.
 func sameAgent(agent agentInfo, target AgentTarget) bool {
-	return agent.TerminalID == target.Terminal.TerminalID && nameOf(agent) == target.Name
+	return target.Name != "" && agent.TerminalID == target.Terminal.TerminalID && nameOf(agent) == target.Name
+}
+
+// seed is the catalogue index a terminal id seeds on this machine.
+func (manager *Manager) seed(terminalID string) int {
+	digest := sha256.Sum256([]byte(manager.machineHandle + "\x00" + terminalID))
+	return int(binary.BigEndian.Uint64(digest[:8]) % uint64(len(manager.dwarves)))
 }
 
 // agentName is a dwarf's herdr agent name: the final segment of its catalogue
 // key, e.g. haugspori for norse.haugspori.
-func agentName(character catalog.Character) string {
-	return character.Key[strings.LastIndexByte(character.Key, '.')+1:]
+func agentName(dwarf catalog.Character) string {
+	return dwarf.Key[strings.LastIndexByte(dwarf.Key, '.')+1:]
+}
+
+// dwarfOf reads a herdr agent name as a dwarf's name or its numbered variant.
+func (manager *Manager) dwarfOf(name string) (catalog.Character, bool) {
+	if dwarf, found := manager.dwarfByName[name]; found {
+		return dwarf, true
+	}
+	dwarf, found := manager.dwarfByName[numberedVariant.ReplaceAllString(name, "")]
+	return dwarf, found
 }
 
 func (manager *Manager) resolveWorkspace(ctx context.Context, target WorkspaceTarget) error {

@@ -61,11 +61,10 @@ type Gateway struct {
 	unsupportedMetrics   []pressure.Metric
 	unsupportedMetricSet map[pressure.Metric]struct{}
 
-	terminalLifecycle sync.Mutex
-	liveMutex         sync.Mutex
-	liveTerminals     map[uint64]*liveTerminal
-	nextLiveTerminal  uint64
-	closing           bool
+	liveMutex        sync.Mutex
+	liveTerminals    map[uint64]*liveTerminal
+	nextLiveTerminal uint64
+	closing          bool
 }
 
 func New(config Config) *Gateway {

@@ -14,8 +14,10 @@ ROOT = Path(__file__).resolve().parent.parent
 CATALOGUE_PATH = ROOT / "catalog" / "characters.json"
 EVIDENCE_PATH = ROOT / "evidence" / "sources" / "dvergatal.md"
 KEY_PATTERN = re.compile(r"^[a-z0-9][a-z0-9-]*(?:\.[a-z0-9][a-z0-9-]*)+$")
-# a dwarf's herdr agent name is its key's final segment, with room for "-2".
+# a dwarf's herdr agent name is its key's final segment, with room for, and not
+# itself ending in, a collision's numbered variant ("-2").
 AGENT_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9_-]{0,23}$")
+NUMBERED_VARIANT = re.compile(r"-[0-9]+$")
 BANNED_TRADITIONS = {"FairyTale", "ModernMedia"}
 
 
@@ -58,7 +60,8 @@ def load_catalogue() -> list[dict[str, str]]:
         if fields["displayName"] in names:
             fail(f"catalogue entry {index} duplicates a display name")
         agent_name = fields["key"].rsplit(".", 1)[1]
-        if not AGENT_NAME_PATTERN.fullmatch(agent_name) or agent_name in agent_names:
+        if (not AGENT_NAME_PATTERN.fullmatch(agent_name) or NUMBERED_VARIANT.search(agent_name)
+                or agent_name in agent_names):
             fail(f"catalogue entry {index} has no unique herdr agent name")
         keys.add(fields["key"])
         names.add(fields["displayName"])

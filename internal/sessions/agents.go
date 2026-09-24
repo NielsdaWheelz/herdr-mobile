@@ -48,10 +48,10 @@ func (manager *Manager) Stop(ctx context.Context, target AgentTarget) (StopResul
 	return StopResult{Agent: agentOutcome, Terminal: closed.Terminal, Dispatch: closed.Dispatch}, nil
 }
 
-// interrupt re-reads the target's terminal, requires that herdr still reports
-// the same agent there, and sends that provider's interrupt key through
-// herdr's agent send-keys, which refuses a pane whose agent is no longer its
-// foreground process.
+// interrupt re-reads the target's terminal and requires that herdr still
+// reports the same named agent there, then sends that provider's interrupt key
+// to the agent by its herdr name, so herdr binds the write to that agent and
+// refuses it if the agent is no longer its terminal's foreground process.
 func (manager *Manager) interrupt(ctx context.Context, target AgentTarget) (WriteResult, error) {
 	pane, err := manager.resolvePane(ctx, target.Terminal)
 	if err != nil {
@@ -71,13 +71,13 @@ func (manager *Manager) interrupt(ctx context.Context, target AgentTarget) (Writ
 	var result struct {
 		Type string `json:"type"`
 	}
-	if err := manager.herdr.Call(ctx, "agent.send_keys", map[string]any{"target": pane.ID, "keys": []string{key}}, &result); err != nil {
+	if err := manager.herdr.Call(ctx, "agent.send_keys", map[string]any{"target": target.Name, "keys": []string{key}}, &result); err != nil {
 		return WriteResult{}, mapHerdrError(err)
 	}
 	if result.Type != "ok" {
 		return WriteResult{}, &Error{Code: ErrorOutcomeUnknown, Message: "Input delivery is unknown.", Dispatch: "unknown"}
 	}
-	return WriteResult{Method: "terminal", Outcome: "written", Dispatch: "sent"}, nil
+	return WriteResult{Outcome: "written", Dispatch: "sent"}, nil
 }
 
 // stopFailure reports a failure after an acknowledged interrupt, which makes

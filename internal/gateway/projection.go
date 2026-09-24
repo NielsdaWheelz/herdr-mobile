@@ -17,19 +17,13 @@ type workspaceWire struct {
 	Label string `json:"label"`
 }
 
+// agentWire carries a ref only for an agent herdr named: an unnamed agent is
+// observable but has no identity to interrupt or stop.
 type agentWire struct {
-	Ref       string          `json:"ref"`
+	Ref       string          `json:"ref,omitempty"`
 	Provider  string          `json:"provider"`
 	Status    sessions.Status `json:"status"`
 	Readiness string          `json:"readiness"`
-	Methods   methodsWire     `json:"methods"`
-}
-
-// methodsWire says how the phone reaches an agent: through its terminal.
-type methodsWire struct {
-	Read      string `json:"read"`
-	Send      string `json:"send"`
-	Interrupt string `json:"interrupt"`
 }
 
 type terminalWire struct {
@@ -81,13 +75,12 @@ func mapTerminal(handle machine.Handle, terminal sessions.Terminal) (terminalWir
 		card.NativeLabel = ""
 	}
 	if terminal.Agent != nil {
-		ref, err := agentReference(handle, terminal.Agent.Target)
-		if err != nil {
-			return terminalWire{}, err
-		}
-		card.Agent = &agentWire{
-			Ref: ref, Provider: string(terminal.Agent.Provider), Status: terminal.Agent.Status, Readiness: terminal.Agent.Readiness,
-			Methods: methodsWire{Read: "terminal", Send: "terminal", Interrupt: "terminal"},
+		card.Agent = &agentWire{Provider: string(terminal.Agent.Provider), Status: terminal.Agent.Status, Readiness: terminal.Agent.Readiness}
+		if terminal.Agent.Name != "" {
+			card.Agent.Ref, err = agentReference(handle, sessions.AgentTarget{Terminal: terminal.Target, Name: terminal.Agent.Name})
+			if err != nil {
+				return terminalWire{}, err
+			}
 		}
 	}
 	return card, nil

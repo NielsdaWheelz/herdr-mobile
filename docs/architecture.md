@@ -57,14 +57,16 @@ candidate profile, never proves the account of a running process.
 ### product language
 
 skíðblaðnir is the app; the dashboard presents dwarves from dvergatal, the
-append-only character catalogue. a terminal's dwarf derives from its herdr
-terminal id; an agent the gateway launches takes its dwarf's name as its herdr
-name (`haugspori` for `norse.haugspori`, `haugspori-2` while another live agent
-holds it), so the phone's name and herdr's are one. a dwarf's landmark is
-independent of its operator-owned terminal name. `agent` means a codex or
-claude process herdr detects in a terminal. errors and destructive
-confirmations name the actual terminal and possible linked-workspace effects
-rather than relying on the metaphor.
+append-only character catalogue. a terminal's dwarf is seeded by its herdr
+terminal id. an agent the gateway launches takes the first dwarf, in that seeded
+order, whose name no live agent on the server holds (`haugspori` for
+`norse.haugspori`; `haugspori-2` only when every dwarf's name is held), and a
+terminal whose agent carries a dwarf's herdr name shows that dwarf, so the
+phone's name and herdr's are one. a dwarf's landmark is independent of its
+operator-owned terminal name. `agent` means a codex or claude process herdr
+detects in a terminal; only an agent herdr named can be interrupted or stopped.
+errors and destructive confirmations name the actual terminal and possible
+linked-workspace effects rather than relying on the metaphor.
 
 ### guarantees
 
@@ -103,15 +105,18 @@ recover an unsupported key.
 herdr never repeats a `terminal_id` and reissues every one on restore. a pane
 id is workspace-scoped: it changes when the pane moves and is reused after a
 restart. herdr clears an agent's name when that agent exits or another replaces
-it. workspace numbers restart from the restored maximum, so a closed
-workspace's id can return after a restart. no api field identifies a server
-instance.
+it. no workspace counter is persisted: a restart without a session file
+numbers workspaces from `w1` again, and one with a session file continues from
+the restored maximum plus one, so a closed workspace's id can return after a
+restart. no api field identifies a server instance.
 
 native pane close may close a linked group or be refused. herdr offers no
 compare-and-set write: skid re-reads its target before every write, but another
 herdr client may still interleave between check and write. an agent herdr
-detected without a name (one a human typed) is identified only by its
-terminal, so its replacement by another unnamed agent there is not detectable.
+detected without a name (one a human typed) has no identity beyond its
+terminal, since another unnamed agent could replace it there unseen; it gets
+no agent ref, so the phone shows its status but only closes or types into its
+terminal.
 herdr's readiness is a projection of its screen rules; codex's trust menus and
 sign-in screen read as idle ([issue](issues/codex-menu-readiness.md)).
 
@@ -120,12 +125,12 @@ sign-in screen read as idle ([issue](issues/codex-menu-readiness.md)).
 ### dashboard and forge
 
 android composes paired host inventories. each card carries machine identity,
-terminal ref, optional current agent ref, herdr's agent status, name,
-workspace, launch profile and deterministic landmark. one unavailable host does
-not disable actions on another. the forge takes an explicit machine, validated
-host directory, and terminal or that host's declared profile. creation returns
-launch/partial facts, not readiness. a shell is a terminal choice and needs no
-profile. [the directory chooser](working-directory-chooser.md),
+terminal ref, herdr's agent status with an agent ref when herdr named the agent,
+name, workspace, launch profile and deterministic landmark. one unavailable host
+does not disable actions on another. the forge takes an explicit machine,
+validated host directory, and terminal or that host's declared profile. creation
+returns launch/partial facts, not readiness. a shell is a terminal choice and
+needs no profile. [the directory chooser](working-directory-chooser.md),
 [spaces](spaces.md), [shells](shells.md), [rename](session-renaming.md), and
 [pressure](machine-pressure-rail.md) own their surface contracts.
 
@@ -144,20 +149,26 @@ output is never a source of outbound emulator replies.
 status is herdr's `agent get` state. readiness is `ready` or `blocked` only
 when `agent explain` matched that same visible screen rule for the same
 unchanged state, and `unconfirmed` otherwise; skid adds no rule and reads no
-terminal text. interrupt sends the provider's interrupt key (escape for codex,
-ctrl-c for claude) through herdr's agent send-keys and returns dispatch
-evidence, not provider effect. stop interrupts once, re-reads the original
-target, then closes the terminal: the same agent, or none because it exited,
-permits the close; another agent refuses it. an unknown interrupt does not
-proceed to close. native close refusal remains refusal, and each partial says
-how far the stop got.
+terminal text. interrupt and stop need a named agent. interrupt re-reads the
+terminal, requires the same agent name there, and sends the provider's
+interrupt key (escape for codex, ctrl-c for claude) through herdr's agent
+send-keys addressed by that name, so herdr binds the write to that agent and
+refuses it if the agent is no longer the foreground process. it returns
+dispatch evidence, not provider effect. stop interrupts once, re-reads the
+original target, then closes the terminal's pane: the same agent, or none
+because it exited, permits the close; another agent refuses it. an unknown
+interrupt does not proceed to close. native close refusal remains refusal, and
+each partial says how far the stop got. the phone offers interrupt and stop
+only for an agent with a ref.
 
 ## 5. Host architecture
 
 `internal/herdr` alone speaks the pinned public socket and owns one
 terminal-control child per attachment. `sessions` projects panes, workspaces
-and agents, launches, performs validated mutations and agent controls, and
-re-reads every target before its write. `profile` owns launch profiles;
+and agents, launches, and performs every pane write: mutations, agent controls
+and the stream's text, paste and key input. each write re-reads its target and
+dispatches under one mutation lock, so the gateway's own writes never
+interleave between a check and its write; reads take no lock. `profile` owns launch profiles;
 `hostconfig` admits the deployment's host configuration, including through
 `skidbladnir validate-host-config`, which dev-server calls before staging a
 generation; validity is not runtime readiness. `reference` owns the opaque ref
@@ -166,9 +177,10 @@ http, and websocket lifetimes; `terminal` owns the typed stream frames.
 
 refs are thin encodings of herdr ids. a terminal ref is its `terminal_id`, so
 rename, move and gateway restart preserve it and a herdr restart makes it
-stale. an agent ref adds herdr's agent name; before a write the gateway finds
-the pane hosting that terminal and requires herdr to report the same agent
-name there, which is herdr's own check in `agent start`. a workspace ref is
+stale. an agent ref adds herdr's agent name and exists only for a named
+agent; before a write the gateway finds the pane hosting that terminal and
+requires herdr to report the same agent name there, which is herdr's own check
+in `agent start`. a workspace ref is
 herdr's workspace id and only places a new tab or a moved pane. labels are for
 observation and selection; they never authenticate a mutation. a workspace
 with an invalid label is unaddressable and makes inventory partial.
@@ -178,9 +190,13 @@ with an invalid label is unaddressable and makes inventory partial.
 and pressure retain their separate boundaries. successful host operations
 expose observed/partial facts and `not_sent | sent | unknown` dispatch where
 applicable. the ten-second host budget and fifteen-second client deadline bound
-ordinary operations. herdr refuses `agent start` while a new pane's shell is
-still starting; the gateway retries only that refusal, for two seconds, after
-re-reading the pane.
+ordinary operations. herdr refuses `agent start` before writing anything while
+a new pane's shell is still starting, or when another client took the chosen
+name; the gateway retries those refusals for two seconds, each attempt
+re-reading the pane and the live names, without holding the mutation lock
+while it waits. a launch herdr definitely refused closes the terminal it made
+and reports the refusal; one whose outcome is unknown keeps its terminal and
+reports it as partial, since an agent may be running there.
 
 one websocket attempt owns one control child. acquisition waits at most ten
 seconds for geometry and first full frame; bearer revalidation and ping/pong

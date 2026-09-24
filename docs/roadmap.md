@@ -10,7 +10,8 @@ this index records present scope and open work, not a release diary.
 2026-09-24: this branch is the step 3 source candidate of [pr 5](herdr-pr5.md):
 skid reduces to the android app and one phone gateway per host. the cli, peer
 and attach clients, identity hook, process identity and agent read/send/keys
-routes are gone; refs encode herdr ids; launch uses herdr's agent start. a
+routes are gone; refs encode herdr ids, and only a named agent has one;
+launch uses herdr's agent start and names the agent after a free dwarf. a
 disposable herdr and gateway on the macbook exercised every phone route; no
 release, host or phone change is claimed. step 4 must rewrite the host configs
 to the reduced profile table in the same apply that pins this release, and the

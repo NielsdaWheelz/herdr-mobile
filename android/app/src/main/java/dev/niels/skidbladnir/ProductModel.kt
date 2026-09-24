@@ -199,15 +199,16 @@ internal data class ProfileChoice(val key: ProfileKey, val label: String, val pr
 )
 @Serializable internal data class CharacterSummary(val key: String, val displayName: String)
 
+// ref is absent when herdr gave the agent no name: it is observed, but only
+// its terminal can be closed or typed into.
 internal data class AgentRuntime(
-    val ref: String,
+    val ref: String?,
     val provider: AgentProvider,
     val status: AgentStatus,
     val readiness: AgentReadiness,
-    val methods: AgentMethods,
 ) {
     init {
-        require(isOpaqueRef(ref))
+        require(ref == null || isOpaqueRef(ref))
         require(readiness != AgentReadiness.Ready || status.state == AgentState.Idle)
         require(readiness != AgentReadiness.Blocked || status.state == AgentState.Blocked)
     }
@@ -272,11 +273,10 @@ private data class WireCreatedTerminalResponse(
 
 @Serializable
 private data class WireAgentRuntime(
-    val ref: String,
+    val ref: String? = null,
     val provider: AgentProvider,
     val status: AgentStatus,
     val readiness: AgentReadiness,
-    val methods: AgentMethods,
 )
 
 @Serializable
@@ -503,7 +503,7 @@ internal fun forgeActionLabel(label: MachineLabel): String = "Create on ${label.
 internal fun terminalDisplayName(terminal: TerminalRecord): String =
     terminal.name ?: "unnamed terminal ${terminal.ref.takeLast(8)}"
 internal fun killActionLabel(label: MachineLabel, target: TerminalTarget, terminalOnly: Boolean = false): String =
-    "${if (target.terminal.agent == null || terminalOnly) "Close" else "Stop"} ${terminalDisplayName(target.terminal)} on ${label.text}"
+    "${if (target.terminal.agent?.ref == null || terminalOnly) "Close" else "Stop"} ${terminalDisplayName(target.terminal)} on ${label.text}"
 internal fun killConfirmationTitle(label: MachineLabel, target: TerminalTarget, terminalOnly: Boolean = false): String =
     killActionLabel(label, target, terminalOnly) + "? linked workspaces and their running terminals may also close."
 
@@ -819,8 +819,7 @@ internal enum class ApiErrorCode(val wireName: String) {
     AgentStale("AgentStale"), WorkspaceStale("WorkspaceStale"),
     MetadataUnavailable("MetadataUnavailable"), ProfileUnknown("ProfileUnknown"),
     WorkingDirectoryInvalid("WorkingDirectoryInvalid"), NameInvalid("NameInvalid"),
-    NameAmbiguous("NameAmbiguous"), ObjectiveInvalid("ObjectiveInvalid"),
-    ReadinessUnconfirmed("ReadinessUnconfirmed"), MethodUnavailable("MethodUnavailable"),
+    ObjectiveInvalid("ObjectiveInvalid"),
     ClosureConfirmationRequired("ClosureConfirmationRequired"), HerdrUnavailable("HerdrUnavailable"),
     UpstreamRejected("UpstreamRejected"), OutcomeUnknown("OutcomeUnknown"),
     PairingInviteRejected("PairingInviteRejected"),
@@ -843,10 +842,7 @@ internal fun apiErrorMessage(code: ApiErrorCode): String = when (code) {
     ApiErrorCode.ProfileUnknown -> "Choose an available profile."
     ApiErrorCode.WorkingDirectoryInvalid -> "Choose a valid working directory."
     ApiErrorCode.NameInvalid -> "Use 1–64 letters, numbers, underscores, or hyphens, beginning with a letter or number."
-    ApiErrorCode.NameAmbiguous -> "That name matches several terminals. Choose an exact terminal."
     ApiErrorCode.ObjectiveInvalid -> "Use 1–240 characters without terminal controls."
-    ApiErrorCode.ReadinessUnconfirmed -> "The agent is not confirmed ready. Inspect it or choose a deliberate override."
-    ApiErrorCode.MethodUnavailable -> "This control is unavailable for the agent."
     ApiErrorCode.ClosureConfirmationRequired -> "Herdr refused to close this terminal without confirmation."
     ApiErrorCode.HerdrUnavailable -> "Herdr is unavailable on this machine."
     ApiErrorCode.UpstreamRejected -> "Herdr refused the request."
@@ -879,6 +875,7 @@ internal fun sessionStatusContent(agent: AgentRuntime?, fresh: Boolean): Session
 private fun JsonObject.requireTerminalOptionalFields() {
     requireAbsentOrNonNull(setOf("name", "nativeLabel", "launchProfile", "objective", "cwd", "agent"))
     (this["agent"] as? JsonObject)?.let { agent ->
+        agent.requireAbsentOrNonNull(setOf("ref"))
         (agent["status"] as? JsonObject)?.requireAbsentOrNonNull(setOf("reason"))
     }
 }
@@ -922,6 +919,5 @@ private fun acceptAgentRuntime(wire: WireAgentRuntime): AgentRuntime = AgentRunt
     provider = wire.provider,
     status = wire.status,
     readiness = wire.readiness,
-    methods = wire.methods,
 )
 

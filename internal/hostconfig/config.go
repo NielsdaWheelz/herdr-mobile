@@ -82,8 +82,11 @@ func parse(encoded []byte, runtime platform.Kind) (Config, error) {
 		return Config{}, errors.New("runtime platform is unsupported")
 	}
 	var wire *configDTO
-	if err := strictjson.Decode(encoded, &wire); err != nil || wire == nil {
-		return Config{}, errors.New("host config is not canonical JSON")
+	if err := strictjson.Decode(encoded, &wire); err != nil {
+		return Config{}, fmt.Errorf("host config is not canonical JSON: %w", err)
+	}
+	if wire == nil {
+		return Config{}, errors.New("host config is null")
 	}
 	return wire.validate(runtime)
 }

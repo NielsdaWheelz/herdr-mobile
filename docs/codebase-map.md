@@ -7,7 +7,7 @@ is no application database.
 | slice | owner | boundary |
 | --- | --- | --- |
 | startup and host configuration | `cmd/skidbladnir`, `internal/hostconfig`, `internal/profile`, `internal/platform` | compose one host from deployment-owned configuration; `validate-host-config` admits that configuration for the deployment owner |
-| runtime and metadata | `internal/herdr`, `internal/sessions`, `internal/catalog`, `internal/reference` | public herdr socket/terminal control; inventory, launch, mutations, agent status and controls; refs as thin herdr ids |
+| runtime and metadata | `internal/herdr`, `internal/sessions`, `internal/catalog`, `internal/reference` | public herdr socket/terminal control; inventory, launch, and every pane write (mutations, agent controls, stream input) re-read before dispatch; refs as thin herdr ids |
 | host resources | `internal/workdir`, `internal/pressure` | bounded directory browsing and native pressure observation |
 | gateway transport and access | `internal/gateway`, `internal/auth`, `internal/pairing`, `internal/strictjson`, `internal/logging`, `internal/terminal` | authenticated http, strict messages, owned websocket/control-child lifetime |
 | phone fleet and dashboard | `MachineStore.kt`, `FleetPersistence.kt`, `FleetInvite.kt`, `GatewayClient.kt`, `SkidbladnirController.kt`, dashboard/forge/space/chooser files | encrypted pairings, reconciliation, selection and mutations |

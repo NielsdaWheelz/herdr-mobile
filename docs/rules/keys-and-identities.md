@@ -2,28 +2,24 @@
 
 ## scope
 
-identity, authority, and canonical values. the [architecture](../architecture.md)
-and [herdr reference contract](../herdr-pr1.md#identity-inventory-and-metadata)
-own the wire formats and lifetime semantics.
+identity, authority, and canonical values. the
+[host architecture](../architecture.md#5-host-architecture) owns the wire
+formats and lifetime semantics.
 
 ## identity
 
 - use the domain's existing identity and name it precisely. machine handles,
-  herdr terminal/workspace ids, lifetime tokens, pane ids, and process start identities
-  describe different things; display names are not substitutes for them.
+  herdr terminal ids, pane ids, workspace ids and agent names describe
+  different things; display names are not substitutes for them.
 - machine identity is the immutable installation handle. label, origin, bearer,
   and platform are separate facts.
-- a terminal or workspace reference routes to a configured machine and carries
-  its observed runtime lifetime; an agent reference additionally carries process
-  identity and a command fingerprint.
-  keep references opaque to callers and use the owning encoder and decoder.
+- a reference routes to a configured machine and carries herdr's own id: a
+  terminal's `terminal_id`, a workspace's id, or a named agent's `terminal_id`
+  and herdr name. skid mints no identity of its own. keep references opaque to
+  callers and use the owning encoder and decoder.
 - references identify targets; they do not authorize actions. do not add
   signatures, sealing, alias registries, or private uuid identities around the
   existing protocol.
-- the command fingerprint is a keyed, privacy-preserving equality check for an
-  observed process command. it does not authenticate a reference or grant
-  authority. auth owns its key; process/control code requests a fingerprint
-  without loading credentials.
 - parsing an identity does not prove that its target is still present. the
   mutation owner must enforce the required live identity checks.
 - meaningful keys and structured targets should keep their structure until a
@@ -36,7 +32,6 @@ own the wire formats and lifetime semantics.
 
 - bearer credentials and pairing invitation tokens are authority. generate
   random credential material; do not derive authority from entity identity.
-  the existing `identityToken` field is runtime lifetime identity, not a bearer.
 - the auth owner loads and verifies the gateway's bearer file. pairing owns its
   one-use, expiring in-memory invitation and its verifier. follow those
   lifecycles; do not introduce credential tables or a separate lookup system.

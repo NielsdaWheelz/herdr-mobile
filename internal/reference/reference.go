@@ -2,7 +2,8 @@
 // A reference is a thin encoding of herdr's own identities on one machine:
 // a terminal's terminal_id, a workspace's id, and an agent's terminal_id plus
 // its herdr agent name. herdr never repeats a terminal_id, so a terminal or
-// agent reference cannot name a later terminal.
+// agent reference cannot name a later terminal; an agent herdr did not name
+// has no reference.
 package reference
 
 import (
@@ -71,7 +72,7 @@ func (value Value) valid() bool {
 	case "workspace":
 		return value.WorkspaceID != "" && value.TerminalID == "" && value.AgentName == ""
 	case "agent":
-		return value.TerminalID != "" && value.WorkspaceID == ""
+		return value.TerminalID != "" && value.AgentName != "" && value.WorkspaceID == ""
 	default:
 		return false
 	}

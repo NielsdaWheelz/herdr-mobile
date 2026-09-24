@@ -12,18 +12,34 @@ import (
 	"github.com/NielsdaWheelz/skidbladnir/internal/workdir"
 )
 
-// herdr refuses agent.start with agent_pane_busy, before writing anything,
-// while a new pane's shell is still starting. herdr's own cli retries that
-// refusal alone for this long, at this cadence.
+// herdr refuses agent.start before writing anything with agent_pane_busy while
+// a new pane's shell is still starting, and with agent_name_taken when another
+// client took the chosen name. herdr's own cli retries the busy refusal for
+// this long, at this cadence; the gateway retries both, never holding the
+// mutation lock while it waits.
 const (
-	agentStartBusyWindow   = 2 * time.Second
-	agentStartBusyInterval = 100 * time.Millisecond
+	agentStartRetryWindow   = 2 * time.Second
+	agentStartRetryInterval = 100 * time.Millisecond
 )
 
+// Create makes a terminal and, for an agent profile, then starts the agent in
+// it without holding the mutation lock across the start's retries.
 func (manager *Manager) Create(ctx context.Context, input CreateInput) (Created, error) {
 	manager.mutations.Lock()
-	defer manager.mutations.Unlock()
-	return manager.create(ctx, input)
+	terminal, err := manager.create(ctx, input)
+	manager.mutations.Unlock()
+	if err != nil {
+		return Created{}, err
+	}
+	if input.Kind == LaunchTerminal {
+		return Created{ObservedAt: time.Now().UTC(), Terminal: terminal, Launch: "not_requested", Dispatch: "sent"}, nil
+	}
+	dwarf, err := manager.startAgent(ctx, terminal.Target, manager.profilesByKey[profile.Key(input.Profile)].Provider)
+	if err != nil {
+		return Created{}, manager.failedLaunch(ctx, terminal, err)
+	}
+	terminal.Character = dwarf
+	return Created{ObservedAt: time.Now().UTC(), Terminal: terminal, Launch: "submitted", Dispatch: "sent"}, nil
 }
 
 func (manager *Manager) Shell(ctx context.Context, source TerminalTarget) (Created, error) {
@@ -42,18 +58,22 @@ func (manager *Manager) Shell(ctx context.Context, source TerminalTarget) (Creat
 	if cwd == "" {
 		return Created{}, newSessionError(ErrorWorkingDirectoryUnavailable, "The source directory is unavailable.")
 	}
-	return manager.create(ctx, CreateInput{Kind: LaunchTerminal, CWD: cwd,
+	terminal, err := manager.create(ctx, CreateInput{Kind: LaunchTerminal, CWD: cwd,
 		Destination: Destination{Kind: "existing", WorkspaceTarget: WorkspaceTarget{WorkspaceID: pane.WorkspaceID}}})
+	if err != nil {
+		return Created{}, err
+	}
+	return Created{ObservedAt: time.Now().UTC(), Terminal: terminal, Launch: "not_requested", Dispatch: "sent"}, nil
 }
 
-func (manager *Manager) create(ctx context.Context, input CreateInput) (Created, error) {
+func (manager *Manager) create(ctx context.Context, input CreateInput) (Terminal, error) {
 	candidate, err := manager.workdir.ParseCandidate(input.CWD)
 	if err != nil {
-		return Created{}, mapWorkingDirectoryError(err)
+		return Terminal{}, mapWorkingDirectoryError(err)
 	}
 	cwd, err := manager.workdir.ValidateStart(candidate)
 	if err != nil {
-		return Created{}, mapWorkingDirectoryError(err)
+		return Terminal{}, mapWorkingDirectoryError(err)
 	}
 	var launch profile.Profile
 	namePrefix := "terminal"
@@ -62,28 +82,28 @@ func (manager *Manager) create(ctx context.Context, input CreateInput) (Created,
 		var found bool
 		launch, found = manager.profilesByKey[profile.Key(input.Profile)]
 		if !found {
-			return Created{}, newSessionError(ErrorProfileUnknown, "Choose an available profile.")
+			return Terminal{}, newSessionError(ErrorProfileUnknown, "Choose an available profile.")
 		}
 		namePrefix = string(launch.Key)
 	case LaunchTerminal:
 		if input.Profile != "" || input.Objective != "" {
-			return Created{}, newSessionError(ErrorProfileUnknown, "A terminal has no agent profile or objective.")
+			return Terminal{}, newSessionError(ErrorProfileUnknown, "A terminal has no agent profile or objective.")
 		}
 	default:
-		return Created{}, newSessionError(ErrorProfileUnknown, "Choose a terminal or configured agent profile.")
+		return Terminal{}, newSessionError(ErrorProfileUnknown, "Choose a terminal or configured agent profile.")
 	}
 	name := input.Name
 	if name == "" {
 		name, err = manager.generatedName(ctx, namePrefix)
 		if err != nil {
-			return Created{}, err
+			return Terminal{}, err
 		}
 	}
 	if err := validateName(name); err != nil {
-		return Created{}, err
+		return Terminal{}, err
 	}
 	if err := validateObjective(input.Objective); err != nil {
-		return Created{}, err
+		return Terminal{}, err
 	}
 	destination := input.Destination
 	if destination.Kind == "" {
@@ -93,10 +113,10 @@ func (manager *Manager) create(ctx context.Context, input CreateInput) (Created,
 		destination.Label = name
 	}
 	if err := manager.validateDestination(ctx, destination, false); err != nil {
-		return Created{}, err
+		return Terminal{}, err
 	}
 	if _, err := manager.workdir.ValidateStart(candidate); err != nil {
-		return Created{}, mapWorkingDirectoryError(err)
+		return Terminal{}, mapWorkingDirectoryError(err)
 	}
 	env := make(map[string]string, len(launch.Environment))
 	for _, variable := range launch.Environment {
@@ -121,93 +141,131 @@ func (manager *Manager) create(ctx context.Context, input CreateInput) (Created,
 		}
 	}
 	if err != nil {
-		return Created{}, createFailure(err, "", nil)
+		return Terminal{}, createFailure(err, "", nil)
 	}
 	pane := created.RootPane
 	target := TerminalTarget{TerminalID: pane.TerminalID}
 	// A known create has happened. Every subsequent failure retains that fact.
 	if err := manager.renamePane(ctx, pane.ID, name); err != nil {
-		return Created{}, createFailure(err, "resource_created", nil)
+		return Terminal{}, createFailure(err, "resource_created", nil)
 	}
 	metadata := map[string]string{"skid_named": "1"}
 	if input.Kind == LaunchAgent {
 		metadata["skid_launch_profile"] = string(launch.Key)
 	}
 	if err := manager.reportPane(ctx, pane.ID, metadata); err != nil {
-		return Created{}, createFailure(err, "resource_created", nil)
+		return Terminal{}, createFailure(err, "resource_created", nil)
 	}
 	if input.Objective != "" {
 		if err := manager.writeObjective(ctx, pane.ID, input.Objective); err != nil {
-			return Created{}, createFailure(err, "resource_created", nil)
+			return Terminal{}, createFailure(err, "resource_created", nil)
 		}
 	}
 	terminal, err := manager.observe(ctx, target)
 	if err != nil {
-		return Created{}, createFailure(err, "resource_created", nil)
+		return Terminal{}, createFailure(err, "resource_created", nil)
 	}
 	if terminal.Name != name || input.Objective != "" && terminal.Objective != input.Objective {
-		return Created{}, createFailure(errors.New("terminal metadata was not retained"), "identified", &terminal)
+		return Terminal{}, createFailure(errors.New("terminal metadata was not retained"), "identified", &terminal)
 	}
-	if input.Kind == LaunchTerminal {
-		return Created{ObservedAt: time.Now().UTC(), Terminal: terminal, Launch: "not_requested", Dispatch: "sent"}, nil
-	}
-	if err := manager.startAgent(ctx, target, terminal.Character, launch.Provider); err != nil {
-		return Created{}, createFailure(err, "identified", &terminal)
-	}
-	return Created{ObservedAt: time.Now().UTC(), Terminal: terminal, Launch: "submitted", Dispatch: "sent"}, nil
+	return terminal, nil
 }
 
-// startAgent names the agent after its terminal's dwarf and asks herdr to type
-// the provider's bare command at that terminal's shell. The pane's environment
+// startAgent names the agent after a dwarf and asks herdr to type the
+// provider's bare command at the terminal's shell. The pane's environment
 // already carries the profile's account home, and the deployment's shell
 // aliases add its permission flags, so skid passes no arguments: a second
-// --yolo makes codex refuse to start. When a live agent already holds the
-// dwarf's name, the new one takes the first free numbered variant (durinn-2).
-func (manager *Manager) startAgent(ctx context.Context, target TerminalTarget, dwarf catalog.Character, provider profile.Provider) error {
+// --yolo makes codex refuse to start. It returns the dwarf the agent is named
+// after.
+func (manager *Manager) startAgent(ctx context.Context, target TerminalTarget, provider profile.Provider) (catalog.Character, error) {
+	kind := "codex"
+	if provider == profile.ProviderClaude {
+		kind = "claude"
+	}
+	deadline := time.Now().Add(agentStartRetryWindow)
+	for {
+		dwarf, err := manager.tryStartAgent(ctx, target, kind)
+		var upstream *herdr.Error
+		if !errors.As(err, &upstream) {
+			return dwarf, err
+		}
+		if upstream.Dispatch != "sent" || upstream.Code != "agent_pane_busy" && upstream.Code != "agent_name_taken" || !time.Now().Before(deadline) {
+			return catalog.Character{}, mapHerdrError(err)
+		}
+		select {
+		case <-time.After(agentStartRetryInterval):
+		case <-ctx.Done():
+			return catalog.Character{}, mapHerdrError(err)
+		}
+	}
+}
+
+// tryStartAgent makes one agent.start after re-reading that the pane still
+// hosts the terminal. The name is the first dwarf, in the terminal's seeded
+// order, whose name no live agent on this server holds; when every dwarf's
+// name is held, the seeded dwarf's first free numbered variant (durinn-2).
+func (manager *Manager) tryStartAgent(ctx context.Context, target TerminalTarget, kind string) (catalog.Character, error) {
+	manager.mutations.Lock()
+	defer manager.mutations.Unlock()
+	pane, err := manager.resolvePane(ctx, target)
+	if err != nil {
+		return catalog.Character{}, err
+	}
 	agents, err := manager.agents(ctx)
 	if err != nil {
-		return err
+		return catalog.Character{}, err
 	}
 	taken := make(map[string]bool, len(agents))
 	for _, agent := range agents {
 		taken[nameOf(agent)] = true
 	}
-	base := agentName(dwarf)
-	name := base
-	for number := 2; taken[name]; number++ {
-		name = base + "-" + strconv.Itoa(number)
+	start := manager.seed(target.TerminalID)
+	dwarf := manager.dwarves[start]
+	name := agentName(dwarf)
+	for offset := 1; taken[name] && offset < len(manager.dwarves); offset++ {
+		dwarf = manager.dwarves[(start+offset)%len(manager.dwarves)]
+		name = agentName(dwarf)
 	}
-	kind := "codex"
-	if provider == profile.ProviderClaude {
-		kind = "claude"
+	if taken[name] {
+		dwarf = manager.dwarves[start]
+		for number := 2; taken[name]; number++ {
+			name = agentName(dwarf) + "-" + strconv.Itoa(number)
+		}
 	}
-	deadline := time.Now().Add(agentStartBusyWindow)
-	for {
-		pane, err := manager.resolvePane(ctx, target)
-		if err != nil {
-			return err
-		}
-		var result struct {
-			Type  string    `json:"type"`
-			Agent agentInfo `json:"agent"`
-		}
-		err = manager.herdr.Call(ctx, "agent.start", map[string]string{"name": name, "kind": kind, "pane_id": pane.ID}, &result)
-		var upstream *herdr.Error
-		if errors.As(err, &upstream) && upstream.Dispatch == "sent" && upstream.Code == "agent_pane_busy" && time.Now().Before(deadline) {
-			select {
-			case <-time.After(agentStartBusyInterval):
-				continue
-			case <-ctx.Done():
-			}
-		}
-		if err != nil {
-			return mapHerdrError(err)
-		}
-		if result.Type != "agent_started" || result.Agent.TerminalID != target.TerminalID || nameOf(result.Agent) != name {
-			return &Error{Code: ErrorOutcomeUnknown, Message: "The agent launch outcome is unknown.", Dispatch: "unknown"}
-		}
-		return nil
+	var result struct {
+		Type  string    `json:"type"`
+		Agent agentInfo `json:"agent"`
 	}
+	if err := manager.herdr.Call(ctx, "agent.start", map[string]string{"name": name, "kind": kind, "pane_id": pane.ID}, &result); err != nil {
+		return catalog.Character{}, err
+	}
+	if result.Type != "agent_started" || result.Agent.TerminalID != target.TerminalID || nameOf(result.Agent) != name {
+		return catalog.Character{}, &Error{Code: ErrorOutcomeUnknown, Message: "The agent launch outcome is unknown.", Dispatch: "unknown"}
+	}
+	return dwarf, nil
+}
+
+// failedLaunch closes the terminal of a launch herdr definitely refused, so no
+// half-made terminal is left behind, and reports the refusal. A launch whose
+// outcome is unknown keeps its terminal, since an agent may be running there,
+// as does one whose close does not succeed.
+func (manager *Manager) failedLaunch(ctx context.Context, terminal Terminal, err error) error {
+	var failure *Error
+	if !errors.As(err, &failure) || failure.Dispatch == "unknown" {
+		return createFailure(err, "identified", &terminal)
+	}
+	manager.mutations.Lock()
+	defer manager.mutations.Unlock()
+	pane, resolveErr := manager.resolvePane(ctx, terminal.Target)
+	if resolveErr != nil {
+		return createFailure(err, "identified", &terminal)
+	}
+	if _, closeErr := manager.closePane(ctx, pane.ID); closeErr != nil {
+		return createFailure(err, "identified", &terminal)
+	}
+	copy := *failure
+	copy.Dispatch = "sent"
+	return &copy
 }
 
 func createFailure(err error, stage string, terminal *Terminal) error {
@@ -265,14 +323,15 @@ func (manager *Manager) Rename(ctx context.Context, target TerminalTarget, name 
 	}
 	if current.Tokens["skid_named"] != "1" {
 		if err := manager.reportPane(ctx, current.ID, map[string]string{"skid_named": "1"}); err != nil {
-			partial := manager.project(ctx, current)
-			var failure *Error
-			if errors.As(err, &failure) && failure.Dispatch == "unknown" {
-				return ObservedTerminal{}, &Error{Code: ErrorOutcomeUnknown, Message: "The naming metadata outcome is unknown.", Dispatch: "unknown",
-					Partial: &Partial{Terminal: &partial}}
+			failure := &Error{Code: ErrorMetadataUnavailable, Message: "The terminal was renamed but naming metadata was not retained.", Dispatch: "sent"}
+			var upstream *Error
+			if errors.As(err, &upstream) && upstream.Dispatch == "unknown" {
+				failure = &Error{Code: ErrorOutcomeUnknown, Message: "The naming metadata outcome is unknown.", Dispatch: "unknown"}
 			}
-			return ObservedTerminal{}, &Error{Code: ErrorMetadataUnavailable, Message: "The terminal was renamed but naming metadata was not retained.", Dispatch: "sent",
-				Partial: &Partial{Terminal: &partial}}
+			if partial, observeErr := manager.observe(ctx, target); observeErr == nil {
+				failure.Partial = &Partial{Terminal: &partial}
+			}
+			return ObservedTerminal{}, failure
 		}
 	}
 	updated, err := manager.observe(ctx, target)

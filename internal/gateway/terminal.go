@@ -2,9 +2,7 @@ package gateway
 
 import (
 	"context"
-	"errors"
 	"net/http"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -61,7 +59,7 @@ func (gateway *Gateway) openTerminal(writer http.ResponseWriter, request *http.R
 		return
 	}
 	ctx, cancel := context.WithTimeout(request.Context(), hostOperationBudget)
-	_, err := gateway.sessions.ResolveTerminal(ctx, target)
+	err := gateway.sessions.CheckTerminal(ctx, target)
 	cancel()
 	if err != nil {
 		gateway.writeOperationError(writer, err)
@@ -172,7 +170,7 @@ func (gateway *Gateway) runTerminal(ctx context.Context, cancelAttempt context.C
 			}
 		}
 	}()
-	if _, err := gateway.sessions.ResolveTerminal(ctx, target); err != nil {
+	if err := gateway.sessions.CheckTerminal(ctx, target); err != nil {
 		writeCanceledEnd(false)
 		return
 	}
@@ -182,7 +180,7 @@ func (gateway *Gateway) runTerminal(ctx context.Context, cancelAttempt context.C
 		return
 	}
 	defer control.Close()
-	if _, err := gateway.sessions.ResolveTerminal(ctx, target); err != nil {
+	if err := gateway.sessions.CheckTerminal(ctx, target); err != nil {
 		writeCanceledEnd(false)
 		return
 	}
@@ -275,28 +273,17 @@ func (gateway *Gateway) runTerminal(ctx context.Context, cancelAttempt context.C
 	}
 }
 
+// dispatchTerminalInput writes text, paste and keys through sessions, which
+// re-reads the terminal's pane first; scroll and resize go to this
+// attachment's control child, which herdr binds to the terminal itself.
 func (gateway *Gateway) dispatchTerminalInput(ctx context.Context, target sessions.TerminalTarget, control *herdr.Control, frame terminal.ClientFrame) error {
-	paneID, err := gateway.sessions.ResolveTerminal(ctx, target)
-	if err != nil {
-		return err
-	}
 	switch input := frame.(type) {
 	case terminal.TextFrame:
-		return gateway.terminalCall(ctx, "pane.send_text", map[string]any{"pane_id": paneID, "text": input.Text})
+		return gateway.sessions.SendText(ctx, target, input.Text)
 	case terminal.PasteFrame:
-		return gateway.terminalCall(ctx, "pane.send_input", map[string]any{"pane_id": paneID, "text": input.Text})
+		return gateway.sessions.Paste(ctx, target, input.Text)
 	case terminal.KeyFrame:
-		key := input.Key
-		switch key {
-		case " ":
-			key = "space"
-		case "+":
-			key = "plus"
-		}
-		if len(input.Modifiers) > 0 {
-			key = strings.Join(input.Modifiers, "+") + "+" + key
-		}
-		return gateway.terminalCall(ctx, "pane.send_input", map[string]any{"pane_id": paneID, "keys": []string{key}})
+		return gateway.sessions.SendKey(ctx, target, input.Key, input.Modifiers)
 	case terminal.ScrollFrame:
 		return control.Scroll(input.Source, input.Direction, input.Lines, input.Column, input.Row)
 	case terminal.ResizeFrame:
@@ -304,19 +291,6 @@ func (gateway *Gateway) dispatchTerminalInput(ctx context.Context, target sessio
 	default:
 		return terminal.ErrInvalidFrame
 	}
-}
-
-func (gateway *Gateway) terminalCall(ctx context.Context, method string, params any) error {
-	var result struct {
-		Type string `json:"type"`
-	}
-	if err := gateway.herdr.Call(ctx, method, params, &result); err != nil {
-		return err
-	}
-	if result.Type != "ok" {
-		return errors.New("invalid herdr terminal input result")
-	}
-	return nil
 }
 
 func watchTerminalPing(ctx context.Context, connection *websocket.Conn, endReason *atomic.Uint32, cancelAttempt context.CancelFunc) {

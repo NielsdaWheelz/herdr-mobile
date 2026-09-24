@@ -170,7 +170,7 @@ internal fun TerminalScreen(
                 onClick = controller::openTextSize,
                 modifier = Modifier.width(48.dp),
             )
-            if (state.target.terminal.agent != null) {
+            if (state.target.terminal.agent?.ref != null) {
                 var expanded by remember(state.attempt) { mutableStateOf(false) }
                 Box {
                     HeaderChip(
@@ -182,7 +182,7 @@ internal fun TerminalScreen(
                         DropdownMenuItem(text = { Text("Interrupt") }, onClick = {
                             expanded = false
                             controller.interruptAgent()
-                        }, enabled = state.target.terminal.agent.methods.interrupt != AgentMethod.Unavailable)
+                        })
                         DropdownMenuItem(text = { Text("Stop") }, onClick = {
                             expanded = false
                             controller.requestKill(state.target)
