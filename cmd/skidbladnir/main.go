@@ -219,9 +219,11 @@ func serveGateway(listen, bearerPath, machineHandlePath, hostConfigPath, catalog
 	if err != nil {
 		return fmt.Errorf("initialize terminal sessions: %w", err)
 	}
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
 	monitor := pressure.NewMonitor()
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
+	ctx, stopMonitor := context.WithCancel(context.Background())
+	defer stopMonitor()
 	go monitor.Run(ctx)
 	handler := gateway.New(gateway.Config{
 		Herdr:    client,
@@ -234,10 +236,7 @@ func serveGateway(listen, bearerPath, machineHandlePath, hostConfigPath, catalog
 		Machine:  handle,
 		Platform: descriptor,
 	})
-	if err := gateway.ListenAndServe(ctx, listen, handler); err != nil && !errors.Is(err, context.Canceled) {
-		return err
-	}
-	return nil
+	return gateway.ListenAndServe(signals, listen, handler)
 }
 
 type pairingInvitation struct {

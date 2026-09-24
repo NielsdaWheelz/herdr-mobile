@@ -135,10 +135,19 @@ func (reason PressureReason) valid() bool {
 	}
 }
 
+// Signal is a shutdown signal the gateway handles, named as the platform names it.
+type Signal string
+
+const (
+	SignalInterrupt  Signal = "interrupt"
+	SignalTerminated Signal = "terminated"
+)
+
 type eventKind string
 
 const (
 	eventGatewayStarted         eventKind = "Gateway.Started"
+	eventGatewayStopping        eventKind = "Gateway.Stopping"
 	eventRequestCompleted       eventKind = "Request.Completed"
 	eventPressureSampled        eventKind = "Pressure.Sampled"
 	eventAuthenticationRejected eventKind = "Authentication.Rejected"
@@ -153,9 +162,18 @@ type Event struct {
 	errorCode ErrorCode
 	level     PressureLevel
 	reasons   []PressureReason
+	signal    Signal
 }
 
 func NewGatewayStarted() Event { return Event{kind: eventGatewayStarted} }
+
+func NewGatewayStopping(signal Signal) (Event, error) {
+	event := Event{kind: eventGatewayStopping, signal: signal}
+	if !event.valid() {
+		return Event{}, errors.New("invalid gateway-stopping log event")
+	}
+	return event, nil
+}
 
 func NewRequestCompleted(method Method, route Route, status int, duration time.Duration, errorCode ErrorCode) (Event, error) {
 	event := Event{kind: eventRequestCompleted, method: method, route: route, status: status, duration: duration, errorCode: errorCode}
@@ -185,6 +203,8 @@ func (event Event) valid() bool {
 	switch event.kind {
 	case eventGatewayStarted:
 		return true
+	case eventGatewayStopping:
+		return event.signal == SignalInterrupt || event.signal == SignalTerminated
 	case eventRequestCompleted:
 		if !event.method.valid() || !event.route.valid() || event.status < 100 || event.status > 599 || event.duration < 0 {
 			return false
@@ -228,6 +248,8 @@ func (logger Logger) Write(event Event) error {
 	fields := map[string]any{"event.name": event.kind}
 	switch event.kind {
 	case eventGatewayStarted:
+	case eventGatewayStopping:
+		fields["signal"] = event.signal
 	case eventRequestCompleted:
 		fields["http.request.method"] = event.method
 		fields["http.route"] = event.route

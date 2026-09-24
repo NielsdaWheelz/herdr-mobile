@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -34,7 +35,9 @@ func ValidateListenAddress(address string) error {
 	return nil
 }
 
-func ListenAndServe(ctx context.Context, address string, gateway *Gateway) error {
+// ListenAndServe serves until the HTTP server fails or a shutdown signal
+// arrives; it logs which signal began the shutdown before draining.
+func ListenAndServe(signals <-chan os.Signal, address string, gateway *Gateway) error {
 	if err := ValidateListenAddress(address); err != nil {
 		return err
 	}
@@ -64,7 +67,12 @@ func ListenAndServe(ctx context.Context, address string, gateway *Gateway) error
 			return nil
 		}
 		return fmt.Errorf("serve gateway HTTP: %w", err)
-	case <-ctx.Done():
+	case received := <-signals:
+		event, err := logging.NewGatewayStopping(logging.Signal(received.String()))
+		if err != nil {
+			panic("unhandled gateway shutdown signal") // justify-defect: main subscribes only to interrupt and terminate.
+		}
+		gateway.log(event)
 		shutdownContext, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer cancel()
 		if err := gateway.CloseLiveTerminals(shutdownContext); err != nil {
