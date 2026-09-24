@@ -29,6 +29,12 @@ again on this mac under a disposable deployment; jarvis `23c830c` ran the real
 `activate-release` one-shot, `serve` startup, recovery over compatible rows and
 a clean stop in an isolated systemd container with no egress (report section
 "round 3"). release-bytes qualification waits for the draft.
+2026-09-24, round 4: dev-server `f12f1a7` makes the confirmed stop precede
+every restore (an unstoppable candidate keeps its inputs; the prior's backups
+are retained as `.apply.failed.*`), proven through both skid restore callers;
+jarvis drops the redundant `reset-failed` from `activate-release`, proven on a
+never-loaded unit, a clean reactivation and a refused unclean stop (report
+section "round 4").
 
 ## release tuple
 
