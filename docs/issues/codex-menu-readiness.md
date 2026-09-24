@@ -1,25 +1,27 @@
-# codex menus read as ready
+# codex screens read as ready (herdr detection)
 
-problem: herdr v0.9.1's bundled codex detection reports `idle ready` while
-codex shows a blocking menu: the directory-trust prompt on first start in a
-directory, then the hook-trust prompt for skid's installed identity hooks.
+problem: herdr v0.9.1's bundled codex detection reports `idle` and ready for
+codex screens that are not at a prompt: the directory-trust and hook-trust
+menus of codex 0.156.1, and codex's "Sign in with ChatGPT" screen (`agent
+start` returned `interactive_ready=true` there). skid and jarvis only project
+herdr's `agent.explain` (skid never reads screen text), so the misread is
+herdr's, in its codex detection rules.
 
-impact: skid and jarvis treat the worker as ready, so an ordinary send is
-accepted and its text lands in the menu, where a digit or enter can answer the
-prompt. claude's equivalent prompt is detected as `blocked` and refused
-correctly. after the window, the first codex start per profile and host shows
-the hook-trust prompt until someone answers it.
+impact: an ordinary send is accepted and its text lands in the menu or sign-in
+screen, where a digit or enter can answer it; herdr's own `agent prompt` blocked
+refusal does not catch these screens. the same codex menus under 0.155.1 read
+correctly (`unconfirmed` for hook review, `blocked` for the update prompt), so
+the rules lag codex's ui changes.
 
-evidence (2026-09-24, isolated linux qualification, codex-cli 0.156.1 profile
-`personal`, herdr 0.9.1): after `start`, `info` read `idle ready` while the
-visible read showed a two-option directory-trust menu; after it was answered
-by keys, a second hook-trust menu also read `idle ready`. jarvis row "live
-codex + claude journey" in its `docs/qualification/2026-09-23-herdr-pr4.md`.
+evidence (2026-09-24): the isolated linux qualification (codex 0.156.1,
+profile `personal`): `info` read `idle ready` over a two-option directory-trust
+menu and then a hook-trust menu (jarvis `docs/qualification/2026-09-23-herdr-pr4.md`,
+"live codex + claude journey"). an isolated herdr on the macbook: `agent start
+--kind codex` with an unauthenticated home returned `agent_started`,
+`agent_status=idle`, `interactive_ready=true` on the sign-in screen
+(`docs/herdr-pr5.md` §7).
 
-mitigation: after each host's window apply and before jarvis `resume`, start
-one codex agent per profile through skid, inspect it, answer the trust prompts
-deliberately, and stop it.
-
-resolved when: codex's trust menus read as blocked or unknown in herdr (an
-upstream detection-manifest change or a skid-side rule), shown by an isolated
-start in an untrusted directory refusing an ordinary send.
+resolved when: a herdr release reads these screens as blocked or unknown,
+shown by an isolated `agent start` in an untrusted directory and one with an
+unauthenticated home refusing `agent prompt`. filing upstream at herdrdev/herdr
+is the owner's call.
