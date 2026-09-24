@@ -1,5 +1,18 @@
 # herdr exact worker targeting
 
+2026-09-24 herdr pr 5 replaces the process-bound refs below. a terminal ref is
+herdr's never-repeated `terminal_id`; an agent ref adds herdr's agent name,
+which herdr clears when that agent exits or is replaced. before each write the
+gateway finds the pane hosting the terminal and requires the same name there,
+then writes to that pane through herdr's agent send-keys or pane close. a
+disposable darwin herdr and gateway rejected, with `not_sent` and before
+dispatch, an agent ref whose agent had exited and been replaced in the same
+terminal, and every terminal and agent ref after a herdr restart; a ref
+survived a pane move whose pane id changed. accepted limits: the check/write
+race remains, and an agent herdr detected without a name (typed by a human) is
+identified only by its terminal, so another unnamed agent replacing it there
+is not detected. the history below records the retired process-identity design.
+
 status 2026-09-23: the host proofs below passed. the external check/write race
 remains accepted; same-pid optional identity carryover and the mac-local cli
 proof are [accepted non-blocking follow-ups](../herdr-pr2.md#accepted-non-blocking-follow-ups).

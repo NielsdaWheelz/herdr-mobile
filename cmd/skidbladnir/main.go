@@ -16,9 +16,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/NielsdaWheelz/skidbladnir/internal/agentcli"
-	"github.com/NielsdaWheelz/skidbladnir/internal/agentcontrol"
-	"github.com/NielsdaWheelz/skidbladnir/internal/agenthook"
 	"github.com/NielsdaWheelz/skidbladnir/internal/auth"
 	"github.com/NielsdaWheelz/skidbladnir/internal/gateway"
 	"github.com/NielsdaWheelz/skidbladnir/internal/herdr"
@@ -28,20 +25,19 @@ import (
 	"github.com/NielsdaWheelz/skidbladnir/internal/pairing"
 	"github.com/NielsdaWheelz/skidbladnir/internal/platform"
 	"github.com/NielsdaWheelz/skidbladnir/internal/pressure"
-	"github.com/NielsdaWheelz/skidbladnir/internal/process"
 	"github.com/NielsdaWheelz/skidbladnir/internal/sessions"
 	"github.com/NielsdaWheelz/skidbladnir/internal/strictjson"
 	"github.com/NielsdaWheelz/skidbladnir/internal/workdir"
-	"golang.org/x/term"
 )
 
 const (
 	exitFailure          = 1
-	exitDesktopUsage     = 2
 	exitUsage            = 64
 	pairingInviteOrigin  = "http://127.0.0.1:7341"
 	pairingInviteTimeout = 5 * time.Second
 )
+
+const usage = "usage: skidbladnir {version|validate-host-config|gateway|machine init|bearer mint|pairing-invite create}\n"
 
 var (
 	releaseVersion = "dev"
@@ -49,26 +45,13 @@ var (
 )
 
 func main() {
-	os.Exit(run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
+	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
 
-func run(arguments []string, stdin *os.File, stdout, stderr io.Writer) int {
-	if len(arguments) == 0 || arguments[0] == "--host-config" {
-		output, outputIsFile := stdout.(*os.File)
-		if !term.IsTerminal(int(stdin.Fd())) || !outputIsFile || !term.IsTerminal(int(output.Fd())) {
-			_, _ = io.WriteString(stderr, "local herdr desktop requires a tty\n") // justify-ignore-error: a broken CLI output stream cannot be recovered.
-			return exitDesktopUsage
-		}
-		if err := runDesktop(arguments); err != nil {
-			_, _ = io.WriteString(stderr, "local herdr desktop is unavailable\n") // justify-ignore-error: a broken CLI output stream cannot be recovered.
-			return exitFailure
-		}
-		return 0
-	}
-	switch arguments[0] {
-	case "version", "validate-host-config", "gateway", "machine", "bearer", "pairing-invite", "agent-hook":
-	default:
-		return agentcli.Run(context.Background(), arguments, stdin, stdout, stderr)
+func run(arguments []string, stdout, stderr io.Writer) int {
+	if len(arguments) == 0 {
+		_, _ = io.WriteString(stderr, usage) // justify-ignore-error: a broken CLI output stream cannot be recovered.
+		return exitUsage
 	}
 	if arguments[0] == "version" {
 		if len(arguments) != 1 {
@@ -98,59 +81,6 @@ func run(arguments []string, stdin *os.File, stdout, stderr io.Writer) int {
 		if _, err := io.WriteString(stdout, "host config valid\n"); err != nil {
 			_, _ = io.WriteString(stderr, "write validation: output failed\n") // justify-ignore-error: both CLI output streams are unavailable.
 			return exitFailure
-		}
-		return 0
-	}
-	if arguments[0] == "agent-hook" {
-		// One budget covers argument admission, bounded SessionStart input,
-		// host-config admission, and publication. Closing stdin is the
-		// cancellation boundary when a provider never reaches EOF.
-		ctx, cancel := context.WithTimeout(context.Background(), agenthook.PublicationDeadline)
-		defer cancel()
-		flags := flag.NewFlagSet("agent-hook", flag.ContinueOnError)
-		flags.SetOutput(stderr)
-		hostConfigPath := flags.String("host-config", "", "required host config")
-		if err := flags.Parse(arguments[1:]); err != nil || flags.NArg() != 2 || *hostConfigPath == "" {
-			_, _ = io.WriteString(stderr, "usage: skidbladnir agent-hook --host-config=PATH {Codex|Claude} SessionStart\n") // justify-ignore-error: a broken CLI output stream cannot be recovered.
-			return exitUsage
-		}
-		preparedInput := prepareAgentHookInput(flags.Arg(0), flags.Arg(1), stdin)
-		prepared, prepareErr := awaitAgentHookInput(ctx, stdin, preparedInput)
-		if errors.Is(prepareErr, agenthook.ErrInvocationRejected) {
-			// Prepare admits the closed argv union before reading stdin; deployment
-			// state is intentionally still untouched here.
-			_, _ = io.WriteString(stderr, "agent-hook did not publish\n") // justify-ignore-error: a broken CLI output stream cannot be recovered.
-			return exitUsage
-		}
-		if prepareErr != nil {
-			// Invalid or nonterminating provider input is projection-local and
-			// cannot prevent the provider session from starting.
-			_, _ = io.WriteString(stderr, "agent-hook did not publish\n") // justify-ignore-error: a broken CLI output stream cannot be recovered.
-			return 0
-		}
-		// Without a pane there is no projection to publish. Input admission and
-		// draining still precede this no-op; host tooling is irrelevant to it.
-		if os.Getenv("HERDR_PANE_ID") == "" {
-			return 0
-		}
-		config, client, configErr := loadRuntimeHostConfig(ctx, *hostConfigPath, platform.Current().Kind)
-		if configErr != nil {
-			// A host-configuration defect is the deployment's to fix, not the
-			// provider's to pay for. This command stays out of the provider's way.
-			_, _ = io.WriteString(stderr, "agent-hook did not publish\n") // justify-ignore-error: a broken CLI output stream cannot be recovered.
-			return 0
-		}
-		if err := agenthook.Run(ctx, agenthook.Config{
-			Herdr:      client,
-			SocketPath: config.Herdr.SocketPath,
-			Profiles:   config.Profiles,
-		}, prepared); err != nil {
-			// The hook is a passive projection of pane-local facts. Publication
-			// failure must not prevent the provider session from starting, so only
-			// the argv rejection above exits non-zero. A failed projection reports
-			// itself content-free and leaves the provider's own work untouched.
-			_, _ = io.WriteString(stderr, "agent-hook did not publish\n") // justify-ignore-error: a broken CLI output stream cannot be recovered.
-			return 0
 		}
 		return 0
 	}
@@ -256,59 +186,8 @@ func run(arguments []string, stdin *os.File, stdout, stderr io.Writer) int {
 		}
 		return 0
 	default:
-		_, _ = io.WriteString(stderr, "usage: skidbladnir {version|validate-host-config|gateway|machine init|bearer mint|pairing-invite create|agent-hook PROVIDER EVENT}\n") // justify-ignore-error: a broken CLI output stream cannot be recovered.
+		_, _ = io.WriteString(stderr, usage) // justify-ignore-error: a broken CLI output stream cannot be recovered.
 		return exitUsage
-	}
-}
-
-type agentHookInputResult struct {
-	prepared agenthook.Prepared
-	err      error
-}
-
-type agentHookInput interface {
-	io.Reader
-	io.Closer
-}
-
-var errAgentHookInputClose = errors.New("close provider hook input")
-
-func prepareAgentHookInput(provider, event string, input io.Reader) <-chan agentHookInputResult {
-	result := make(chan agentHookInputResult, 1)
-	go func() {
-		prepared, err := agenthook.Prepare(provider, event, input)
-		result <- agentHookInputResult{prepared: prepared, err: err}
-	}()
-	return result
-}
-
-func awaitAgentHookInput(
-	ctx context.Context,
-	input agentHookInput,
-	result <-chan agentHookInputResult,
-) (agenthook.Prepared, error) {
-	select {
-	case prepared := <-result:
-		return prepared.prepared, prepared.err
-	case <-ctx.Done():
-		// The command owns this hook-only stdin. Closing a provider pipe is the
-		// cancellation boundary for a writer that never reaches EOF; the worker
-		// is then joined so run never leaks input work in tests or production.
-		closeErr := input.Close()
-		prepared := <-result
-		causes := []error{ctx.Err()}
-		if closeErr != nil {
-			if errors.Is(closeErr, os.ErrClosed) {
-				// justify-ignore-error: an already-closed owned input has already
-				// established the cancellation boundary and the worker was joined.
-			} else {
-				causes = append(causes, errAgentHookInputClose)
-			}
-		}
-		if prepared.err != nil {
-			causes = append(causes, prepared.err)
-		}
-		return prepared.prepared, errors.Join(causes...)
 	}
 }
 
@@ -318,9 +197,13 @@ func serveGateway(listen, bearerPath, machineHandlePath, hostConfigPath, catalog
 		return fmt.Errorf("load machine handle: %w", err)
 	}
 	descriptor := platform.Current()
-	host, client, err := loadRuntimeHostConfig(context.Background(), hostConfigPath, descriptor.Kind)
+	host, err := hostconfig.Load(hostConfigPath, descriptor.Kind)
 	if err != nil {
 		return fmt.Errorf("validate host configuration: %w", err)
+	}
+	client, err := herdr.New(context.Background(), host.Herdr.Path, host.Herdr.SocketPath, host.Herdr.TestedVersion)
+	if err != nil {
+		return fmt.Errorf("verify configured herdr: %w", err)
 	}
 	workingDirectories, err := workdir.New(home)
 	if err != nil {
@@ -332,27 +215,15 @@ func serveGateway(listen, bearerPath, machineHandlePath, hostConfigPath, catalog
 		CataloguePath: cataloguePath,
 		Profiles:      host.Profiles,
 		MachineHandle: handle.String(),
-		Fingerprint: func(observation process.Observation) (string, error) {
-			credential, err := (auth.FileVerifier{Path: bearerPath}).Read()
-			if err != nil {
-				return "", err
-			}
-			return credential.CommandFingerprint(observation.Executable, observation.Argv), nil
-		},
 	})
 	if err != nil {
 		return fmt.Errorf("initialize terminal sessions: %w", err)
-	}
-	agents, err := agentcontrol.New(manager, client)
-	if err != nil {
-		return fmt.Errorf("initialize agent control: %w", err)
 	}
 	monitor := pressure.NewMonitor()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	go monitor.Run(ctx)
 	handler := gateway.New(gateway.Config{
-		Agents:   agents,
 		Herdr:    client,
 		Sessions: manager,
 		Workdir:  workingDirectories,
@@ -367,55 +238,6 @@ func serveGateway(listen, bearerPath, machineHandlePath, hostConfigPath, catalog
 		return err
 	}
 	return nil
-}
-
-func loadRuntimeHostConfig(ctx context.Context, path string, runtime platform.Kind) (hostconfig.Config, *herdr.Client, error) {
-	config, err := hostconfig.Load(path, runtime)
-	if err != nil {
-		return hostconfig.Config{}, nil, err
-	}
-	client, err := herdr.New(ctx, config.Herdr.Path, config.Herdr.SocketPath, config.Herdr.TestedVersion)
-	if err != nil {
-		return hostconfig.Config{}, nil, err
-	}
-	return config, client, nil
-}
-
-func runDesktop(arguments []string) error {
-	var configPath string
-	if len(arguments) == 0 {
-		executable, err := os.Executable()
-		if err != nil {
-			return err
-		}
-		resolved, err := filepath.EvalSymlinks(executable)
-		if err != nil {
-			return err
-		}
-		configPath = filepath.Join(filepath.Dir(resolved), "host-config.json")
-	} else {
-		if len(arguments) != 2 || arguments[0] != "--host-config" || !filepath.IsAbs(arguments[1]) {
-			return errors.New("usage: skid --host-config /absolute/path")
-		}
-		configPath = arguments[1]
-	}
-	host, client, err := loadRuntimeHostConfig(context.Background(), configPath, platform.Current().Kind)
-	if err != nil {
-		return err
-	}
-	pingContext, cancelPing := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancelPing()
-	if err := client.Ping(pingContext); err != nil {
-		return err
-	}
-	environment := make([]string, 0, len(os.Environ())+1)
-	for _, entry := range os.Environ() {
-		if !strings.HasPrefix(entry, "HERDR_SOCKET_PATH=") {
-			environment = append(environment, entry)
-		}
-	}
-	environment = append(environment, "HERDR_SOCKET_PATH="+host.Herdr.SocketPath)
-	return syscall.Exec(host.Herdr.Path, []string{host.Herdr.Path, "client"}, environment)
 }
 
 type pairingInvitation struct {

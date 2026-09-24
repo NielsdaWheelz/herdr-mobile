@@ -10,9 +10,9 @@ when an operation may be attempted again and which owner decides.
   timeout or lost response after possible dispatch must not trigger an automatic
   retry.
 - preserve `not_sent`, `unknown`, and partial results as specified by the
-  [architecture](../architecture.md), [agent control](../agent-control.md), and
-  [client contract](../agent-control-ux.md). uncertainty is an observable result,
-  not an instruction to reconcile or repeat the effect.
+  [architecture](../architecture.md) and its
+  [agent controls](../architecture.md#agent-status-and-controls). uncertainty
+  is an observable result, not an instruction to reconcile or repeat the effect.
 - reconnecting a transport does not authorize resending terminal bytes or
   repeating a mutation.
 

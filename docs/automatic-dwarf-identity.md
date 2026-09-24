@@ -20,9 +20,8 @@ acceptance green on that source. The final behavior is cut
 into [`architecture.md`](architecture.md); this document remains the
 historical scope and red/green plan.
 
-[agent control](agent-control.md) owns sampled status; the phone grid orders by
-machine/name/id within space groups. [desktop ordering](desktop-browser.md)
-has its own contract. dwarf assignment remains independent of
+[agent status](architecture.md#agent-status-and-controls) is herdr's; the phone grid orders by
+machine/name/id within space groups. dwarf assignment remains independent of
 provider status. older gateway-owned product ordering and status-era names
 below are historical.
 

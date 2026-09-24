@@ -7,7 +7,7 @@ S22+ (devbox debug-signed run — the signed deviceDebug platform gate is
 MacBook-owned); the hands-on pass (incl. the Forge warm-in) stays
 `NOT_RUN`.
 
-current [agent control](agent-control.md) owns sampled status and its presentation.
+current [agent status](architecture.md#agent-status-and-controls) owns sampled status and its presentation.
 this delivery plan's earlier status labels/colors and attention badge are
 historical. the token owner, shapes, typography, target sizes and non-state
 chrome remain current.

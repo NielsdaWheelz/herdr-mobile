@@ -1,33 +1,30 @@
 // Package reference owns the opaque wire format for exact resource targets.
+// A reference is a thin encoding of herdr's own identities on one machine:
+// a terminal's terminal_id, a workspace's id, and an agent's terminal_id plus
+// its herdr agent name. herdr never repeats a terminal_id, so a terminal or
+// agent reference cannot name a later terminal.
 package reference
 
 import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"strings"
 
 	"github.com/NielsdaWheelz/skidbladnir/internal/machine"
 	"github.com/NielsdaWheelz/skidbladnir/internal/strictjson"
 )
 
-type Agent struct {
-	PID                int    `json:"pid"`
-	StartIdentity      string `json:"startIdentity"`
-	CommandFingerprint string `json:"commandFingerprint"`
-	Provider           string `json:"provider"`
-}
-
 type Value struct {
-	Kind          string `json:"kind"`
-	Machine       string `json:"machine"`
-	TerminalID    string `json:"terminalId,omitempty"`
-	WorkspaceID   string `json:"workspaceId,omitempty"`
-	IdentityToken string `json:"identityToken"`
-	Agent         *Agent `json:"agent,omitempty"`
+	Kind        string `json:"kind"`
+	Machine     string `json:"machine"`
+	TerminalID  string `json:"terminalId,omitempty"`
+	WorkspaceID string `json:"workspaceId,omitempty"`
+	AgentName   string `json:"agentName,omitempty"`
 }
 
 var ErrInvalid = errors.New("invalid resource reference")
+
+const maximumLength = 4096
 
 func Encode(value Value) (string, error) {
 	if !value.valid() {
@@ -38,64 +35,28 @@ func Encode(value Value) (string, error) {
 		return "", ErrInvalid
 	}
 	encoded := base64.RawURLEncoding.EncodeToString(data)
-	if len(encoded) > 4096 {
+	if len(encoded) > maximumLength {
 		return "", ErrInvalid
 	}
 	return encoded, nil
 }
 
+// Decode accepts only the exact canonical encoding of a valid value, so a
+// reference has one spelling.
 func Decode(encoded string) (Value, error) {
-	if encoded == "" || len(encoded) > 4096 {
+	if encoded == "" || len(encoded) > maximumLength {
 		return Value{}, ErrInvalid
 	}
 	data, err := base64.RawURLEncoding.Strict().DecodeString(encoded)
-	if err != nil || base64.RawURLEncoding.EncodeToString(data) != encoded {
+	if err != nil {
 		return Value{}, ErrInvalid
 	}
 	var value Value
-	if strictjson.Decode(data, &value) != nil || !value.valid() {
+	if strictjson.Decode(data, &value) != nil {
 		return Value{}, ErrInvalid
 	}
-	var fields map[string]json.RawMessage
-	if strictjson.Decode(data, &fields) != nil {
+	if canonical, err := Encode(value); err != nil || canonical != encoded {
 		return Value{}, ErrInvalid
-	}
-	for _, field := range fields {
-		if string(field) == "null" {
-			return Value{}, ErrInvalid
-		}
-	}
-	expected := map[string]bool{"kind": true, "machine": true, "identityToken": true}
-	switch value.Kind {
-	case "terminal":
-		expected["terminalId"] = true
-	case "workspace":
-		expected["workspaceId"] = true
-	case "agent":
-		expected["terminalId"] = true
-		expected["agent"] = true
-	}
-	if len(fields) != len(expected) {
-		return Value{}, ErrInvalid
-	}
-	for name := range fields {
-		if !expected[name] {
-			return Value{}, ErrInvalid
-		}
-	}
-	if value.Agent != nil {
-		var agentFields map[string]json.RawMessage
-		if strictjson.Decode(fields["agent"], &agentFields) != nil {
-			return Value{}, ErrInvalid
-		}
-		if len(agentFields) != 4 {
-			return Value{}, ErrInvalid
-		}
-		for _, field := range agentFields {
-			if string(field) == "null" {
-				return Value{}, ErrInvalid
-			}
-		}
 	}
 	return value, nil
 }
@@ -104,24 +65,13 @@ func (value Value) valid() bool {
 	if _, err := machine.Parse(value.Machine); err != nil {
 		return false
 	}
-	token, err := base64.RawURLEncoding.Strict().DecodeString(value.IdentityToken)
-	if err != nil || len(token) != 16 || base64.RawURLEncoding.EncodeToString(token) != value.IdentityToken {
-		return false
-	}
 	switch value.Kind {
 	case "terminal":
-		return value.TerminalID != "" && value.WorkspaceID == "" && value.Agent == nil
+		return value.TerminalID != "" && value.WorkspaceID == "" && value.AgentName == ""
 	case "workspace":
-		return value.WorkspaceID != "" && value.TerminalID == "" && value.Agent == nil
+		return value.WorkspaceID != "" && value.TerminalID == "" && value.AgentName == ""
 	case "agent":
-		if value.TerminalID == "" || value.WorkspaceID != "" || value.Agent == nil {
-			return false
-		}
-		agent := value.Agent
-		if agent.PID <= 0 || agent.StartIdentity == "" || (agent.Provider != "Codex" && agent.Provider != "Claude") || len(agent.CommandFingerprint) != 64 {
-			return false
-		}
-		return strings.Trim(agent.CommandFingerprint, "0123456789abcdef") == ""
+		return value.TerminalID != "" && value.WorkspaceID == ""
 	default:
 		return false
 	}

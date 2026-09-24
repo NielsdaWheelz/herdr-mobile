@@ -2,7 +2,7 @@
 
 Status: reviewed design reference, updated 2026-08-31. This document owns visual
 identity: color, shape, ornament, typography, iconography, motion, and the
-terminal theme. [agent control](agent-control.md) owns current sampled status
+terminal theme. [agent status](architecture.md#agent-status-and-controls) owns current sampled status
 and its presentation; no terminal-activity field remains.
 [`architecture.md`](architecture.md) owns product behavior and
 acceptance and wins on any conflict; [`roadmap.md`](roadmap.md) owns delivery

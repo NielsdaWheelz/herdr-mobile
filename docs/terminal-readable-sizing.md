@@ -47,7 +47,7 @@ cells fit the available viewport; tmux's `window-size latest` selects the active
 client's dimensions. Desktop input can return sizing to the desktop. Only input
 that reaches tmux counts; local emulator scrollback and OS focus are not handoff
 guarantees. process, draft, detach, and no-replay semantics remain intact; window/pane
-navigation is shared under the [direct-attachment contract](agent-control-ux.md).
+navigation is shared under the [attachment contract](architecture.md#attachment).
 
 Ship three capabilities: saved text size, responsive whole-cell fitting, and
 normal tmux sizing participation. Retain JetBrains Mono, theme, padding, key

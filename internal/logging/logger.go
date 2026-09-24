@@ -32,7 +32,6 @@ type Route string
 
 const (
 	RouteAgentControl      Route = "/v1/agents/{ref}/{operation}"
-	RouteHealth            Route = "/healthz"
 	RouteTerminals         Route = "/v1/terminals"
 	RouteTerminal          Route = "/v1/terminals/{ref}"
 	RouteTerminalWorkspace Route = "/v1/terminals/{ref}/workspace"
@@ -47,7 +46,7 @@ const (
 
 func (route Route) valid() bool {
 	switch route {
-	case RouteAgentControl, RouteHealth, RouteTerminals, RouteTerminal, RouteTerminalWorkspace,
+	case RouteAgentControl, RouteTerminals, RouteTerminal, RouteTerminalWorkspace,
 		RouteTerminalShell, RouteTerminalStream, RoutePressure, RoutePairingInvites,
 		RoutePairings, RouteDirectoryListings, RouteUnmatched:
 		return true
@@ -75,10 +74,7 @@ const (
 	ErrorProfileUnknown              ErrorCode = "ProfileUnknown"
 	ErrorWorkingDirectoryInvalid     ErrorCode = "WorkingDirectoryInvalid"
 	ErrorNameInvalid                 ErrorCode = "NameInvalid"
-	ErrorNameAmbiguous               ErrorCode = "NameAmbiguous"
 	ErrorObjectiveInvalid            ErrorCode = "ObjectiveInvalid"
-	ErrorReadinessUnconfirmed        ErrorCode = "ReadinessUnconfirmed"
-	ErrorMethodUnavailable           ErrorCode = "MethodUnavailable"
 	ErrorClosureConfirmationRequired ErrorCode = "ClosureConfirmationRequired"
 	ErrorHerdrUnavailable            ErrorCode = "HerdrUnavailable"
 	ErrorUpstreamRejected            ErrorCode = "UpstreamRejected"
@@ -92,8 +88,7 @@ func (code ErrorCode) valid() bool {
 		ErrorDirectoryListingUnavailable, ErrorDirectoryListingTooLarge, ErrorPairingInviteRejected,
 		ErrorTerminalNotFound, ErrorTerminalStale, ErrorAgentStale, ErrorWorkspaceStale,
 		ErrorMetadataUnavailable, ErrorProfileUnknown, ErrorWorkingDirectoryInvalid,
-		ErrorNameInvalid, ErrorNameAmbiguous,
-		ErrorObjectiveInvalid, ErrorReadinessUnconfirmed, ErrorMethodUnavailable,
+		ErrorNameInvalid, ErrorObjectiveInvalid,
 		ErrorClosureConfirmationRequired, ErrorHerdrUnavailable, ErrorUpstreamRejected,
 		ErrorOutcomeUnknown, ErrorInternal:
 		return true

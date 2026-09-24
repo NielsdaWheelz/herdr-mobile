@@ -41,8 +41,8 @@ embedded terminal page.
 - keep navigation and selection state in the existing client owner. android's
   controller and dashboard entry own phone navigation; the terminal ui model
   owns its current filters, selection, viewport, and pending actions.
-- the [architecture](../architecture.md#4-product-behavior) and
-  [desktop browser](../desktop-browser.md) own retention and restoration rules.
+- the [architecture](../architecture.md#4-product-behavior) owns retention and
+  restoration rules.
   do not introduce url routing, navigation history, or a query framework around
   these owners.
 - bind loading and callbacks to their owner's lifecycle and selected scope.

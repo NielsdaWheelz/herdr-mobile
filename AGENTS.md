@@ -2,21 +2,16 @@
 
 Before changing this repository, read [the architecture](docs/architecture.md),
 [the roadmap](docs/roadmap.md), and
-[the codebase rules](docs/rules/index.md). herdr owns terminal and pane
-process lifetimes; providers own execution and history.
-the phone and desktop control herdr terminals. read [the pr 1 operation
-contract](docs/herdr-pr1.md#retained-gateway-operations) for sampled status,
-bounded reads and explicit controls: both providers use terminal reads and
-unconfirmed interrupt/close; no native claude status/history/stop. do not reintroduce
-retired machinery: generalized hook runtimes, provenance, sqlite lifecycle facts,
-contract codegen or proof ledgers.
-
-the sole hook exception is the content-free, process-lifetime-bound SessionStart
-identity registration in architecture §4. hooks never publish status/activity,
-track history or parse prompt payloads. a codex completion notifier may emit BEL
-as terminal-local presentation; it stores no state and has no privileged product
-meaning. architecture §8 governs further upgrades: a new capability requires an
-explicit scope and acceptance-criterion change.
+[the codebase rules](docs/rules/index.md). herdr owns terminals, panes,
+workspaces, agent detection and lifecycle; providers own execution and history.
+skid is the android app and one phone gateway per host over its local herdr;
+humans and jarvis use herdr directly. [pr 5](docs/herdr-pr5.md) removed the skid
+cli, peer and attach clients, identity hook and notifier; do not reintroduce
+them or anything else herdr already provides, nor retired machinery:
+generalized hook runtimes, provenance, sqlite lifecycle facts, contract codegen
+or proof ledgers. skid installs and runs no hooks. architecture §8 governs
+further upgrades: a new capability requires an explicit scope and
+acceptance-criterion change.
 
 2026-09-17 test retirement: behavioral suites and their harnesses are removed.
 `scripts/check verify` retains engineering checks only. cleanup uses temporary

@@ -27,5 +27,5 @@ effectful work, background tasks, cancellation, and resource lifetime.
 - when returning an owning handle, make the caller's release responsibility
   explicit. do not return a borrowed value whose owner has already closed.
 - preserve product lifetime distinctions: closing a gateway attachment releases
-  its transport, pty, and tmux client, not the tmux session or foreground agent.
+  its transport and herdr control child, not the terminal or foreground agent.
   the [architecture](../architecture.md) owns that boundary.

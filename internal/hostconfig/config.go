@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"unicode/utf8"
 
-	"github.com/NielsdaWheelz/skidbladnir/internal/agentruntime"
 	"github.com/NielsdaWheelz/skidbladnir/internal/platform"
+	"github.com/NielsdaWheelz/skidbladnir/internal/profile"
 	"github.com/NielsdaWheelz/skidbladnir/internal/strictjson"
 )
 
@@ -19,17 +19,17 @@ const maximumConfigBytes = 64 * 1024
 
 var expectedProfiles = [...]struct {
 	key      string
-	provider agentruntime.Provider
+	provider profile.Provider
 }{
-	{key: "personal", provider: agentruntime.ProviderCodex},
-	{key: "work", provider: agentruntime.ProviderCodex},
-	{key: "work2", provider: agentruntime.ProviderCodex},
-	{key: "claude-work", provider: agentruntime.ProviderClaude},
+	{key: "personal", provider: profile.ProviderCodex},
+	{key: "work", provider: profile.ProviderCodex},
+	{key: "work2", provider: profile.ProviderCodex},
+	{key: "claude-work", provider: profile.ProviderClaude},
 }
 
 type Config struct {
 	Herdr    HerdrConfig
-	Profiles []agentruntime.Profile
+	Profiles []profile.Profile
 }
 
 type HerdrConfig struct {
@@ -43,7 +43,7 @@ func Load(path string, runtime platform.Kind) (config Config, resultErr error) {
 		return Config{}, errors.New("host config path is empty")
 	}
 	// Host configuration is a deployment-owned local regular file. Nonblocking,
-	// no-follow admission rejects FIFOs, devices, and symlinks before a hook can
+	// no-follow admission rejects FIFOs, devices, and symlinks before startup can
 	// wait on an unbounded filesystem producer; the capped read prevents a large
 	// file from being normalized into memory before its size is rejected.
 	file, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NONBLOCK|syscall.O_NOFOLLOW, 0)
@@ -101,24 +101,15 @@ type herdrDTO struct {
 }
 
 type profileDTO struct {
-	Key                  stringField               `json:"key"`
-	Label                stringField               `json:"label"`
-	Provider             stringField               `json:"provider"`
-	Command              stringField               `json:"command"`
-	Environment          *[]environmentVariableDTO `json:"environment"`
-	ForegroundSignatures *[]foregroundSignatureDTO `json:"foregroundSignatures"`
-	Arguments            *[]stringField            `json:"arguments"`
+	Key         stringField               `json:"key"`
+	Label       stringField               `json:"label"`
+	Provider    stringField               `json:"provider"`
+	Environment *[]environmentVariableDTO `json:"environment"`
 }
 
 type environmentVariableDTO struct {
 	Name  stringField `json:"name"`
 	Value stringField `json:"value"`
-}
-
-type foregroundSignatureDTO struct {
-	ExecutableBase stringField `json:"executableBase"`
-	Argument0      stringField `json:"argument0"`
-	Argument1      stringField `json:"argument1"`
 }
 
 func (wire configDTO) validate(runtime platform.Kind) (Config, error) {
@@ -151,20 +142,20 @@ func (wire configDTO) validate(runtime platform.Kind) (Config, error) {
 	}, nil
 }
 
-func mapProfiles(wire []profileDTO) ([]agentruntime.Profile, error) {
+func mapProfiles(wire []profileDTO) ([]profile.Profile, error) {
 	if len(wire) != 0 && len(wire) != len(expectedProfiles) {
 		return nil, fmt.Errorf("host config must declare exactly %d profiles", len(expectedProfiles))
 	}
-	profiles := make([]agentruntime.Profile, len(wire))
+	profiles := make([]profile.Profile, len(wire))
 	for index, candidate := range wire {
 		expected := expectedProfiles[index]
-		if !candidate.Key.present || !candidate.Label.present || !candidate.Provider.present || !candidate.Command.present || candidate.Environment == nil || candidate.ForegroundSignatures == nil || candidate.Arguments == nil {
+		if !candidate.Key.present || !candidate.Label.present || !candidate.Provider.present || candidate.Environment == nil {
 			return nil, errors.New("host config profile omits a required member")
 		}
 		if candidate.Key.value != expected.key {
 			return nil, fmt.Errorf("host config profile %d must be %q", index, expected.key)
 		}
-		provider, err := agentruntime.ParseProvider(candidate.Provider.value)
+		provider, err := profile.ParseProvider(candidate.Provider.value)
 		if err != nil {
 			return nil, fmt.Errorf("host config profile %s provider is invalid", candidate.Key.value)
 		}
@@ -175,45 +166,27 @@ func mapProfiles(wire []profileDTO) ([]agentruntime.Profile, error) {
 		if err != nil {
 			return nil, err
 		}
-		signatures := make([]agentruntime.ForegroundSignature, len(*candidate.ForegroundSignatures))
-		for signatureIndex, signature := range *candidate.ForegroundSignatures {
-			signatures[signatureIndex] = agentruntime.ForegroundSignature{
-				ExecutableBase: signature.ExecutableBase.value,
-				Argument0:      signature.Argument0.value,
-				Argument1:      signature.Argument1.value,
-			}
-		}
-		arguments := make([]string, len(*candidate.Arguments))
-		for argumentIndex, argument := range *candidate.Arguments {
-			if !argument.present {
-				return nil, errors.New("host config profile argument is null")
-			}
-			arguments[argumentIndex] = argument.value
-		}
-		profiles[index] = agentruntime.Profile{
-			Key:                  agentruntime.ProfileKey(candidate.Key.value),
-			Label:                candidate.Label.value,
-			Provider:             provider,
-			Command:              candidate.Command.value,
-			Environment:          environment,
-			ForegroundSignatures: signatures,
-			Arguments:            arguments,
+		profiles[index] = profile.Profile{
+			Key:         profile.Key(candidate.Key.value),
+			Label:       candidate.Label.value,
+			Provider:    provider,
+			Environment: environment,
 		}
 	}
-	validated, err := agentruntime.ValidateProfiles(profiles)
+	validated, err := profile.Validate(profiles)
 	if err != nil {
 		return nil, fmt.Errorf("validate host profiles: %w", err)
 	}
 	return validated, nil
 }
 
-func mapEnvironment(wire []environmentVariableDTO) ([]agentruntime.EnvironmentVariable, error) {
-	environment := make([]agentruntime.EnvironmentVariable, len(wire))
+func mapEnvironment(wire []environmentVariableDTO) ([]profile.EnvironmentVariable, error) {
+	environment := make([]profile.EnvironmentVariable, len(wire))
 	for index, candidate := range wire {
 		if !candidate.Name.present || !candidate.Value.present {
 			return nil, errors.New("host config environment entry omits a required member")
 		}
-		environment[index] = agentruntime.EnvironmentVariable{Name: candidate.Name.value, Value: candidate.Value.value}
+		environment[index] = profile.EnvironmentVariable{Name: candidate.Name.value, Value: candidate.Value.value}
 	}
 	return environment, nil
 }

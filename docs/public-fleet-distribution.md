@@ -28,12 +28,11 @@ app launch, fleet verification, or reconnect is part of installation. the retire
 product journey below is historical evidence, not an installation prerequisite.
 
 the same simplification retires fleet apply acceptance, lifetime digests, reboot
-checkpoints, and outage/recovery commands. `fleet` retains verification, invitation,
-and client provisioning. installation guarantees remain with `dev-server`; old
-acceptance results below remain historical. `provision-clients` validates the
-complete three-host identity/origin/credential set and distributes private client
-files without release or runtime-health prerequisites. only `fleet verify` needs
-the explicit dev-server checkout.
+checkpoints, and outage/recovery commands. `fleet` retains verification and
+invitation. installation guarantees remain with `dev-server`; old acceptance
+results below remain historical. client provisioning is retired with the skid
+cli (herdr pr 5); `invite` reads the macbook's existing private peer file. only
+`fleet verify` needs the explicit dev-server checkout.
 
 ## 1. Decision
 
@@ -190,14 +189,12 @@ Machine-local apply:
    externally owned App Store Tailscale app;
 2. creates a machine handle and bearer only when absent, preserving both on
    every reinstall;
-3. renders one strict host config, the content-free Codex and Claude
-   `SessionStart` identity adapters, and the optional content-free Codex BEL
-   notifier;
+3. renders one strict host config;
 4. installs a user systemd service with lingering on Linux or a LaunchAgent on
    macOS;
 5. owns only its dedicated Tailscale Serve `:8443/v1` mapping to
    `127.0.0.1:7341/v1`, removes only its retired root handler, and does not
-   reset unrelated Serve state or expose loopback-only `/healthz`;
+   reset unrelated Serve state;
 6. starts/restarts only the gateway service when its owned artifact or config
    changes; and
 7. reports only stable mutations, deferrals, and required actions, followed by
@@ -216,42 +213,36 @@ apply may verify and start that exact app but never install or replace it.
 Apply must not manufacture login state or claim that an installed client is
 connected.
 
-The gateway and `agent-hook` require `--host-config=PATH`. There are no host
-defaults. JSON is decoded strictly with unknown and null members rejected:
+The gateway requires `--host-config=PATH`. There are no host defaults. JSON is
+decoded strictly with unknown and null members rejected (herdr pr 5 shape):
 
 ```json
 {
   "platform": "Linux",
-  "tmux": {"path": "/usr/bin/tmux", "testedVersion": "tmux 3.4"},
+  "herdr": {"path": "/home/niels/.local/share/herdr/current/herdr", "socketPath": "/home/niels/.config/herdr/herdr.sock", "testedVersion": "herdr 0.9.1"},
   "profiles": [
     {
       "key": "personal",
       "label": "Codex · Personal",
       "provider": "Codex",
-      "command": "/home/niels/.local/bin/codex",
-      "environment": [{"name": "CODEX_HOME", "value": "/home/niels/.codex"}],
-      "foregroundSignatures": [{"executableBase": "codex"}],
-      "arguments": []
+      "environment": [{"name": "CODEX_HOME", "value": "/home/niels/.codex"}]
     }
   ]
 }
 ```
 
 All paths are rendered absolute by `dev-server`; no interpolation occurs in the
-gateway. Platform is exactly `Linux|Darwin`; runtime mismatch or a
-missing/broken/noncanonical configured tmux prevents startup. `testedVersion`
-records the last acceptance target; a different canonical installed version
-does not block apply, gateway startup, the agent-hook adapter, or fleet
-verification. Profiles reuse `agentruntime.Profile` validation. Every
-host config declares either no launch profiles or exactly the ordered
-`personal`, `work`, `work2`, and `claude-work` table under
-the accepted [agent-control target](agent-control.md). provider commands and
-explicit account wrappers come from the host config. claude arguments load its
-identity plugin; deployment-owned permission bypass flags follow
-[architecture §2](architecture.md#2-fixed-contract). callers supply no commands
-or permission arguments. platform adapters
-retain only native observation/process/pressure behavior; they no longer choose
-paths, runtime versions, commands, or profiles.
+gateway. Platform is exactly `Linux|Darwin`; runtime mismatch or a herdr binary
+that does not report `testedVersion` prevents startup. Profiles reuse
+`profile.Profile` validation. Every host config declares either no launch
+profiles or exactly the ordered `personal`, `work`, `work2`, and `claude-work`
+table. a profile names only its label, provider and the pane environment that
+holds its account home; herdr starts the bare `codex` or `claude` in that pane,
+and the deployment's wrappers and shell aliases choose the account and add the
+permission flags under [architecture §2](architecture.md#2-fixed-contract).
+callers supply no commands or arguments. platform adapters retain only native
+pressure behavior; they choose no paths, runtime versions, commands, or
+profiles.
 
 ### 4.3 Machine pairing API
 
@@ -311,12 +302,12 @@ to stderr.
 
 ### 4.4 Fleet invitation
 
-run `scripts/fleet invite` on any linux or macos computer with the existing
-mode-0600 `~/.config/skidbladnir/client.json` used by `skid`, a tailnet connection,
+run `scripts/fleet invite` on the macbook with its existing mode-0600
+`~/.config/skidbladnir/client.json` peer credentials, a tailnet connection,
 `jq`, `curl`, and `qrencode`. select the arch, devbox, and macbook peers by their
-case-insensitive labels; additional cli peers are excluded. the existing
-`scripts/fleet provision-clients` owns initial configuration and credential
-refresh after rotation; invitation never provisions or rewrites that file.
+case-insensitive labels; other peers are excluded. nothing provisions that file
+any longer; after a bearer rotation the operator updates it by hand, and
+invitation never rewrites it.
 
 the command uses the configured origins, handles, and bearers to request
 `POST /v1/pairing-invites` directly from each gateway. no dev-server checkout,
@@ -431,13 +422,10 @@ Delete, do not deprecate:
 
 Reuse and centralize:
 
-- `agentruntime.Profile` and its validation for deployment-supplied profiles;
+- `profile.Profile` and its validation for deployment-supplied profiles;
 - `machine.Handle`, canonical origins, `GatewayBearer`, strict JSON helpers,
   API error mapping, and controller machine-isolation primitives;
 - `MachineStore` sealing/quarantine and bearer-rotation rules;
-- the content-free, process-lifetime Codex and Claude `SessionStart` identity
-  adapters and optional Codex BEL notifier without retaining payloads, adding
-  thread tracking, or authoring activity;
 - one auth credential-file reader for verify, canonical read, and
   domain-separated digest instead of re-reading bearer files in pairing code.
 

@@ -19,7 +19,6 @@ type Character struct {
 
 type Catalogue struct {
 	characters []Character
-	byKey      map[string]Character
 }
 
 func Load(path string) (Catalogue, error) {
@@ -46,7 +45,7 @@ func decode(contents []byte) (Catalogue, error) {
 	}
 
 	characters := make([]Character, 0, len(raw))
-	byKey := make(map[string]Character, len(raw))
+	keys := make(map[string]struct{}, len(raw))
 	displayNames := make(map[string]struct{}, len(raw))
 	for index, entry := range raw {
 		if !characterKeyPattern.MatchString(entry.Key) {
@@ -55,7 +54,7 @@ func decode(contents []byte) (Catalogue, error) {
 		if !utf8.ValidString(entry.DisplayName) || strings.TrimSpace(entry.DisplayName) == "" {
 			return Catalogue{}, fmt.Errorf("character catalogue entry %d has an invalid display name", index)
 		}
-		if _, found := byKey[entry.Key]; found {
+		if _, found := keys[entry.Key]; found {
 			return Catalogue{}, fmt.Errorf("character catalogue entry %d duplicates a key", index)
 		}
 		if _, found := displayNames[entry.DisplayName]; found {
@@ -63,17 +62,12 @@ func decode(contents []byte) (Catalogue, error) {
 		}
 		character := Character{Key: entry.Key, DisplayName: entry.DisplayName}
 		characters = append(characters, character)
-		byKey[character.Key] = character
+		keys[character.Key] = struct{}{}
 		displayNames[character.DisplayName] = struct{}{}
 	}
-	return Catalogue{characters: characters, byKey: byKey}, nil
+	return Catalogue{characters: characters}, nil
 }
 
 func (catalogue Catalogue) Characters() []Character {
 	return append([]Character(nil), catalogue.characters...)
-}
-
-func (catalogue Catalogue) Character(key string) (Character, bool) {
-	character, found := catalogue.byKey[key]
-	return character, found
 }

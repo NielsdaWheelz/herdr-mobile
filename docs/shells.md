@@ -1,5 +1,12 @@
 # new terminal here
 
+## herdr pr 5
+
+the skid desktop cli, tui and browser are retired; humans use herdr's own
+client, `herdr --remote` and `ssh <host> herdr`. the phone parts below stand;
+the desktop parts are history. [architecture.md](architecture.md) owns the
+current contract.
+
 ## herdr pr 2 candidate
 
 the independent-shell intent survives; the tmux session and cosmetic space
@@ -27,12 +34,11 @@ creates one root pane for each new terminal and makes new-terminal-here an
 independent tab in the source's real workspace/current directory. it does not
 copy the source launch profile. the tmux session behavior below remains current.
 
-2026-09-17: [pr 3](desktop-browser.md) changes only desktop presentation and the
+2026-09-17: pr 3 (the retired desktop browser) changes only desktop presentation and the
 shortcut to `T` (shift+t); detach retains the newly created shell selection.
 historical pr 2 evidence uses its original `t` binding and proves no pr 3 layout.
 [architecture.md](architecture.md) owns scope; [roadmap.md](roadmap.md) owns
 delivery; this document owns the contracts below. read [AGENTS.md](../AGENTS.md),
-[agent-control.md](agent-control.md), [agent-control-ux.md](agent-control-ux.md),
 [design-language.md](design-language.md), and [rules/index.md](rules/index.md).
 the requested testing standards live at [rules/testing.md](rules/testing.md).
 

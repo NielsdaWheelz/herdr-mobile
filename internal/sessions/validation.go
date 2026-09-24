@@ -1,12 +1,8 @@
 package sessions
 
 import (
-	"errors"
-	"fmt"
-	"os"
 	"regexp"
 	"slices"
-	"syscall"
 	"unicode/utf8"
 
 	"golang.org/x/text/unicode/norm"
@@ -100,20 +96,6 @@ func normalizeWorkspaceNFC(value string) string {
 		blockingClass = part.class
 	}
 	return string(composed)
-}
-
-func requireExecutable(path string) error {
-	info, err := os.Stat(path)
-	if err != nil {
-		return err
-	}
-	if !info.Mode().IsRegular() {
-		return errors.New("is not a regular file")
-	}
-	if err := syscall.Access(path, 1); err != nil {
-		return fmt.Errorf("is not executable: %w", err)
-	}
-	return nil
 }
 
 func isC0OrC1(value rune) bool {

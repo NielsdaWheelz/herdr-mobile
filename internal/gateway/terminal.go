@@ -276,15 +276,15 @@ func (gateway *Gateway) runTerminal(ctx context.Context, cancelAttempt context.C
 }
 
 func (gateway *Gateway) dispatchTerminalInput(ctx context.Context, target sessions.TerminalTarget, control *herdr.Control, frame terminal.ClientFrame) error {
-	resolved, err := gateway.sessions.ResolveTerminal(ctx, target)
+	paneID, err := gateway.sessions.ResolveTerminal(ctx, target)
 	if err != nil {
 		return err
 	}
 	switch input := frame.(type) {
 	case terminal.TextFrame:
-		return gateway.terminalCall(ctx, "pane.send_text", map[string]any{"pane_id": resolved.PaneID, "text": input.Text})
+		return gateway.terminalCall(ctx, "pane.send_text", map[string]any{"pane_id": paneID, "text": input.Text})
 	case terminal.PasteFrame:
-		return gateway.terminalCall(ctx, "pane.send_input", map[string]any{"pane_id": resolved.PaneID, "text": input.Text})
+		return gateway.terminalCall(ctx, "pane.send_input", map[string]any{"pane_id": paneID, "text": input.Text})
 	case terminal.KeyFrame:
 		key := input.Key
 		switch key {
@@ -296,7 +296,7 @@ func (gateway *Gateway) dispatchTerminalInput(ctx context.Context, target sessio
 		if len(input.Modifiers) > 0 {
 			key = strings.Join(input.Modifiers, "+") + "+" + key
 		}
-		return gateway.terminalCall(ctx, "pane.send_input", map[string]any{"pane_id": resolved.PaneID, "keys": []string{key}})
+		return gateway.terminalCall(ctx, "pane.send_input", map[string]any{"pane_id": paneID, "keys": []string{key}})
 	case terminal.ScrollFrame:
 		return control.Scroll(input.Source, input.Direction, input.Lines, input.Column, input.Row)
 	case terminal.ResizeFrame:

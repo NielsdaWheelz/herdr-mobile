@@ -7,14 +7,12 @@ import (
 	"errors"
 	"io"
 	"mime"
-	"net"
 	"net/http"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/NielsdaWheelz/skidbladnir/internal/agentcontrol"
 	"github.com/NielsdaWheelz/skidbladnir/internal/auth"
 	"github.com/NielsdaWheelz/skidbladnir/internal/herdr"
 	"github.com/NielsdaWheelz/skidbladnir/internal/logging"
@@ -35,7 +33,6 @@ const (
 )
 
 type Config struct {
-	Agents   *agentcontrol.Service
 	Herdr    *herdr.Client
 	Sessions *sessions.Manager
 	Workdir  *workdir.Service
@@ -48,7 +45,6 @@ type Config struct {
 }
 
 type Gateway struct {
-	agents   *agentcontrol.Service
 	herdr    *herdr.Client
 	sessions *sessions.Manager
 	workdir  *workdir.Service
@@ -73,7 +69,7 @@ type Gateway struct {
 }
 
 func New(config Config) *Gateway {
-	if config.Agents == nil || config.Sessions == nil || config.Herdr == nil || config.Pressure == nil {
+	if config.Sessions == nil || config.Herdr == nil || config.Pressure == nil {
 		panic("gateway runtime services are not configured") // justify-defect: the composition root must supply one concrete runtime for every terminal route.
 	}
 	if config.Workdir == nil {
@@ -92,7 +88,6 @@ func New(config Config) *Gateway {
 	}
 	unsupportedMetrics, unsupportedMetricSet := mapUnsupportedMetrics(config.Pressure.Unsupported())
 	return &Gateway{
-		agents:               config.Agents,
 		herdr:                config.Herdr,
 		sessions:             config.Sessions,
 		workdir:              config.Workdir,
@@ -149,10 +144,6 @@ func (gateway *Gateway) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 }
 
 func (gateway *Gateway) serveHTTP(writer *trackedResponseWriter, request *http.Request, route logging.Route) {
-	if request.URL.Path == "/healthz" {
-		gateway.serveHealth(writer, request)
-		return
-	}
 	if !strings.HasPrefix(request.URL.Path, "/v1") {
 		writeError(writer, errorInvalidRequest)
 		return
@@ -291,16 +282,6 @@ func (gateway *Gateway) bindMachine(writer http.ResponseWriter, request *http.Re
 		return false
 	}
 	return true
-}
-
-func (gateway *Gateway) serveHealth(writer http.ResponseWriter, request *http.Request) {
-	if request.Method != http.MethodGet || request.URL.RawQuery != "" || !isLoopbackRemote(request.RemoteAddr) {
-		writeError(writer, errorInvalidRequest)
-		return
-	}
-	writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	writer.WriteHeader(http.StatusOK)
-	_, _ = io.WriteString(writer, "ok\n") // justify-ignore-error: the client disconnecting after the health status is not actionable.
 }
 
 func (gateway *Gateway) authenticate(writer http.ResponseWriter, request *http.Request, route logging.Route) (auth.Credential, bool) {
@@ -536,8 +517,6 @@ func (writer *trackedResponseWriter) setErrorCode(code logging.ErrorCode) {
 
 func requestRoute(path string) logging.Route {
 	switch {
-	case path == "/healthz":
-		return logging.RouteHealth
 	case path == "/v1/pairing-invites":
 		return logging.RoutePairingInvites
 	case path == "/v1/pairings":
@@ -576,13 +555,4 @@ func (gateway *Gateway) log(event logging.Event) {
 		return
 	}
 	panic("invalid structured log event") // justify-defect: only a programming/configuration error reaches this branch.
-}
-
-func isLoopbackRemote(remoteAddress string) bool {
-	host, _, err := net.SplitHostPort(remoteAddress)
-	if err != nil {
-		return false
-	}
-	address := net.ParseIP(host)
-	return address != nil && address.IsLoopback()
 }

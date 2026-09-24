@@ -4,7 +4,6 @@ import java.net.URI
 import java.net.URISyntaxException
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
-import java.text.Normalizer
 import java.time.DateTimeException
 import java.time.Instant
 import java.time.ZoneOffset
@@ -200,42 +199,17 @@ internal data class ProfileChoice(val key: ProfileKey, val label: String, val pr
 )
 @Serializable internal data class CharacterSummary(val key: String, val displayName: String)
 
-@ConsistentCopyVisibility
-internal data class ProviderSessionFacts private constructor(
-    val id: String? = null,
-    val name: String? = null,
-) {
-    init {
-        require(id != null || name != null)
-        require(id?.let(::isProviderSessionId) != false)
-        require(name?.let(::isProviderSessionName) != false)
-    }
-
-    companion object {
-        fun withId(id: String, name: String? = null): ProviderSessionFacts =
-            ProviderSessionFacts(id = id, name = name)
-
-        fun withName(name: String): ProviderSessionFacts = ProviderSessionFacts(name = name)
-    }
-}
-
 internal data class AgentRuntime(
     val ref: String,
     val provider: AgentProvider,
     val status: AgentStatus,
     val readiness: AgentReadiness,
     val methods: AgentMethods,
-    val provenRuntimeProfile: ProfileKey? = null,
-    val providerSession: ProviderSessionFacts? = null,
 ) {
     init {
         require(isOpaqueRef(ref))
         require(readiness != AgentReadiness.Ready || status.state == AgentState.Idle)
         require(readiness != AgentReadiness.Blocked || status.state == AgentState.Blocked)
-        when (provider) {
-            AgentProvider.Codex -> require(providerSession?.name == null)
-            AgentProvider.Claude -> Unit
-        }
     }
 }
 
@@ -297,20 +271,12 @@ private data class WireCreatedTerminalResponse(
 @Serializable private data class WireWorkspaceRecord(val ref: String, val label: String)
 
 @Serializable
-private data class WireProviderSessionFacts(
-    val id: String? = null,
-    val name: String? = null,
-)
-
-@Serializable
 private data class WireAgentRuntime(
     val ref: String,
     val provider: AgentProvider,
     val status: AgentStatus,
     val readiness: AgentReadiness,
     val methods: AgentMethods,
-    val provenRuntimeProfile: String? = null,
-    val providerSession: WireProviderSessionFacts? = null,
 )
 
 @Serializable
@@ -585,9 +551,6 @@ internal fun decodeTerminalsResponse(encoded: String): TerminalsResponse = decod
     require(wire.partial || wire.unaddressableTerminals == 0 && wire.unaddressableWorkspaces == 0)
     terminals.forEach { terminal ->
         terminal.launchProfile?.let { profile -> require(profiles.any { it.key == profile }) }
-        terminal.agent?.provenRuntimeProfile?.let { profile ->
-            require(profiles.any { it.key == profile && it.provider == terminal.agent.provider })
-        }
     }
     TerminalsResponse(
         MachineSummary(requireNotNull(MachineHandle.parse(wire.machine.handle)),
@@ -916,9 +879,7 @@ internal fun sessionStatusContent(agent: AgentRuntime?, fresh: Boolean): Session
 private fun JsonObject.requireTerminalOptionalFields() {
     requireAbsentOrNonNull(setOf("name", "nativeLabel", "launchProfile", "objective", "cwd", "agent"))
     (this["agent"] as? JsonObject)?.let { agent ->
-        agent.requireAbsentOrNonNull(setOf("provenRuntimeProfile", "providerSession"))
         (agent["status"] as? JsonObject)?.requireAbsentOrNonNull(setOf("reason"))
-        (agent["providerSession"] as? JsonObject)?.requireAbsentOrNonNull(setOf("id", "name"))
     }
 }
 private fun <Value> List<Value>.allUnique(): Boolean = distinct().size == size
@@ -962,28 +923,5 @@ private fun acceptAgentRuntime(wire: WireAgentRuntime): AgentRuntime = AgentRunt
     status = wire.status,
     readiness = wire.readiness,
     methods = wire.methods,
-    provenRuntimeProfile = wire.provenRuntimeProfile?.let { requireNotNull(ProfileKey.parse(it)) },
-    providerSession = wire.providerSession?.let(::acceptProviderSessionFacts),
 )
 
-private fun acceptProviderSessionFacts(facts: WireProviderSessionFacts): ProviderSessionFacts = when {
-    facts.id != null -> ProviderSessionFacts.withId(facts.id, facts.name)
-    facts.name != null -> ProviderSessionFacts.withName(facts.name)
-    else -> throw IllegalArgumentException("provider session facts are empty")
-}
-
-private fun isProviderSessionId(value: String): Boolean =
-    value.length in 1..128 && value.all { it.code in 0x21..0x7e }
-
-private fun isProviderSessionName(value: String): Boolean {
-    if (!Normalizer.isNormalized(value, Normalizer.Form.NFC)) return false
-    val codePoints = value.codePoints().toArray()
-    return codePoints.size in 1..128 && codePoints.none { codePoint ->
-        Character.isISOControl(codePoint) ||
-            codePoint in 0xd800..0xdfff ||
-            codePoint == 0x061c ||
-            codePoint in 0x200e..0x200f ||
-            codePoint in 0x2028..0x202e ||
-            codePoint in 0x2066..0x2069
-    }
-}

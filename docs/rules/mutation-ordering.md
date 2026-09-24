@@ -17,7 +17,7 @@ ordering changes across ownership and observation boundaries.
   placeholder lifecycle state or recovery machinery to imply atomicity the
   operation does not have.
 - the [architecture](../architecture.md), [shell creation](../shells.md), and
-  [agent-control contract](../agent-control.md) own publication, detach, stop,
+  [agent controls](../architecture.md#agent-status-and-controls) own publication, detach, stop,
   and deletion order. a generic ordering rule does not change those sequences.
 
 ## ownership

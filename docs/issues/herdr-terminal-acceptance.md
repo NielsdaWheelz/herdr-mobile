@@ -1,5 +1,9 @@
 # herdr phone and desktop terminal acceptance
 
+2026-09-24 herdr pr 5: the skid desktop client is retired; the desktop is
+herdr's own client, and the desktop and cli checks below are history. the phone
+journey remains.
+
 status 2026-09-23: the remaining phone journey and mac-local cli/private-ca
 checks are [accepted non-blocking follow-ups](../herdr-pr2.md#accepted-non-blocking-follow-ups).
 no new test campaign is required; unrun checks remain `NOT_RUN`. the resolution

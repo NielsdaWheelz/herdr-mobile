@@ -91,9 +91,6 @@ func (gateway *Gateway) serveTerminalAPI(writer http.ResponseWriter, request *ht
 				gateway.writeOperationError(writer, err)
 				return
 			}
-			for index := range inventory.Terminals {
-				gateway.agents.Enrich(ctx, &inventory.Terminals[index])
-			}
 			result, err := mapInventory(gateway.machine, gateway.machineDTO(), inventory, gateway.sessions.Profiles())
 			if err != nil {
 				writeError(writer, errorInternal)
@@ -133,18 +130,6 @@ func (gateway *Gateway) serveTerminalAPI(writer http.ResponseWriter, request *ht
 	ctx, cancel := context.WithTimeout(request.Context(), hostOperationBudget)
 	defer cancel()
 	switch {
-	case request.Method == http.MethodGet && operation == "":
-		if !requireEmptyRequest(request) {
-			writeError(writer, errorInvalidRequest)
-			return
-		}
-		observed, err := gateway.sessions.Info(ctx, target)
-		if err != nil {
-			gateway.writeOperationError(writer, err)
-			return
-		}
-		gateway.agents.Enrich(ctx, &observed.Terminal)
-		gateway.writeObservedTerminal(writer, http.StatusOK, observed)
 	case request.Method == http.MethodPost && operation == "shell":
 		_, failure := decodeJSON[struct{}](writer, request)
 		if failure != nil {

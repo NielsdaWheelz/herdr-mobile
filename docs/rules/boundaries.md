@@ -72,8 +72,8 @@ external state remains independently mutable even when we wrote it earlier.
   that failed to preserve its contract.
 - Do not add redundant validation across layers. Tighten the source or the persisted representation instead.
 - references can outlive their targets. classify a missing target according to
-  its lifetime contract; a stale tmux or process observation is an expected
-  outcome, not corruption. see [agent control](../agent-control.md).
+  its lifetime contract; a stale herdr terminal or agent is an expected
+  outcome, not corruption. see [host architecture](../architecture.md#5-host-architecture).
 
 ## Same-System Transport
 

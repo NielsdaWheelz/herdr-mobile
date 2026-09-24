@@ -7,8 +7,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/NielsdaWheelz/skidbladnir/internal/agentruntime"
 	"github.com/NielsdaWheelz/skidbladnir/internal/machine"
+	"github.com/NielsdaWheelz/skidbladnir/internal/profile"
 	"github.com/NielsdaWheelz/skidbladnir/internal/sessions"
 )
 
@@ -18,13 +18,18 @@ type workspaceWire struct {
 }
 
 type agentWire struct {
-	Ref                  string               `json:"ref"`
-	Provider             string               `json:"provider"`
-	ProvenRuntimeProfile string               `json:"provenRuntimeProfile,omitempty"`
-	ProviderSession      *providerSessionDTO  `json:"providerSession,omitempty"`
-	Status               agentruntime.Status  `json:"status"`
-	Readiness            string               `json:"readiness"`
-	Methods              agentruntime.Methods `json:"methods"`
+	Ref       string          `json:"ref"`
+	Provider  string          `json:"provider"`
+	Status    sessions.Status `json:"status"`
+	Readiness string          `json:"readiness"`
+	Methods   methodsWire     `json:"methods"`
+}
+
+// methodsWire says how the phone reaches an agent: through its terminal.
+type methodsWire struct {
+	Read      string `json:"read"`
+	Send      string `json:"send"`
+	Interrupt string `json:"interrupt"`
 }
 
 type terminalWire struct {
@@ -80,14 +85,9 @@ func mapTerminal(handle machine.Handle, terminal sessions.Terminal) (terminalWir
 		if err != nil {
 			return terminalWire{}, err
 		}
-		agent := terminal.Agent
 		card.Agent = &agentWire{
-			Ref: ref, Provider: string(agent.Provider),
-			ProvenRuntimeProfile: string(agent.ProvenRuntimeProfile),
-			Status:               agent.Status, Readiness: agent.Readiness, Methods: agent.Methods,
-		}
-		if agent.ProviderSession != nil {
-			card.Agent.ProviderSession = &providerSessionDTO{ID: agent.ProviderSession.ID(), Name: agent.ProviderSession.Name()}
+			Ref: ref, Provider: string(terminal.Agent.Provider), Status: terminal.Agent.Status, Readiness: terminal.Agent.Readiness,
+			Methods: methodsWire{Read: "terminal", Send: "terminal", Interrupt: "terminal"},
 		}
 	}
 	return card, nil
@@ -106,7 +106,7 @@ func safeNativeLabel(value string) bool {
 	return true
 }
 
-func mapInventory(handle machine.Handle, platform machineDTO, inventory sessions.Inventory, profiles []agentruntime.Profile) (inventoryWire, error) {
+func mapInventory(handle machine.Handle, platform machineDTO, inventory sessions.Inventory, profiles []profile.Profile) (inventoryWire, error) {
 	observedAt, err := projectionInstant(inventory.ObservedAt)
 	if err != nil {
 		return inventoryWire{}, err

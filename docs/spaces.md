@@ -1,5 +1,12 @@
 # spaces
 
+## herdr pr 5
+
+the skid desktop cli, tui and browser are retired; humans use herdr's own
+client, `herdr --remote` and `ssh <host> herdr`. the phone parts below stand;
+the desktop parts are history. [architecture.md](architecture.md) owns the
+current contract.
+
 ## herdr pr 2 candidate
 
 the optional tmux session label and `skid space` mutation described below are
@@ -30,9 +37,8 @@ there is no `unassigned` resource. this is not the implemented tmux grouping bel
 
 [architecture.md](architecture.md) incorporates this scope and acceptance;
 [roadmap.md](roadmap.md) owns delivery. this document owns the detailed spaces
-contract. [agent-control.md](agent-control.md) and
-[agent-control-ux.md](agent-control-ux.md) still own provider controls, references,
-transport, and attachment. their current status and machine/name ordering rules
+contract. [the architecture](architecture.md#4-product-behavior) owns provider
+controls, references, transport, and attachment. their current status and machine/name ordering rules
 supersede older activity-only descriptions. follow [../AGENTS.md](../AGENTS.md),
 [rules/index.md](rules/index.md), and [rules/testing.md](rules/testing.md).
 
@@ -47,7 +53,7 @@ pr 1 delivers inventory projection, initial assignment during creation,
 set/change/clear on existing sessions, grouped cli/tui/phone collections,
 intersecting machine/space filters, and collection return continuity. ordinary
 shell-only sessions already in inventory participate in session operations.
-creating a new ordinary shell belongs to pr 2. [pr 3](desktop-browser.md) owns
+creating a new ordinary shell belongs to pr 2. pr 3 (the retired desktop browser) owned
 desktop browser navigation; pr 4 investigates embedding. no later-pr scaffolding.
 
 ```text
@@ -156,7 +162,7 @@ order then host-published name/id order; android case-folded/exact machine label
 machine handle, case-folded/exact tmux name, then tmux id. no urgency sorting,
 manual ordering, collapsing, nested groups, or completeness-implying counters.
 pr 3 retains this order for tabs; its separate global agent view has the
-[explicit status order](desktop-browser.md#3-selection-and-navigation).
+explicit status order (retired desktop browser).
 
 ### owned values
 
@@ -387,7 +393,7 @@ prevent declaring the selected machine's intersection empty.
 
 pr 3 changes only desktop explicit filter selection: keep the selected lifetime
 if it still matches, otherwise select the first tab. refresh/removal retains the
-clamped-neighbour rule. [desktop-browser.md](desktop-browser.md) owns those transitions.
+clamped-neighbour rule. the retired desktop browser owned those transitions.
 
 unchanged-save disabling compares the canonical draft with the latest accepted
 membership of that pinned lifetime, not an obsolete value from when the editor
@@ -424,7 +430,7 @@ must not overwrite a form the operator has already opened or edited.
 
 ## 8. tui interaction and return
 
-[pr 3](desktop-browser.md) owns the desktop layout/keymap and replaces the grouped
+pr 3 (the retired desktop browser) owned the desktop layout/keymap and replaces the grouped
 table/space picker. retain one bubble tea model, five-second refresh, at most
 one inventory request in flight, and the boundary rules below. source and historical
 spaces evidence still describe the preceding table.
