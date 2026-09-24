@@ -35,6 +35,18 @@ are retained as `.apply.failed.*`), proven through both skid restore callers;
 jarvis drops the redundant `reset-failed` from `activate-release`, proven on a
 never-loaded unit, a clean reactivation and a refused unclean stop (report
 section "round 4").
+2026-09-24, release qualification: skid #135 and jarvis #40 merged
+(`cf25c7d`, `2a59355`); the v0.7.0 draft's bytes passed every decisive boundary
+on darwin (disposable deployment) and linux (systemd container, including the
+v0.6.0 → v0.7.0 transition and the `bb8e218` rollback); the live codex + claude
+journey passed through jarvis over a trusted tailnet origin. findings:
+[codex menus read as ready](codex-menu-readiness.md), jarvis
+`docs/issues/discord-login-failure-exit.md`, dev-server
+`docs/issues/codex-daemon-socket.md` (not on the window's path: apply does not
+upgrade an installed codex). the android data roundtrip could not run in
+isolation (sdk 36 images absent; an invite needs the three real machines); the
+production install checks pairing continuity (jarvis report section "release
+qualification").
 
 ## release tuple
 
@@ -47,7 +59,7 @@ section "round 4").
 | skid rollback | `v0.6.0`, source `2d6184c63d62396f69342200e4229cc902ca140c`, the pin at skid and dev-server main today and the release every host advertises through `readlink ~/.local/share/skidbladnir/current` |
 | dev-server candidate | the `herdr-pr4` tip after its v0.7.0 pin commit. the installer's behavior is its tree, not its commit, so the later merge into main must leave the main tree identical to that tip (`git diff <tip> main` empty) |
 | dev-server rollback | commit `bb8e218bbfb10a9077aadce2983d510c8366a2f9`: origin/main, the `herdr-pr4` merge-base, and the library the deleted rollback proof re-applied over herdr-era state (darwin only; the linux rollback runs in isolated qualification). rollback is that checkout plus `./workstation apply` or `./devbox apply`; it reinstalls v0.6.0 with the retained native-control copies and leaves herdr supervised. the macbook checkout is at it; confirm devbox's and arch's last applied checkout read the same commit (read-only) before the window |
-| qualified artifact digests | the draft's five `SHA256SUMS` lines, copied here when step 2 finishes on both platforms; publication (`gh release edit --draft=false`) changes no asset, and step 3 diffs `gh release download v0.7.0 --pattern SHA256SUMS` against this row before `check published-release`. empty until then |
+| qualified artifact digests | draft `v0.7.0` at `cf25c7df2442d18cc6f6d030a2402b14bc9378ef`, qualified 2026-09-24: `e25f20e491da5d659333a524bd8f33f3572d9851b2b4fab0cd251bcbd27fe0b5  android-signing-cert.sha256`, `00559b775ce4989a04130de77cbffd4a1347564653c1d1245e186f8fbb9cc61f  skidbladnir-android.apk`, `20b5aaa055730169fb381fc53fce513efb91810148f47b3ffca75663cf99534f  skidbladnir-darwin-arm64.tar.gz`, `0dcbe67be21f690a021823411b9e07f2c4d0cd399419606cddf1290cdb6666ca  skidbladnir-linux-amd64.tar.gz`. dev-server candidate tip `4827bba958196d64f28c840553941f102f8c08ef`; jarvis candidate `2a59355fcff5bba1bee556fd877b8dc02dd37673`; emergency apk `0436a0469fd9827dff2e5730faf9b1508a2231efe4c49d0a6d5dc655568839fa` (local) |
 | jarvis candidate | the merge of `herdr-pr4` into main, made before qualification: jarvis keys releases by commit, so the commit installed on the isolated host must be the one production activates |
 | jarvis rollback | none through `activate-release`: production `f4e2ce6129c0add09ddb50355a8997a1c589d3d1` predates `check-activation` and is refused, not skipped. if the candidate fails, keep jarvis stopped and repair forward. from the candidate on, rollback targets carry the check. transitional `51f62c86322a66224d1576395b5795ae823c1f75` for the admission-journal cutover |
 
@@ -133,7 +145,8 @@ gates.
    still reads the `/v1` mapping (ingress now runs after retention from
    `workstation`); `dev.niels.herdr` runs with ping `0.9.1`/`22` and
    `~/.config/herdr/session.json` under the real home; a second apply is
-   `UP TO DATE`.
+   `UP TO DATE`. before jarvis `resume`, answer codex's trust prompts once per
+   profile and host ([codex menus read as ready](codex-menu-readiness.md)).
 8. `scripts/install-android` in place; check pairing continuity only. the
    waived terminal, lifecycle and manual phone journeys stay `NOT_RUN` and
    gate nothing.
