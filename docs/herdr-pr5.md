@@ -113,7 +113,8 @@ inside those routes the gateway stops re-implementing herdr:
   would come back without its pane's account home. the agent's herdr name is its dwarf's name in
   herdr's grammar (`[a-z][a-z0-9_-]{0,31}`, unique among a server's live
   agents, e.g. `haugspori` for `norse.haugspori`), so the phone's name and
-  herdr's are one; a collision on the same server becomes `<name>-2`.
+  herdr's are one; launch picks a dwarf whose name is not live on that server,
+  and falls back to `<name>-2` only when every dwarf is in use.
 - status shows herdr's `agent get`/`agent explain` result as it is. the phone's
   readiness label stays a projection, with no second rule.
 - stop stays: herdr has no single stop, so it remains interrupt, re-check and
@@ -127,8 +128,12 @@ inside those routes the gateway stops re-implementing herdr:
   start` checks the same way. the check is not atomic; the race stays accepted.
   workspace references are herdr's workspace ids, which a restart can reissue;
   they only place a new tab or a moved pane, so that is accepted. an agent herdr
-  detected without a name (typed by hand) is identified by its terminal alone,
-  so an unnamed replacement in the same terminal is indistinguishable.
+  detected without a name (typed by hand) has no agent reference: interrupt and
+  stop are refused for it, and it stays reachable only through terminal-scoped
+  controls (kill, stream input), because an unnamed replacement in the same
+  terminal would be indistinguishable. interrupt writes to the agent's name, so
+  herdr binds it to that exact agent; stop's close stays pane-targeted after
+  the re-check.
   references stay opaque to the phone.
 - the phone's session card loses `provenRuntimeProfile` (it came from the
   deleted hook) and shows `launchProfile`. the app's decoder is strict, so the
