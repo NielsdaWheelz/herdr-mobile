@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
@@ -30,7 +31,7 @@ func Decode(encoded []byte, target any) error {
 	if target == nil {
 		return errors.New("JSON target is nil")
 	}
-	if err := validateExactValue(encoded, reflect.TypeOf(target), ""); err != nil {
+	if err := validateExactValue(encoded, reflect.TypeOf(target)); err != nil {
 		return err
 	}
 	decoder := json.NewDecoder(bytes.NewReader(encoded))
@@ -46,12 +47,33 @@ func Decode(encoded []byte, target any) error {
 
 var jsonUnmarshalerType = reflect.TypeOf((*json.Unmarshaler)(nil)).Elem()
 
+// unknownMemberError names a member the schema does not declare by its path
+// from the document root, which is assembled only as the error unwinds.
+type unknownMemberError struct{ path string }
+
+func (err *unknownMemberError) Error() string {
+	return fmt.Sprintf("JSON member %q is unknown", err.path)
+}
+
+// within prefixes an unknown member's path with the member or index holding it.
+func within(err error, segment string) error {
+	var unknown *unknownMemberError
+	if errors.As(err, &unknown) {
+		if strings.HasPrefix(unknown.path, "[") {
+			unknown.path = segment + unknown.path
+		} else {
+			unknown.path = segment + "." + unknown.path
+		}
+	}
+	return err
+}
+
 // validateExactValue closes encoding/json's case-insensitive struct-field
 // matching before decoding, and names the path of a member the schema does not
 // declare. Custom JSON unmarshallers remain the exact owner of their own value
 // shape; every ordinary struct, slice, and map is traversed against its
 // declared schema.
-func validateExactValue(encoded json.RawMessage, targetType reflect.Type, path string) error {
+func validateExactValue(encoded json.RawMessage, targetType reflect.Type) error {
 	for targetType.Kind() == reflect.Pointer {
 		targetType = targetType.Elem()
 	}
@@ -73,16 +95,12 @@ func validateExactValue(encoded json.RawMessage, targetType reflect.Type, path s
 			return err
 		}
 		for name, value := range object {
-			member := name
-			if path != "" {
-				member = path + "." + name
-			}
 			fieldType, present := fields[name]
 			if !present {
-				return fmt.Errorf("JSON member %q is unknown", member)
+				return &unknownMemberError{path: name}
 			}
-			if err := validateExactValue(value, fieldType, member); err != nil {
-				return err
+			if err := validateExactValue(value, fieldType); err != nil {
+				return within(err, name)
 			}
 		}
 	case reflect.Slice, reflect.Array:
@@ -94,8 +112,8 @@ func validateExactValue(encoded json.RawMessage, targetType reflect.Type, path s
 			return errors.New("JSON value is not an array")
 		}
 		for index, value := range values {
-			if err := validateExactValue(value, targetType.Elem(), fmt.Sprintf("%s[%d]", path, index)); err != nil {
-				return err
+			if err := validateExactValue(value, targetType.Elem()); err != nil {
+				return within(err, "["+strconv.Itoa(index)+"]")
 			}
 		}
 	case reflect.Map:
@@ -107,12 +125,8 @@ func validateExactValue(encoded json.RawMessage, targetType reflect.Type, path s
 			return errors.New("JSON value is not an object")
 		}
 		for key, value := range values {
-			member := key
-			if path != "" {
-				member = path + "." + key
-			}
-			if err := validateExactValue(value, targetType.Elem(), member); err != nil {
-				return err
+			if err := validateExactValue(value, targetType.Elem()); err != nil {
+				return within(err, key)
 			}
 		}
 	}

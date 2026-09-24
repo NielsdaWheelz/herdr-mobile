@@ -170,7 +170,7 @@ internal fun TerminalScreen(
                 onClick = controller::openTextSize,
                 modifier = Modifier.width(48.dp),
             )
-            if (state.target.terminal.agent?.ref != null) {
+            if (state.target.terminal.agentControllable) {
                 var expanded by remember(state.attempt) { mutableStateOf(false) }
                 Box {
                     HeaderChip(

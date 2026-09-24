@@ -1569,7 +1569,7 @@ internal class SkidbladnirController(
         if (terminal.agentControlPending || terminal.kill != null || terminal.rename != null ||
             !terminalActionAdmissible(terminal.machine.canMutate, terminal.connection)) return
         val target = terminal.target
-        if (target.terminal.agent?.ref == null) return
+        if (!target.terminal.agentControllable) return
         val credential = credentials[target.machineHandle] ?: return
         val runtime = polling[target.machineHandle] ?: return
         val activeGeneration = generation
@@ -1650,7 +1650,7 @@ internal class SkidbladnirController(
         runtime.inventoryOperation.submitMutation(
             onReserved = { fence -> requireInventoryRefresh(kill.target.machineHandle, fence) },
         ) { _ ->
-            val stoppingAgent = kill.target.terminal.agent?.ref != null && !kill.terminalOnly
+            val stoppingAgent = kill.target.terminal.agentControllable && !kill.terminalOnly
             val result: GatewayResult<*> = if (stoppingAgent) client.stopAgent(credential, kill.target)
                 else client.killTerminal(credential, kill.target)
             main.post {

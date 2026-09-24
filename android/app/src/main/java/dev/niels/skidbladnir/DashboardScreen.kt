@@ -576,7 +576,7 @@ internal fun KillConfirmation(
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
-    val stoppingAgent = state.target.terminal.agent?.ref != null && !state.terminalOnly
+    val stoppingAgent = state.target.terminal.agentControllable && !state.terminalOnly
     val verb = if (stoppingAgent) "Stop" else "Close"
     // No ornament near destructive surfaces (design-language.md §7): the kill
     // dialog carries the cut-corner shape and nothing decorative.

@@ -253,9 +253,9 @@ func nameOf(agent agentInfo) string {
 }
 
 // sameAgent says whether herdr's agent is the target's: the same terminal and
-// the same, non-empty, herdr name.
+// the same herdr name.
 func sameAgent(agent agentInfo, target AgentTarget) bool {
-	return target.Name != "" && agent.TerminalID == target.Terminal.TerminalID && nameOf(agent) == target.Name
+	return agent.TerminalID == target.Terminal.TerminalID && nameOf(agent) == target.Name
 }
 
 // seed is the catalogue index a terminal id seeds on this machine.

@@ -12,11 +12,12 @@ import (
 	"github.com/NielsdaWheelz/skidbladnir/internal/workdir"
 )
 
-// herdr refuses agent.start before writing anything with agent_pane_busy while
-// a new pane's shell is still starting, and with agent_name_taken when another
-// client took the chosen name. herdr's own cli retries the busy refusal for
-// this long, at this cadence; the gateway retries both, never holding the
-// mutation lock while it waits.
+// herdr refuses agent.start before writing anything with agent_pane_busy when
+// the pane's foreground is not its shell alone (as while a new shell's startup
+// files run a command), and with agent_name_taken when another client took the
+// chosen name. herdr's own cli retries the busy refusal for this long, at this
+// cadence; the gateway retries both, never holding the mutation lock while it
+// waits.
 const (
 	agentStartRetryWindow   = 2 * time.Second
 	agentStartRetryInterval = 100 * time.Millisecond
@@ -25,9 +26,11 @@ const (
 // Create makes a terminal and, for an agent profile, then starts the agent in
 // it without holding the mutation lock across the start's retries.
 func (manager *Manager) Create(ctx context.Context, input CreateInput) (Created, error) {
-	manager.mutations.Lock()
-	terminal, err := manager.create(ctx, input)
-	manager.mutations.Unlock()
+	terminal, err := func() (Terminal, error) {
+		manager.mutations.Lock()
+		defer manager.mutations.Unlock()
+		return manager.create(ctx, input)
+	}()
 	if err != nil {
 		return Created{}, err
 	}
@@ -245,10 +248,11 @@ func (manager *Manager) tryStartAgent(ctx context.Context, target TerminalTarget
 	return dwarf, nil
 }
 
-// failedLaunch closes the terminal of a launch herdr definitely refused, so no
-// half-made terminal is left behind, and reports the refusal. A launch whose
-// outcome is unknown keeps its terminal, since an agent may be running there,
-// as does one whose close does not succeed.
+// failedLaunch closes the terminal of a launch herdr definitely refused when a
+// fresh read shows it still hosts no agent, so no half-made terminal is left
+// behind, and reports the refusal. Otherwise it keeps the terminal and reports
+// it as partial: after an unknown outcome an agent may be running there, and
+// an agent herdr now sees there is not the gateway's to close.
 func (manager *Manager) failedLaunch(ctx context.Context, terminal Terminal, err error) error {
 	var failure *Error
 	if !errors.As(err, &failure) || failure.Dispatch == "unknown" {
@@ -258,6 +262,9 @@ func (manager *Manager) failedLaunch(ctx context.Context, terminal Terminal, err
 	defer manager.mutations.Unlock()
 	pane, resolveErr := manager.resolvePane(ctx, terminal.Target)
 	if resolveErr != nil {
+		return createFailure(err, "identified", &terminal)
+	}
+	if _, found, readErr := manager.agent(ctx, pane.ID); readErr != nil || found {
 		return createFailure(err, "identified", &terminal)
 	}
 	if _, closeErr := manager.closePane(ctx, pane.ID); closeErr != nil {

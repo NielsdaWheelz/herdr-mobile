@@ -190,13 +190,15 @@ with an invalid label is unaddressable and makes inventory partial.
 and pressure retain their separate boundaries. successful host operations
 expose observed/partial facts and `not_sent | sent | unknown` dispatch where
 applicable. the ten-second host budget and fifteen-second client deadline bound
-ordinary operations. herdr refuses `agent start` before writing anything while
-a new pane's shell is still starting, or when another client took the chosen
-name; the gateway retries those refusals for two seconds, each attempt
-re-reading the pane and the live names, without holding the mutation lock
-while it waits. a launch herdr definitely refused closes the terminal it made
-and reports the refusal; one whose outcome is unknown keeps its terminal and
-reports it as partial, since an agent may be running there.
+ordinary operations. herdr refuses `agent start` before writing anything when
+the pane's foreground is not its shell alone (as while a new shell's startup
+files run a command), or when another client took the chosen name; the gateway
+retries those refusals for two seconds, each attempt re-reading the pane and
+the live names, without holding the mutation lock while it waits. when herdr
+definitely refused the launch and a fresh read shows its terminal still hosts
+no agent, the gateway closes that terminal and reports the refusal. otherwise
+(the outcome is unknown, herdr now sees an agent there, or the read or the
+close fails) it keeps the terminal and reports it as partial.
 
 one websocket attempt owns one control child. acquisition waits at most ten
 seconds for geometry and first full frame; bearer revalidation and ping/pong

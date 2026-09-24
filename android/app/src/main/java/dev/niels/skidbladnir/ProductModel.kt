@@ -224,7 +224,10 @@ internal data class TerminalRecord(
     val objective: String? = null,
     val cwd: String? = null,
     val agent: AgentRuntime? = null,
-)
+) {
+    // herdr named the agent, so it can be interrupted and stopped by its ref.
+    val agentControllable: Boolean get() = agent?.ref != null
+}
 
 internal data class WorkspaceRecord(val ref: String, val label: WorkspaceLabel)
 
@@ -503,7 +506,7 @@ internal fun forgeActionLabel(label: MachineLabel): String = "Create on ${label.
 internal fun terminalDisplayName(terminal: TerminalRecord): String =
     terminal.name ?: "unnamed terminal ${terminal.ref.takeLast(8)}"
 internal fun killActionLabel(label: MachineLabel, target: TerminalTarget, terminalOnly: Boolean = false): String =
-    "${if (target.terminal.agent?.ref == null || terminalOnly) "Close" else "Stop"} ${terminalDisplayName(target.terminal)} on ${label.text}"
+    "${if (!target.terminal.agentControllable || terminalOnly) "Close" else "Stop"} ${terminalDisplayName(target.terminal)} on ${label.text}"
 internal fun killConfirmationTitle(label: MachineLabel, target: TerminalTarget, terminalOnly: Boolean = false): String =
     killActionLabel(label, target, terminalOnly) + "? linked workspaces and their running terminals may also close."
 
