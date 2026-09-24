@@ -14,9 +14,10 @@ now defines installation, that isolated proof, two bounded contract corrections,
 coordinated activation and rollback. its source prerequisites are implemented:
 truthful stop partials and `skidbladnir validate-host-config` in skid, the herdr
 installer and herdr-era host configuration in dev-server, and stop-gated jarvis
-activation with the cutover runbook in jarvis. no release is published and no
-host is changed; [the activation record](issues/herdr-fleet-activation.md) lists
-the remaining approved-window steps. the earlier candidate/proof notes below
+activation with the cutover runbook in jarvis. v0.7.0 was qualified in isolation,
+published and activated across the fleet on 2026-09-24;
+[the activation record](issues/herdr-fleet-activation.md) lists what acceptance
+still needs. the earlier candidate/proof notes below
 retain their historical scope.
 
 [the migration plan](herdr-migration.md) owns the proposed runtime/desktop cutover,
