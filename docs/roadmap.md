@@ -15,9 +15,9 @@ coordinated activation and rollback. its source prerequisites are implemented:
 truthful stop partials and `skidbladnir validate-host-config` in skid, the herdr
 installer and herdr-era host configuration in dev-server, and stop-gated jarvis
 activation with the cutover runbook in jarvis. v0.7.0 was qualified in isolation,
-published and activated across the fleet on 2026-09-24;
-[the activation record](issues/herdr-fleet-activation.md) lists what acceptance
-still needs. the earlier candidate/proof notes below
+published, activated across the fleet and accepted on 2026-09-24; the tmux-era
+v0.6.0 rollback and its legacy assets are retired. evidence and the owner's
+waivers are in jarvis `docs/qualification/2026-09-23-herdr-pr4.md`. the earlier candidate/proof notes below
 retain their historical scope.
 
 [the migration plan](herdr-migration.md) owns the proposed runtime/desktop cutover,
