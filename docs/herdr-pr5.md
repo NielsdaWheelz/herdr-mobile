@@ -6,13 +6,14 @@ herdr's source at the pinned `065ef9d6` (v0.9.1) and an isolated server on the
 macbook (§7). baseline: skid `f2a07b1` (v0.7.0 published),
 jarvis `3dc3590` (`2a59355` active), dev-server `e58e1a1`. owner decisions
 already taken: per-host phone gateways, not a devbox hub; jarvis's gate allows
-agents plus the pane creation an agent needs, not `pane run`; devbox saves no
-ssh machine (it reaches no other host except through jarvis's gate).
+agents plus the pane creation an agent needs, not `pane run`; devbox holds no
+ssh access to a workstation except through jarvis's gate; no host declares
+herdr saved machines (§6).
 
 ## 1. outcome
 
-nothing in skid duplicates herdr. herdr 0.9.1 already provides cross-machine
-control over ssh (`herdr machine`, `--machine <label> <command>`, `--remote`),
+nothing in skid duplicates herdr. herdr 0.9.1 already provides remote attach
+over ssh (`--remote`), a local cli that `ssh <host> herdr …` reaches on any host,
 agent primitives (`agent start/get/read/explain/prompt --wait/wait/send-keys`),
 stable pane ids, a blocked-agent refusal before any prompt, and built-in
 codex/claude integrations. pr 1 through 4 kept a skid cli, peer client, attach
@@ -23,21 +24,21 @@ after this pr:
 
 | owner | responsibility |
 | --- | --- |
-| herdr | terminals, panes, workspaces, agent detection and lifecycle, cross-machine control over ssh, desktop and remote attach, agent integrations and notifications |
+| herdr | terminals, panes, workspaces, agent detection and lifecycle, desktop and remote attach over ssh, agent integrations and notifications |
 | skid gateway | one host's phone api over its local herdr: inventory projection, profile launch, stop, terminal stream, pressure, directory listing, pairing. nothing else |
 | skid android | the phone app, unchanged in behaviour |
 | jarvis | intent, authority and assignments; a thin herdr codec with its own write checks |
-| dev-server | pinned herdr and gateway, herdr integrations, the jarvis gate and its keys, ssh machine profiles |
+| dev-server | pinned herdr and gateway, herdr integrations, the jarvis gate and its keys |
 
-humans control any host from either workstation with `herdr --machine <label>
-…` or `herdr --remote <label>`. jarvis controls all three hosts through an ssh
+humans attach to any host's herdr from a workstation with `herdr --remote
+<ssh-target>` and run herdr commands on it with `ssh <host> herdr …`. jarvis controls all three hosts through an ssh
 forced-command gate on each. the phone keeps pairing with the three gateways.
 
 ## 2. invariants
 
 - one herdr server per host is the only terminal owner; every client reaches it
   through its socket, locally or over ssh.
-- all three hosts run the same herdr pin. `--machine` requires equal protocol
+- all three hosts run the same herdr pin. remote attach compares protocol
   numbers and herdr bumps the protocol even in patch releases, so a herdr pin
   change is one fleet-wide step, and jarvis's codec is qualified against it.
 - a gateway talks only to its own host's herdr. no host holds ssh authority for
@@ -136,7 +137,12 @@ owner. devbox reaches
 itself as `niels@localhost` through the same gate, so all three hosts look the
 same. the gate splits `SSH_ORIGINAL_COMMAND` into argv without a shell, accepts
 only the allowlist below, and execs the host's own pinned herdr, which talks to
-its local server. anything else exits nonzero without running herdr. jarvis
+its local server. the gate is policy hygiene, not containment: `agent start
+--pane`, `pane split` and `pane close` accept any pane id, and a prompt to an
+agent running with `--yolo` is already arbitrary execution as the owner. what
+containment keeps is that jarvis's own process never reads the owner's files
+and acts only through visible panes. jarvis's codec only starts agents in panes
+it has just created. anything else exits nonzero without running herdr. jarvis
 never uses `--machine`: that path runs `sh` probes and a bridge over several ssh
 sessions, which a forced command would break, and it adds nothing when the gate
 already runs herdr on the target. cli output is herdr's api envelope
@@ -152,7 +158,7 @@ allowlist, owner decision "agents plus pane creation":
 | --- | --- |
 | inventory | `agent list`, `agent get`, `pane list`, `workspace list` |
 | observe | `agent read`, `agent explain`, `agent wait` |
-| create | `workspace create --cwd --env`, `pane split --env` (env keys limited to `CODEX_HOME` and `CLAUDE_CONFIG_DIR`, values limited to the declared account homes), `agent start --kind codex|claude` |
+| create | `workspace create --cwd --env`, `pane split --env` (env limited to `CODEX_HOME` for the three codex homes and `CLAUDE_CONFIG_DIR` for `.claude-work`; the personal claude runs with it unset), `agent start --kind codex|claude` |
 | drive | `agent prompt [--wait --timeout]`, `agent send-keys` |
 | end | `pane close` |
 
@@ -185,18 +191,16 @@ only; the previous release needs the skid cli, which is removed last.
 
 ## 6. humans across machines
 
-macbook and arch each save the other two hosts as herdr machines, so `herdr
---machine devbox agent list` works from either workstation. devbox saves none:
-owner decision, so the cloud vm holds no shell on a workstation. dev-server
-writes the saved machines declaratively as a regular file,
-`~/.local/state/herdr/client/endpoints.json` (`{version:1, ssh:[{id, label,
-target, session, enabled}]}`, ids 32 lowercase hex), instead of running the
-interactive `herdr machine add`, which can offer to install or stop a remote
-server. the remote preparation `machine add` would do is dev-server's job
-already: the pinned herdr at `~/.local/bin/herdr` and a supervised server.
-`--machine` uses batch-mode ssh with strict host keys, so the workstations'
-keys and known hosts are part of the declaration; sshd runs on the macbook and
-arch today, and devbox is reachable over the tailnet.
+no saved machines. herdr's saved ssh machines (`endpoints.json`, the only
+selector `--machine` accepts) make every open herdr window hold ssh sessions to
+each machine, and on the far end herdr's `remote-client-bridge` starts `herdr
+server` itself when none is listening. during a herdr restart or pin change, or
+on arch before login, that would start an unmanaged server with the wrong
+environment in the supervised server's place; 0.9.1 has no attach-only switch.
+so a human uses `herdr --remote <ssh-target>` to attach the desktop to another
+host's herdr, and `ssh <host> herdr agent|pane|workspace …` for commands, which
+run the target's own pinned herdr. `issues/herdr-saved-machines.md` in
+dev-server records what would bring `--machine` back.
 
 account wrappers. `agent start` types the bare `codex`/`claude`, and a pane's
 `--env` sets the new shell's environment at spawn (it is not persisted across a
@@ -232,9 +236,10 @@ profile and host to trust the new hook; answer it deliberately as in pr 4.
    environment. `--env` exists on `workspace create`, `tab create` and
    `pane split` (§6, account wrappers).
 3. saved machines live in `~/.local/state/herdr/client/endpoints.json`, which
-   can be written directly; `machine add` is interactive and may install or
+   could be written directly; `machine add` is interactive and may install or
    stop a remote server. `--machine` needs a running remote server and equal
-   protocol numbers (§6, §2).
+   protocol numbers. saved machines are not used: every open herdr window
+   connects to them and the remote bridge starts servers (§6).
 4. json: the cli prints the api envelope defined by `herdr api schema`, except
    plain-text reads. the protocol changed within minor lines (0.7.4 → 0.7.5,
    0.8.0 → 0.8.2), `schema_version` stays 1, and herdr's only stated policy is
@@ -248,10 +253,11 @@ catch them.
 ## 8. delivery
 
 1. dev-server (additive): the gate on every host, jarvis's key, ssh config
-   and known hosts on devbox, the authorized key in each owner account, the
-   respecting `codex` wrapper, and saved machines with keys and known hosts on
-   the workstations. skid and jarvis are unchanged. arch's part waits until
-   arch is reachable.
+   and known hosts on devbox, the authorized key in each owner account, and
+   the respecting `codex` wrapper. skid and jarvis are unchanged. the wrapper
+   lives in `codex-shared.py`, whose hash is devbox's codex identity, so the
+   devbox apply needs `--restart-codex` and runs in step 2's window while
+   jarvis is stopped. arch's part waits until arch is reachable.
 2. jarvis: the herdr codec release, qualified in isolation against the gate,
    then activated under the pr 4 runbook (pause, stop, check, activate,
    containment, resume).
@@ -266,7 +272,8 @@ disappears, and the phone's routes never change shape.
 
 ## 9. done when
 
-- `herdr --machine <label> agent list` works across the approved edges.
+- from each workstation, `herdr --remote` attaches to the other hosts and
+  `ssh <host> herdr agent list` answers.
 - jarvis starts, reads, prompts, interrupts and stops a codex and a claude
   agent on each host through the gate. a command outside the allowlist is
   refused. `verify-containment` passes.
