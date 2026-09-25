@@ -7,7 +7,7 @@ source preparation is complete. no release or live activation is claimed.
 
 ## release inputs
 
-repository id `1342599607`, intended canonical name
+repository id `1342599607`, verified canonical name
 `NielsdaWheelz/herdr-mobile`. first separated release planned as `v0.9.0`,
 android `0.9.0` / `9000`, package `dev.niels.herdr.mobile`, label `herdr`.
 the new public signer pin is `android/app-signing-cert.sha256`; its private
@@ -99,9 +99,17 @@ under `assets/herdr/` and the existing herdr roots.
 
 ## source qualification and pending delivery
 
+the github name swap succeeded on 2026-09-25. original repository id
+`1386409483` now owns `NielsdaWheelz/skidbladnir`; known publishing clones on
+macbook, devbox, and arch use the corresponding canonical remotes. checkout
+directory names remain stable while agent work is in progress.
+
 `scripts/check verify` passed, including android lint/debug build, go vet/build,
 shell checks, catalogue and generated-asset checks. a signed `0.9.0` / `9000`
-candidate has the new package, label, and signer. a temporary probe against an
+candidate has the new package, label, and signer. the complete five-asset
+candidate at source `50217ec89af8e1e01c700db65c9fb7d8d714a7e3` passed
+`scripts/check-release`, including both host archives and native version.
+these are unpublished candidate bytes, not deployment pins. a temporary probe against an
 isolated native herdr `0.9.1` and this gateway passed product header/credential
 rejection, single-use invitation redemption, terminal creation/inventory, and
 retention of all renamed metadata keys/source. the same probe rejects the old

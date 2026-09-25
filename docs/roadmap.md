@@ -19,8 +19,9 @@ this repo's source split is implemented: command/module, android package and
 signer, wire, metadata, ports, generated mark, and release/fleet tooling.
 engineering checks, signed candidate build, and temporary isolated gateway and
 android parser probes passed. the [deployment contract](dev-server-handoff.md)
-records exact interfaces and remaining inputs. no github rename, publication,
-fleet cutover, pane reset, or phone installation is claimed. all fleet and
+records exact interfaces and remaining inputs. github names are transferred
+and repository ids preserved; known clone remotes are retargeted. publication,
+fleet cutover, pane reset, and phone installation remain pending. all fleet and
 phone coexistence acceptance remains pending.
 
 ## herdr pr 5

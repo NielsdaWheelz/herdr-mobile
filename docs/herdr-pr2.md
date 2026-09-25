@@ -31,7 +31,7 @@ composition through product code.
 record completed product proofs and remaining gaps separately. the
 [2026-09-23 decision](#accepted-non-blocking-follow-ups) removes the named
 remaining checks and defects as blockers; it does not turn missing proof into
-a pass. [claude submission](issues/herdr-claude-submission.md) retains the
+a pass. [claude submission](https://github.com/NielsdaWheelz/herdr-mobile/blob/99990332cfcbb713a741e37519548c7e674a46db/docs/issues/herdr-claude-submission.md) retains the
 host-specific results.
 
 the user waived the human dictation, gboard paste, local copy and rotation

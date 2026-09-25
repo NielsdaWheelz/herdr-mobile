@@ -263,12 +263,13 @@ returns. serve changes target only the exact owned port and handler; no reset.
 one operator performs the sequence; both repo agents stop publication while
 names are in transition.
 
-name reclamation is not yet proven. github documents permanent namespace
+name reclamation was not initially proven. github documents permanent namespace
 retirement for sufficiently used repositories; the detailed transfer/account
 rename rules do not conclusively settle this same-owner repository rename.
-the observed clone volume makes this an explicit
-[preflight uncertainty](issues/github-name-reclamation.md), not a promise of
-availability. resolve policy applicability before relying on the swap. if
+the observed clone volume was treated as a preflight uncertainty, not a
+promise of availability. the same-owner swap succeeded on 2026-09-25; both
+repository ids were checked afterward. the fallback below remains the rule
+for any refused future rename. if
 github refuses reclamation, preserve both repositories and their histories,
 leave the original at `skid-v1`, and record the unmet naming requirement for
 resolution with the owner/github. do not delete/recreate repositories, replace
@@ -400,7 +401,7 @@ external contract references:
 - [original native helper boundary](https://github.com/NielsdaWheelz/skid-v1/blob/927c55412eec7fa129a3325fb8f5ebf8051b6ea0/internal/agentcontrol/native.go).
 - [pinned herdr hook runtime guard](https://github.com/herdrdev/herdr/blob/065ef9d6a531c49fb8bee7e818ef837065b21ee9/src/integration/assets/codex/herdr-agent-state.sh).
 
-remaining preflight: resolve github name reuse, prove the product-hook discovery boundary, confirm
+remaining preflight: prove the product-hook discovery boundary, confirm
 fresh provider authentication/trust and native-helper compatibility, qualify `8444`
 through tailnet policy from the phone, inventory obsolete host generations and
 all publishing clones, and verify separated rollback/removal. these are tracked

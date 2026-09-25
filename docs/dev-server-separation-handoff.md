@@ -1,5 +1,11 @@
 # dev-server: independent herdr-mobile and skidbladnir
 
+2026-09-25 update: the github name transfer succeeded. repository id
+`1342599607` is `NielsdaWheelz/herdr-mobile`; id `1386409483` is
+`NielsdaWheelz/skidbladnir`. known clone remotes are retargeted. the baseline
+names below describe the pre-transfer investigation; publication and live
+namespace handback still require the remaining steps.
+
 implement the dev-server portion of the product split below. read this repo's
 agent instructions, `SPEC.md`, deployment rules, and relevant issues first.
 this prompt is self-contained; the cross-repo contract is recorded in

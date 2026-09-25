@@ -1,5 +1,11 @@
 # original skidbladnir: agent handoff
 
+2026-09-25 update: the github name transfer succeeded. repository id
+`1342599607` is `NielsdaWheelz/herdr-mobile`; id `1386409483` is
+`NielsdaWheelz/skidbladnir`. known clone remotes are retargeted. the baseline
+names below describe the pre-transfer investigation; publication and live
+namespace handback still require the remaining steps.
+
 implement the original tmux-backed product's side of the split below. inspect
 your repository's architecture, roadmap, and agent rules first. this is a
 bounded restoration and coexistence task; preserve the original architecture.

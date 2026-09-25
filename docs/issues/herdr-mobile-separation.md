@@ -32,8 +32,8 @@ provider homes/authentication/hook trust and native-helper compatibility;
 verify new-port reachability from the phone; inventory publishing clones and
 obsolete host generations; coordinate jarvis workers, github names, namespace
 handback, phone reset/re-pairing, and separated rollback/removal.
-[github name reclamation](github-name-reclamation.md) is an explicit unresolved
-platform prerequisite, separate from implementing runtime independence.
+github names were transferred successfully on 2026-09-25; both repository
+ids were preserved and known clone remotes on all three hosts retargeted.
 
 known blockers to claiming completion: no separated release, deployment,
 provider setup, or fleet/phone coexistence proof exists yet. credential/login
