@@ -133,6 +133,11 @@ jdk, checking a fresh public clone, downloads, tag, signer, tracked pin and
 exact-source hosted evidence. a negative probe replaced its candidate's darwin
 binary with the old skid binary and recomputed checksums: validation rejected
 the foreign go command identity. no behavioral harness is retained.
+the published linux archive was also downloaded and digest-verified separately
+on devbox and arch. its native version and the dev-server template rendered
+for each owner's home passed config validation on both hosts. those checks
+used automatically removed temporary directories and changed no service,
+provider home or runtime state; they do not prove live provider readiness.
 
 jarvis's worker map, spec and adr 0050 are prepared at `bada736` in
 [draft pr 42](https://github.com/NielsdaWheelz/jarvis/pull/42), also present in
@@ -140,6 +145,10 @@ jarvis's worker map, spec and adr 0050 are prepared at `bada736` in
 is not merged or deployed. the existing policy-input mechanism captures the changed
 homes, so pending incompatible actions must be settled before activation.
 cognition declarations and services were not changed.
+hosted jarvis checks did not start because of the account billing/spending-limit
+restriction already recorded in its `docs/issues/github-actions-billing.md`;
+pr run `36197656947` supplies the current annotation. hosted verification is
+`NOT_RUN`, independent of the passing local checks.
 
 fresh provider login/trust, original skid's published pin, host namespace
 handback, tailnet `8444` access, jarvis activation, and phone coexistence remain
