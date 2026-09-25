@@ -118,10 +118,12 @@ criterion. feature specs retain their detailed acceptance requirements.
 
 ## release and operations
 
-`release-pin.json` will own the first published herdr-mobile version, source,
-and artifact digests. the old skid-named `v0.8.0` pin was removed from active
-source; it remains in git history at `d8bb9c4`. no separated release is yet
-published. a release pin does not assert any host or phone's installed version.
+[`release-pin.json`](../release-pin.json) owns the first published herdr-mobile
+release, `v0.9.0` at `68a652d7ccbeaaf472ef1c5f3a4ea6949808bca4`, and all five
+artifact digests. the old skid-named `v0.8.0` pin remains in git history at
+`d8bb9c4`; it is not a separated rollback target. a release pin does not assert
+any host or phone's installed version. the [deployment contract](dev-server-handoff.md)
+records source/release qualification and outstanding cutover work.
 
 `dev-server` owns machine-local installation, services and configuration.
 `scripts/fleet` owns `verify` and direct `invite`; `invite` reads the peers'

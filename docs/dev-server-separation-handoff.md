@@ -3,8 +3,9 @@
 2026-09-25 update: the github name transfer succeeded. repository id
 `1342599607` is `NielsdaWheelz/herdr-mobile`; id `1386409483` is
 `NielsdaWheelz/skidbladnir`. known clone remotes are retargeted. the baseline
-names below describe the pre-transfer investigation; publication and live
-namespace handback still require the remaining steps.
+names below describe the pre-transfer investigation. immutable releases are
+enabled for both repositories. herdr-mobile `v0.9.0` is published and pinned;
+original skid publication and live namespace handback remain pending.
 
 implement the dev-server portion of the product split below. read this repo's
 agent instructions, `SPEC.md`, deployment rules, and relevant issues first.
@@ -55,14 +56,21 @@ but write only your assigned repo. the handoff is pending until its owner
 writes it; do not infer agreement from an unfinished working tree.
 
 each app's `release-pin.json` is the published artifact authority only after
-its owner publishes and updates it for the separated product. at this handoff,
-herdr-mobile source is implemented and publication is pending; its removed
-`v0.8.0` pin belongs to the old shared identity. original skid's old `v0.6.0`
-pin is also stale.
-`v0.9.0` is a planned version, not an available release or usable pin.
-prepare source/templates/runbook now; keep release activation pending exact
-owner-supplied pins. obtain original skid's config/helper contract before
-finalizing its renderer and helper installation, independently of publication.
+its owner publishes and updates it for the separated product. herdr-mobile
+`v0.9.0` is published from `68a652d7ccbeaaf472ef1c5f3a4ea6949808bca4`;
+copy this checkout's complete [`release-pin.json`](../release-pin.json) to
+`assets/herdr-mobile/release-pin.json`. [its handoff](dev-server-handoff.md)
+records exact config, assets and qualification. its removed `v0.8.0` pin
+belongs to the old shared identity. original skid's old `v0.6.0` pin is also
+stale; await that owner's new pin. its source contract now exists at
+`/Users/nnandal/Documents/code/skid-v1/docs/dev-server-handoff.md`.
+
+jarvis's matching worker map is `bada736` in
+[draft pr 42](https://github.com/NielsdaWheelz/jarvis/pull/42) and
+`/Users/nnandal/Documents/code/jarvis`; static/build checks passed. activate it
+only after settling pending incompatible worker actions. private provider
+homes, authentication/trust, host handback and phone proof are still required;
+publication alone does not authorize skipping that sequence.
 
 ## fixed identities
 

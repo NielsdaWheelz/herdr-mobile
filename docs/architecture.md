@@ -42,7 +42,7 @@ a focus broker.
 | state | herdr panes, workspaces, agents and reserved `herdr_mobile_*` pane metadata (name flag, launch profile, objective) are runtime truth; android persists encrypted pairings and local presentation preferences |
 | host app | go gateway over the local public herdr socket, platform pressure and directory observation |
 | clients | the phone only; humans and jarvis call herdr directly |
-| delivery | first separated release pending; source changes install, publish, or update nothing |
+| delivery | immutable `v0.9.0` is published and pinned; coordinated host/phone activation remains pending; source changes install or update nothing |
 | trust | agents run as the host user; same-uid adversarial containment is out of scope |
 
 callers choose only a declared profile and a validated cwd; they cannot supply

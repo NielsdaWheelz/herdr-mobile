@@ -3,21 +3,24 @@
 2026-09-25. this checkout owns the herdr phone app and gateway. the shared
 [separation spec](herdr-mobile-separation.md) owns cutover order and acceptance;
 the [dev-server assignment](dev-server-separation-handoff.md) owns deployment.
-source preparation is complete. no release or live activation is claimed.
+source and release preparation are complete. live activation remains pending.
 
 ## release inputs
 
 repository id `1342599607`, verified canonical name
-`NielsdaWheelz/herdr-mobile`. first separated release planned as `v0.9.0`,
+`NielsdaWheelz/herdr-mobile`. first separated release is `v0.9.0`,
 android `0.9.0` / `9000`, package `dev.niels.herdr.mobile`, label `herdr`.
 the new public signer pin is `android/app-signing-cert.sha256`; its private
 configuration lives only in `~/.config/herdr-mobile/android-signing.properties`.
 gateway installation must not read signing files.
 
-published `release-pin.json`: **pending publication**. the old `v0.8.0` pin
-was removed because it identifies the pre-separation skid-named artifacts.
-its immutable bytes and original pin remain in git history at `d8bb9c4`.
-do not synthesize a pin or activate a candidate as a published release.
+published [release](https://github.com/NielsdaWheelz/herdr-mobile/releases/tag/v0.9.0):
+`v0.9.0`, source `68a652d7ccbeaaf472ef1c5f3a4ea6949808bca4`.
+[`release-pin.json`](../release-pin.json) contains all five public asset digests.
+copy that complete pin to dev-server's `assets/herdr-mobile/release-pin.json`;
+do not substitute candidate-build digests. the release is immutable and its
+source passed hosted verify run `36196554345`. the old `v0.8.0` pin remains
+in git history at `d8bb9c4`; it is not a separated rollback target.
 
 the five release assets are `herdr-mobile-android.apk`,
 `herdr-mobile-darwin-arm64.tar.gz`, `herdr-mobile-linux-amd64.tar.gz`,
@@ -103,6 +106,11 @@ the github name swap succeeded on 2026-09-25. original repository id
 `1386409483` now owns `NielsdaWheelz/skidbladnir`; known publishing clones on
 macbook, devbox, and arch use the corresponding canonical remotes. checkout
 directory names remain stable while agent work is in progress.
+immutable releases are enabled in both repositories. old `v0.8.0` recovery
+assets were downloaded through the new herdr-mobile repository name and
+verified against their historical pin; private local recovery directory:
+`~/.local/share/herdr-mobile/cutover-recovery/v0.8.0`. they may be used only
+before the skid namespace is handed back.
 
 `scripts/check verify` passed, including android lint/debug build, go vet/build,
 shell checks, catalogue and generated-asset checks. a signed `0.9.0` / `9000`
@@ -118,8 +126,24 @@ compiled android classes and exact pinned dependencies admitted only the new
 invite kind and `8444` origins. neither probe exercises provider startup or
 phone behavior; no behavioral harness is retained.
 
-the root operator will append the published pin when available. fresh
-provider login/trust, jarvis worker-home agreement,
-host namespace handback, tailnet `8444` access, and phone coexistence remain
-deployment dependencies. no other repo's running agent is authorized to change
-this source contract merely by writing its own handoff.
+the final release was rebuilt from the clean merged source above and passed
+the same artifact checks. `scripts/check published-release v0.9.0
+68a652d7ccbeaaf472ef1c5f3a4ea6949808bca4` then passed with the android-studio
+jdk, checking a fresh public clone, downloads, tag, signer, tracked pin and
+exact-source hosted evidence. a negative probe replaced its candidate's darwin
+binary with the old skid binary and recomputed checksums: validation rejected
+the foreign go command identity. no behavioral harness is retained.
+
+jarvis's worker map, spec and adr 0050 are prepared at `bada736` in
+[draft pr 42](https://github.com/NielsdaWheelz/jarvis/pull/42), also present in
+`/Users/nnandal/Documents/code/jarvis`; `scripts/verify` passed. that commit
+is not merged or deployed. the existing policy-input mechanism captures the changed
+homes, so pending incompatible actions must be settled before activation.
+cognition declarations and services were not changed.
+
+fresh provider login/trust, original skid's published pin, host namespace
+handback, tailnet `8444` access, jarvis activation, and phone coexistence remain
+deployment dependencies. the new signing key has a mode-restricted same-host
+backup at `~/.local/share/herdr-mobile/signing-backup`; an off-machine backup
+remains an owner follow-up. no other repo's running agent is authorized to
+change this source contract merely by writing its own handoff.

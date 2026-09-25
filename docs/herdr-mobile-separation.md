@@ -2,9 +2,10 @@
 
 2026-09-25. implementation plan from the owner's requested product split.
 this document changes scope and acceptance; this repo's source implementation
-is complete and coordinated cutover remains pending. the
+and immutable `v0.9.0` release are complete. github names have transferred;
+coordinated fleet and phone cutover remains pending. the
 [deployment contract](dev-server-handoff.md) records implementation evidence
-and outstanding release inputs. the [original-repo handoff](skidbladnir-restoration-handoff.md) and
+and the published pin. the [original-repo handoff](skidbladnir-restoration-handoff.md) and
 [dev-server handoff](dev-server-separation-handoff.md) are self-contained agent
 assignments derived from this shared contract.
 [delivery tracking](issues/herdr-mobile-separation.md) owns remaining work.
@@ -398,7 +399,7 @@ external contract references:
 - [github namespace retirement](https://github.blog/security/supply-chain-security/how-to-stay-safe-from-repo-jacking/).
 - [android application identity](https://developer.android.com/build/configure-app-module).
 - [tailscale serve ports and scoped removal](https://tailscale.com/docs/reference/tailscale-cli/serve).
-- [original native helper boundary](https://github.com/NielsdaWheelz/skid-v1/blob/927c55412eec7fa129a3325fb8f5ebf8051b6ea0/internal/agentcontrol/native.go).
+- [original native helper boundary](https://github.com/NielsdaWheelz/skidbladnir/blob/927c55412eec7fa129a3325fb8f5ebf8051b6ea0/internal/agentcontrol/native.go).
 - [pinned herdr hook runtime guard](https://github.com/herdrdev/herdr/blob/065ef9d6a531c49fb8bee7e818ef837065b21ee9/src/integration/assets/codex/herdr-agent-state.sh).
 
 remaining preflight: prove the product-hook discovery boundary, confirm
