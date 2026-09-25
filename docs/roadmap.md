@@ -20,9 +20,10 @@ signer, wire, metadata, ports, generated mark, and release/fleet tooling.
 engineering checks, signed candidate build, and temporary isolated gateway and
 android parser probes passed. the [deployment contract](dev-server-handoff.md)
 records exact interfaces and remaining inputs. github names are transferred
-and repository ids preserved; known clone remotes are retargeted. publication,
-fleet cutover, pane reset, and phone installation remain pending. all fleet and
-phone coexistence acceptance remains pending.
+and repository ids preserved; known clone remotes are retargeted. herdr-mobile
+`v0.9.0` is published and pinned. original skid publication, fleet cutover,
+pane reset, and phone installation remain pending. all fleet and phone
+coexistence acceptance remains pending.
 
 ## herdr pr 5
 

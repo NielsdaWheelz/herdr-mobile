@@ -36,6 +36,15 @@ concurrent operation and independent restart/reinstall/rollback/removal.
 the new android signer has a same-host backup; the owner still needs an
 off-machine copy for disk-loss recovery.
 
+coordination evidence: original skid's handoff and fleet verifier now agree on
+the ten-file receipt. dev-server's adoption notes are stale, and its generation
+admission still omits the specified directory mode and computed digest-suffix
+checks; that owner must resolve the original repo's
+`docs/issues/restoration-receipt-validation.md`. the corrected deployment
+handoff derives the host-only pin from the upstream five-asset pin instead of
+copying its incompatible schema. publication must not wait on live namespace
+handback; doing so would invert the cutover dependencies.
+
 known blockers to claiming completion: original publication, live deployment,
 provider setup and fleet/phone acceptance remain pending. device/tmux checks
 need the applicable current-turn authorization. acceptance is `NOT_RUN`;

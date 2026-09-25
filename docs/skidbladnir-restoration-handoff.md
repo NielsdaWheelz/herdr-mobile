@@ -7,21 +7,31 @@ names below describe the pre-transfer investigation. immutable releases are
 enabled for both repositories. herdr-mobile `v0.9.0` is published and pinned;
 your independent release and live namespace handback remain pending.
 
+coordination follow-up: the original handoff and fleet verifier now adopt the
+ten-file receipt contract. dev-server owns the remaining directory-mode and
+computed-digest-suffix admission correction; its stale six-file notes need
+updating. finalize and commit your reviewed source, push it for exact-source
+hosted checks, and give the root operator the clean release source and current
+blockers. update the old github-name/immutable-release blocker observations:
+the reclaimed repository id is verified and immutable releases are enabled.
+publication is a root-owned preparation step and does not wait for host
+namespace handback. keep signer/version preflight and contract agreement;
+live installation waits for handback.
+
 implement the original tmux-backed product's side of the split below. inspect
 your repository's architecture, roadmap, and agent rules first. this is a
 bounded restoration and coexistence task; preserve the original architecture.
 
 ## identity and scope
 
-your repository is currently `NielsdaWheelz/skid-v1`, main
-`927c55412eec7fa129a3325fb8f5ebf8051b6ea0`, github repository id `1386409483`.
-it will reclaim `NielsdaWheelz/skidbladnir`. the other repository, id
-`1342599607`, currently holds the herdr-backed product and will become
-`NielsdaWheelz/herdr-mobile`. verify repository ids before changing remotes or
-publishing; the shared name is insufficient evidence of identity.
-github name reuse is unproven: its namespace-retirement policy may obstruct
-reclamation. the root operator owns that check; if refused, retain `skid-v1`
-and both histories until resolved, without deleting or replacing repositories.
+your repository is `NielsdaWheelz/skidbladnir`, github repository id
+`1386409483`; the local checkout remains `skid-v1`. the source investigation
+baseline was `927c55412eec7fa129a3325fb8f5ebf8051b6ea0`. the other repository,
+id `1342599607`, is `NielsdaWheelz/herdr-mobile`. the root operator completed
+and verified this same-owner github name transfer on 2026-09-25 without
+replacing either history. immutable releases are enabled for both. verify
+the intended repository id when preparing publication; old-name redirects
+are no longer a safe source selector.
 
 the owner requires both products to run concurrently and independently on
 macbook, devbox, arch, and one android phone. installing, updating, stopping,
@@ -48,12 +58,12 @@ independently. obey current-turn tmux/device authorization and logging rules.
 
 ## required work
 
-1. audit release tooling before using it. it already points at
-   `NielsdaWheelz/skidbladnir`, which presently resolves to the OTHER product.
-   your repo has no tags/releases and immutable releases were disabled on
-   2026-09-25. your `v0.6.0` pin refers to assets held by that other repo.
-   arrange immutable releases and exact-source hosted checks after the name
-   transfer; publish fresh original-product artifacts and replace the pin.
+1. audit release tooling before using it. its destination
+   `NielsdaWheelz/skidbladnir` now resolves to your intended repository.
+   your repo has no releases; its former `v0.6.0` pin referred to assets held
+   by the other repo and is removed. obtain exact-source hosted checks on the
+   committed restoration and coordinate fresh publication with the root
+   operator; replace the pin only with those published artifact digests.
    do not depend on herdr-mobile releases or restore a whole old deployment.
 2. retain the original android signing key/certificate. the usb phone was
    observed running herdr-backed `0.8.0`, code `8000`, under YOUR package id;

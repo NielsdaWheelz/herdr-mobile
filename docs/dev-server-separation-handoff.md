@@ -58,9 +58,11 @@ writes it; do not infer agreement from an unfinished working tree.
 each app's `release-pin.json` is the published artifact authority only after
 its owner publishes and updates it for the separated product. herdr-mobile
 `v0.9.0` is published from `68a652d7ccbeaaf472ef1c5f3a4ea6949808bca4`;
-copy this checkout's complete [`release-pin.json`](../release-pin.json) to
-`assets/herdr-mobile/release-pin.json`. [its handoff](dev-server-handoff.md)
-records exact config, assets and qualification. its removed `v0.8.0` pin
+derive `assets/herdr-mobile/release-pin.json` from this checkout's
+[`release-pin.json`](../release-pin.json) using the exact schema conversion in
+[its handoff](dev-server-handoff.md#release-inputs). the upstream five-asset pin
+is not the deployment's host-only pin. that handoff also records config,
+assets and qualification. its removed `v0.8.0` pin
 belongs to the old shared identity. original skid's old `v0.6.0` pin is also
 stale; await that owner's new pin. its source contract now exists at
 `/Users/nnandal/Documents/code/skid-v1/docs/dev-server-handoff.md`.
@@ -71,6 +73,22 @@ jarvis's matching worker map is `bada736` in
 only after settling pending incompatible worker actions. private provider
 homes, authentication/trust, host handback and phone proof are still required;
 publication alone does not authorize skipping that sequence.
+
+2026-09-25 coordination follow-up: original skid's handoff and `scripts/fleet`
+now implement the ten-file receipt order, encoding and modes. replace your
+stale six-file/pending-adoption notes after inspecting that source. the original
+owner's `docs/issues/restoration-receipt-validation.md` identifies the remaining
+deployment defect: `gateway_generation_owned` does not require directory mode
+`0700` or equality between the computed runtime digest and basename suffix.
+fix this at generation admission for both products, retaining the existing
+digest function and explicit product file lists. qualify intact admission,
+wrong directory mode, wrong digest suffix and prior-generation rollback with
+disposable fixtures; report native lifecycle proof separately.
+
+after that correction, acknowledge the original app's contract in the runbook
+and commit the reviewed deployment slice, including the real herdr-mobile pin.
+keep original skid's pin pending its own publication. this does not authorize
+live activation or old namespace reclamation.
 
 ## fixed identities
 
@@ -145,10 +163,10 @@ paths while leaving signing files untouched.
    whole dev-server revision to recover removed skid machinery.
 5. use fresh credentials for both products after the split. receive exact
    published version/source/digests from each app owner; never fabricate pins
-   or copy the original repo's stale v0.6 pin. github name reclamation remains
-   unproven and old-name redirects disappear when reclaimed: verify repository
-   ids before selecting sources. publication/name changes belong to the root
-   operator; do not delete/recreate repos if github refuses the name swap.
+   or copy the original repo's stale v0.6 pin. github name reclamation is
+   complete and the old-name redirect no longer selects herdr-mobile: verify
+   repository ids before selecting sources. publication belongs to the root
+   operator; live namespace transfer is a separate later step.
 
 ## provider homes, commands, and helper
 

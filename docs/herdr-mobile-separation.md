@@ -301,6 +301,12 @@ code greater than the observed `8000` (the existing encoding makes `0.9.0`
 equal `9000`). the two repos may use the same version string independently.
 recheck tags and installed version immediately before release/install.
 
+publication and source commits do not depend on live host namespace handback.
+after github names settle and source, artifact and contract prerequisites pass,
+the root operator publishes each product independently and the deployment owner
+records its pin. namespace handback gates original skid's live installation,
+not preparation of those immutable inputs.
+
 ### c. establish herdr-mobile, then release the skid namespace
 
 on each host, first recheck port availability and tailnet policy for `8444`.

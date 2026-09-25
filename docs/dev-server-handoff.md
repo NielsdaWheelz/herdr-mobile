@@ -17,10 +17,42 @@ gateway installation must not read signing files.
 published [release](https://github.com/NielsdaWheelz/herdr-mobile/releases/tag/v0.9.0):
 `v0.9.0`, source `68a652d7ccbeaaf472ef1c5f3a4ea6949808bca4`.
 [`release-pin.json`](../release-pin.json) contains all five public asset digests.
-copy that complete pin to dev-server's `assets/herdr-mobile/release-pin.json`;
-do not substitute candidate-build digests. the release is immutable and its
+derive dev-server's host-only pin from it using the conversion below; the two
+files have different schemas. do not copy the upstream json verbatim or
+substitute candidate-build digests. the release is immutable and its
 source passed hosted verify run `36196554345`. the old `v0.8.0` pin remains
 in git history at `d8bb9c4`; it is not a separated rollback target.
+
+from this checkout, the following prints the exact json that the dev-server
+owner records in `assets/herdr-mobile/release-pin.json`. it preserves the
+published version, source and host digests; apk/signer digests remain owned by
+the upstream pin. no new pin schema or consumer change is needed.
+the documented conversion passed dev-server's actual `gateway_release_values`
+parser for macos, arch and devbox; the former verbatim-copy instruction was
+confirmed to fail that parser. this check installed nothing.
+
+```sh
+jq '
+  . as $pin |
+  ("https://github.com/NielsdaWheelz/herdr-mobile/releases/download/" +
+    .version + "/herdr-mobile-") as $base |
+  {
+    schemaVersion: 1,
+    version: $pin.version,
+    sourceSha: $pin.sourceSha,
+    artifacts: {
+      "darwin-arm64": {
+        url: ($base + "darwin-arm64.tar.gz"),
+        sha256: $pin.darwinArm64Sha256
+      },
+      "linux-amd64": {
+        url: ($base + "linux-amd64.tar.gz"),
+        sha256: $pin.linuxAmd64Sha256
+      }
+    }
+  }
+' release-pin.json
+```
 
 the five release assets are `herdr-mobile-android.apk`,
 `herdr-mobile-darwin-arm64.tar.gz`, `herdr-mobile-linux-amd64.tar.gz`,
