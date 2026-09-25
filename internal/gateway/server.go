@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/NielsdaWheelz/skidbladnir/internal/logging"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/logging"
 )
 
 const (

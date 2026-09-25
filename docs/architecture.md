@@ -1,7 +1,8 @@
-# skíðblaðnir: product and architecture
+# herdr-mobile: product and architecture
 
-this document describes the herdr pr 5 source candidate: the android app and one
-phone gateway per host. it is not a claim that any host or phone has been
+this document describes herdr-mobile: the herdr android app and one
+phone gateway per host. the [separation spec](herdr-mobile-separation.md) owns
+its independent identity and coordinated deployment. it is not a claim that any host or phone has been
 upgraded. [the roadmap](roadmap.md) records delivery and open acceptance;
 [pr 5](herdr-pr5.md) owns this reduction, [pr 1](herdr-pr1.md) the retained
 wire and [pr 2](herdr-pr2.md) the stream. accepted feature specifications own
@@ -12,7 +13,7 @@ implementation conventions.
 
 herdr owns terminals, panes, workspaces, agent detection and lifecycle,
 desktop and remote attach over ssh, and agent integrations.
-providers own execution and history. skid owns nothing herdr already does: one
+providers own execution and history. herdr-mobile owns nothing herdr already does: one
 authenticated gateway per host projects that host's herdr for the phone and
 adds what herdr has no equivalent for, namely phone pairing, bearer auth,
 pressure, directory browsing, profile launch and dwarves. the phone composes
@@ -30,18 +31,18 @@ a focus broker.
 
 | concern | decision |
 | --- | --- |
-| product | skíðblaðnir; one user, one tailnet, three hosts |
+| product | herdr-mobile repository/gateway, herdr android app; one user, one tailnet, three hosts |
 | hosts | linux/systemd user service on devbox and arch; darwin/launchagent on macbook |
 | runtime | one independently supervised herdr v0.9.1 server per host; no request starts or replaces it |
 | phone | android 16/api 36 compose dashboard and source-pinned xterm.js renderer |
-| ingress | one tailscale serve tls `:8443` origin per machine to a loopback gateway; no funnel or public ingress |
+| ingress | one tailscale serve tls `:8444` origin per machine to a loopback gateway; no funnel or public ingress |
 | machine identity | immutable random `mh-` installation handle; a label, origin, bearer, or platform is not identity |
 | authentication | independent bearer per gateway and one-use five-minute pairing invitation; `/v1` requests bind bearer and pinned machine handle |
 | profiles | empty or the closed ordered `personal`, `work`, `work2`, `claude-work` table; each row fixes label, provider and the pane environment holding its account home |
-| state | herdr panes, workspaces, agents and reserved `skid_*` pane metadata (name flag, launch profile, objective) are runtime truth; android persists encrypted pairings and local presentation preferences |
+| state | herdr panes, workspaces, agents and reserved `herdr_mobile_*` pane metadata (name flag, launch profile, objective) are runtime truth; android persists encrypted pairings and local presentation preferences |
 | host app | go gateway over the local public herdr socket, platform pressure and directory observation |
 | clients | the phone only; humans and jarvis call herdr directly |
-| delivery | skid v0.8.0 is herdr pr 5 step 3; source changes install, publish, or update nothing |
+| delivery | first separated release pending; source changes install, publish, or update nothing |
 | trust | agents run as the host user; same-uid adversarial containment is out of scope |
 
 callers choose only a declared profile and a validated cwd; they cannot supply
@@ -49,14 +50,14 @@ a command, account home, argument or objective-as-prompt. a launch creates the
 pane with the profile's environment and asks herdr to start the provider's
 bare `codex` or `claude` there. the pane shell resolves that name: the
 deployment's `codex` wrapper respects a preset `CODEX_HOME`, and the
-deployment's shell aliases add the permission flags. skid passes no arguments,
+deployment's shell aliases add the permission flags. herdr-mobile passes no arguments,
 because codex refuses a repeated `--yolo`. a zero-profile host still has
 terminal creation and herdr's agent detection. launch metadata names a
 candidate profile, never proves the account of a running process.
 
 ### product language
 
-skíðblaðnir is the app; the dashboard presents dwarves from dvergatal, the
+herdr is the app; the dashboard presents dwarves from dvergatal, the
 append-only character catalogue. a terminal's dwarf is seeded by its herdr
 terminal id. an agent the gateway launches takes the first dwarf, in that seeded
 order, whose name no live agent on the server holds (`haugspori` for
@@ -111,7 +112,7 @@ the restored maximum plus one, so a closed workspace's id can return after a
 restart. no api field identifies a server instance.
 
 native pane close may close a linked group or be refused. herdr offers no
-compare-and-set write: skid re-reads its target before every write, but another
+compare-and-set write: herdr-mobile re-reads its target before every write, but another
 herdr client may still interleave between check and write. an agent herdr
 detected without a name (one a human typed) has no identity beyond its
 terminal, since another unnamed agent could replace it there unseen; it gets
@@ -148,7 +149,7 @@ output is never a source of outbound emulator replies.
 
 status is herdr's `agent get` state. readiness is `ready` or `blocked` only
 when `agent explain` matched that same visible screen rule for the same
-unchanged state, and `unconfirmed` otherwise; skid adds no rule and reads no
+unchanged state, and `unconfirmed` otherwise; herdr-mobile adds no rule and reads no
 terminal text. interrupt and stop need a named agent. interrupt re-reads the
 terminal, requires the same agent name there, and sends the provider's
 interrupt key (escape for codex, ctrl-c for claude) through herdr's agent
@@ -170,7 +171,7 @@ and the stream's text, paste and key input. each write re-reads its target and
 dispatches under one mutation lock, so the gateway's own writes never
 interleave between a check and its write; reads take no lock. `profile` owns launch profiles;
 `hostconfig` admits the deployment's host configuration, including through
-`skidbladnir validate-host-config`, which dev-server calls before staging a
+`herdr-mobile validate-host-config`, which dev-server calls before staging a
 generation; validity is not runtime readiness. `reference` owns the opaque ref
 encoding. `gateway` composes these with auth, pairing, pressure, directory,
 http, and websocket lifetimes; `terminal` owns the typed stream frames.
@@ -210,7 +211,7 @@ owns timing and frame details.
 
 ## 6. Android surface
 
-`SkidbladnirController` owns selected targets, foreground state, attempt
+`HerdrMobileController` owns selected targets, foreground state, attempt
 generation, navigation, and inventory refresh. `TerminalConnection` owns one
 socket; the terminal page owns geometry, renderer application, viewport-local
 selection/copy, key deck state, and gestures. native code owns credentials and
@@ -218,8 +219,8 @@ transport; the WebView receives only bounded frame data and semantic input
 callbacks. foreground loss invalidates input before callbacks can reopen it.
 
 a card names its launch profile when herdr's agent is that profile's provider,
-and the provider with an unknown profile otherwise. pairings survive this
-source cutover. after a native close, the affected host inventory is refreshed
+and the provider with an unknown profile otherwise. the separate `dev.niels.herdr.mobile` package starts with fresh pairings;
+there is no import from `dev.niels.skidbladnir`. after a native close, the affected host inventory is refreshed
 because linked closure may remove several cards. user-waived dictation, gboard
 paste, local copy, and rotation checks remain `NOT_RUN` until observed.
 
@@ -241,11 +242,17 @@ secrecy guarantee.
 
 ## 8. Upgrade ladder
 
-this branch is [pr 5](herdr-pr5.md#8-delivery) step 3. step 4 pins it in
-dev-server, rewrites the host configs to the reduced profile table, and removes
-the skid link, hooks, notifier, plugin and jarvis cli copy. hosts update before
-the phone. neither source implementation nor a synthetic probe is fleet
-acceptance. [the roadmap](roadmap.md) records remaining live and phone proofs.
+2026-09-25 scope amendment: the owner requires independent simultaneous
+herdr-mobile and original skidbladnir installations, and permits existing
+herdr panes to be discarded. the [separation spec](herdr-mobile-separation.md)
+owns the target identities, provider boundaries, ordered cutover and acceptance.
+source uses the separated identities; release publication and coordinated
+cutover remain pending. old `skid_*` pane metadata is not read or migrated.
+
+[pr 5](herdr-pr5.md#8-delivery) established the reduced phone gateway. the
+separation cutover now installs independent services and private provider
+homes before pairing the new phone package. neither source implementation nor
+a synthetic probe is fleet acceptance. [the roadmap](roadmap.md) records remaining live and phone proofs.
 
 push, unread-result attention, provenance, copied provider history, durable
 receipts and replay remain excluded. a new capability requires an explicit

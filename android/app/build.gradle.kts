@@ -36,30 +36,30 @@ private fun loadSigningMaterial(path: String): SigningMaterial {
     )
 }
 
-private val signingMaterial = providers.environmentVariable("SKIDBLADNIR_ANDROID_SIGNING_CONFIG")
+private val signingMaterial = providers.environmentVariable("HERDR_MOBILE_ANDROID_SIGNING_CONFIG")
     .orNull
     ?.let(::loadSigningMaterial)
 
-private val configuredVersionName = providers.gradleProperty("skidbladnir.versionName").orNull
-private val configuredVersionCode = providers.gradleProperty("skidbladnir.versionCode").orNull
+private val configuredVersionName = providers.gradleProperty("herdrMobile.versionName").orNull
+private val configuredVersionCode = providers.gradleProperty("herdrMobile.versionCode").orNull
 require((configuredVersionName == null) == (configuredVersionCode == null)) {
-    "skidbladnir.versionName and skidbladnir.versionCode must be supplied together"
+    "herdrMobile.versionName and herdrMobile.versionCode must be supplied together"
 }
 if (configuredVersionName != null) {
     require(configuredVersionName.matches(Regex("(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)"))) {
-        "skidbladnir.versionName must be canonical MAJOR.MINOR.PATCH"
+        "herdrMobile.versionName must be canonical MAJOR.MINOR.PATCH"
     }
 }
 private val resolvedVersionCode = configuredVersionCode?.toIntOrNull() ?: 1
 require(configuredVersionCode == null || resolvedVersionCode in 2..2_100_000_000) {
-    "skidbladnir.versionCode must be a valid increasing Android version code"
+    "herdrMobile.versionCode must be a valid increasing Android version code"
 }
 gradle.taskGraph.whenReady {
     require(
         allTasks.none { task -> task.name.contains("release", ignoreCase = true) } ||
             configuredVersionName != null
     ) {
-        "Every release task requires explicit skidbladnir.versionName and skidbladnir.versionCode"
+        "Every release task requires explicit herdrMobile.versionName and herdrMobile.versionCode"
     }
 }
 
@@ -70,11 +70,11 @@ kotlin {
 }
 
 android {
-    namespace = "dev.niels.skidbladnir"
+    namespace = "dev.niels.herdr.mobile"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "dev.niels.skidbladnir"
+        applicationId = "dev.niels.herdr.mobile"
         minSdk = 36
         targetSdk = 36
         versionCode = resolvedVersionCode
@@ -85,8 +85,8 @@ android {
         compose = true
     }
 
-    val skidbladnirSigning = signingMaterial?.let { material ->
-        signingConfigs.create("skidbladnir") {
+    val herdrMobileSigning = signingMaterial?.let { material ->
+        signingConfigs.create("herdr-mobile") {
             storeFile = material.storeFile
             storePassword = material.password
             keyAlias = material.keyAlias
@@ -98,7 +98,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = skidbladnirSigning
+            signingConfig = herdrMobileSigning
         }
     }
 
@@ -120,7 +120,7 @@ gradle.taskGraph.whenReady {
         task.project == project && task.name.contains("Release")
     }
     if (requestsProtectedArtifact && signingMaterial == null) {
-        throw GradleException("Protected Android artifacts require SKIDBLADNIR_ANDROID_SIGNING_CONFIG")
+        throw GradleException("Protected Android artifacts require HERDR_MOBILE_ANDROID_SIGNING_CONFIG")
     }
 }
 

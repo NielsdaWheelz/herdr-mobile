@@ -1,0 +1,427 @@
+package dev.niels.herdr.mobile
+
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+
+// M3's `Card(onClick)` hardcodes its internal ripple and never reads
+// LocalIndication, so the card is a plain Surface carrying the same
+// `clickable` the Card built for it — same click action, same merged
+// descendant semantics, same roleless node, same minimum interactive size —
+// with the angular press flash (docs/chrome-tokens.md "Interaction states").
+@Composable
+internal fun SessionCard(
+    visibleSession: VisibleSession,
+    machine: MachineState,
+    showMachineLabel: Boolean,
+    motionEnabled: Boolean,
+    onOpen: () -> Unit,
+    onKill: () -> Unit,
+    onSpace: () -> Unit,
+) {
+    val session = visibleSession.target.terminal
+    val snapshot = machine.inventory.lastSnapshot() ?: return
+    val status = sessionStatusContent(session.agent, fresh = machine.canMutate)
+    val tone = sessionStatusColor(session.agent?.status?.state)
+    val profile = sessionProfileLabel(session, snapshot.inventory.profiles)
+    val visibleContext = sessionFooterText(visibleSession.machine.label, profile, showMachineLabel)
+    Surface(
+        color = DeepSurface,
+        shape = NidavellirShapes.Card,
+        modifier = Modifier
+            .minimumInteractiveComponentSize()
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = AngularIndication(NidavellirShapes.Card),
+                enabled = machine.canMutate,
+                onClick = onOpen,
+            ),
+    ) {
+        Column(
+            modifier = Modifier
+                .drawBehind {
+                    drawRect(color = Gold.copy(alpha = 0.25f), size = size.copy(height = 1.dp.toPx()))
+                }
+                .padding(10.dp),
+        ) {
+            SessionIdentityHeader(
+                terminalName = terminalDisplayName(session),
+                dwarfName = session.character.displayName,
+                working = session.agent?.status?.state == AgentState.Working,
+                activityTone = tone,
+                animateActivity = machine.canMutate && motionEnabled,
+            )
+            if (session.name == null && session.nativeLabel != null) {
+                Text("herdr label: ${session.nativeLabel}", color = Muted,
+                    style = MaterialTheme.typography.labelSmall)
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                DwarfPortrait(session.character)
+                SessionStatusBay(status = status, tone = tone, modifier = Modifier.weight(1f))
+            }
+            sessionAvailabilityContent(machine)?.let { availability ->
+                Text(
+                    availability.label,
+                    color = noticeToneColor(availability.tone),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = NidavellirType.Data,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+            }
+            session.objective?.let {
+                Text(
+                    text = it,
+                    modifier = Modifier
+                        .padding(top = 8.dp),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            session.cwd?.let { directory ->
+                Text(
+                    text = abbreviatedDirectory(directory),
+                    modifier = Modifier
+                        .padding(top = 8.dp)
+                        .semantics { contentDescription = "Directory $directory" },
+                    color = Muted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = NidavellirType.Data,
+                )
+            }
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = visibleContext,
+                    color = Muted,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontFamily = NidavellirType.Data,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics {
+                            contentDescription =
+                                "Machine ${visibleSession.machine.label.text}. Profile $profile."
+                        },
+                )
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    WorkspaceTextAction(
+                        label = "move", enabled = machine.canMutate, onClick = onSpace,
+                        description = "move ${terminalDisplayName(session)} on ${visibleSession.machine.label.text}",
+                    )
+                    KillButton(
+                        machineLabel = visibleSession.machine.label,
+                        target = visibleSession.target,
+                        enabled = machine.canMutate,
+                        onClick = onKill,
+                    )
+                }
+            }
+        }
+    }
+}
+
+internal fun sessionProfileLabel(session: TerminalRecord, profiles: List<ProfileChoice>): String {
+    val launch = session.launchProfile?.let { launchProfile -> profiles.single { it.key == launchProfile } }
+    val agent = session.agent ?: return launch?.label ?: "terminal"
+    return launch?.takeIf { it.provider == agent.provider }?.label ?: when (agent.provider) {
+        AgentProvider.Codex -> "Codex · profile unknown"
+        AgentProvider.Claude -> "Claude · profile unknown"
+    }
+}
+
+internal fun sessionFooterText(machine: MachineLabel, profile: String, showMachineLabel: Boolean): String =
+    if (showMachineLabel) "${machine.text} · $profile" else profile
+
+@Composable
+private fun SessionIdentityHeader(
+    terminalName: String,
+    dwarfName: String,
+    working: Boolean,
+    activityTone: Color,
+    animateActivity: Boolean,
+) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = terminalName,
+                color = Bone,
+                style = MaterialTheme.typography.titleMedium,
+                fontFamily = NidavellirType.Data,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = dwarfName,
+                color = Muted,
+                style = MaterialTheme.typography.labelMedium,
+                fontFamily = NidavellirType.Display,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        ActivityFacet(working, activityTone, animateActivity)
+    }
+}
+
+@Composable
+private fun ActivityFacet(
+    working: Boolean,
+    tone: Color,
+    animate: Boolean,
+) {
+    val active = working
+    val modifier = Modifier
+        .size(12.dp)
+        .clip(NidavellirShapes.Chip)
+    if (!active || !animate) {
+        Box(modifier.background(tone))
+        return
+    }
+
+    val transition = rememberInfiniteTransition(label = "active terminal activity")
+    val rotation by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1_200, easing = LinearEasing),
+        ),
+        label = "active terminal facet rotation",
+    )
+    Canvas(modifier) {
+        drawRect(tone)
+        val inset = 3.dp.toPx()
+        val angle = Path().apply {
+            moveTo(inset, size.height - inset)
+            lineTo(inset, inset)
+            lineTo(size.width - inset, inset)
+        }
+        rotate(rotation) {
+            drawPath(
+                path = angle,
+                color = DeepSurface,
+                style = Stroke(width = 1.dp.toPx(), cap = StrokeCap.Butt, join = StrokeJoin.Miter),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SessionStatusBay(status: SessionStatusContent, tone: Color, modifier: Modifier = Modifier) {
+    Surface(
+        color = tone.copy(alpha = 0.18f),
+        shape = NidavellirShapes.Chip,
+        border = BorderStroke(1.dp, tone),
+        modifier = modifier
+            .semantics { contentDescription = status.accessibilityLabel },
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp)
+                .padding(horizontal = 3.dp, vertical = 4.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            Text(
+                text = status.label,
+                color = tone,
+                style = MaterialTheme.typography.labelLarge,
+                fontFamily = NidavellirType.Data,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+    }
+}
+
+internal fun abbreviatedDirectory(directory: String): String {
+    val segments = directory.split('/').filter(String::isNotEmpty)
+    return if (segments.size <= 2) directory else "…/${segments.takeLast(2).joinToString("/")}"
+}
+
+// The Niðavellir seal (design-language.md §11, dwarf-seals.md): a
+// deterministic, pure function of `character.key` via `sealSpec`. Draw order
+// is frozen in dwarf-seals.md: mineral fill, facet planes, beard silhouette,
+// bind-rune, octagon frame, Bone initial.
+@Composable
+internal fun DwarfPortrait(character: CharacterSummary) {
+    val spec = sealSpec(character.key)
+    val metal = if (spec.metal == SealMetal.Gold) Gold else Bronze
+    val label = character.displayName.take(1).uppercase()
+    Box(
+        modifier = Modifier
+            .size(48.dp)
+            .clip(NidavellirShapes.Octagon)
+            .semantics {
+                contentDescription = "Portrait of ${character.displayName}"
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(Modifier.fillMaxSize()) {
+            val w = size.width
+            val h = size.height
+            val side = size.minDimension
+
+            drawRect(SealMinerals[spec.mineral])
+
+            // Facet planes: two flat 45° highlight/shadow triangles.
+            drawPath(
+                Path().apply {
+                    moveTo(0f, 0f)
+                    lineTo(w, 0f)
+                    lineTo(0f, h)
+                    close()
+                },
+                Color.White.copy(alpha = 0.045f),
+            )
+            drawPath(
+                Path().apply {
+                    moveTo(w, h * 0.55f)
+                    lineTo(w, h)
+                    lineTo(w * 0.35f, h)
+                    close()
+                },
+                Color.Black.copy(alpha = 0.16f),
+            )
+
+            // Beard silhouette: a trapezoid whose bottom edge is cut with
+            // beardTeeth angular notches, tips shorter than valleys by
+            // beardDepthStep. No curve anywhere (design-language.md §11).
+            val beardTopY = h * 0.60f
+            val beardLeftX = w * 0.24f
+            val beardRightX = w * 0.76f
+            val valleyY = h * 0.88f
+            val tipY = valleyY - (0.10f + spec.beardDepthStep * 0.022f) * h
+            val toothSpan = spec.beardTeeth - 1
+            val toothWidth = (beardRightX - beardLeftX) / toothSpan
+            val beardPath = Path().apply {
+                moveTo(beardLeftX, beardTopY)
+                lineTo(beardRightX, beardTopY)
+                lineTo(beardRightX, tipY)
+                for (tooth in 1..toothSpan) {
+                    lineTo(beardRightX - (tooth - 0.5f) * toothWidth, valleyY)
+                    lineTo(beardRightX - tooth * toothWidth, tipY)
+                }
+                close()
+            }
+            drawPath(beardPath, Color.Black.copy(alpha = 0.34f))
+            drawPath(
+                beardPath,
+                Color.White.copy(alpha = 0.10f),
+                style = Stroke(width = 1f, cap = StrokeCap.Butt, join = StrokeJoin.Miter),
+            )
+
+            // Bind-rune: a shared vertical stave plus every drawn rune's
+            // segments, monoline in the seal's metal (design-language.md
+            // §8 — ornament, never text; carries no contentDescription).
+            val staveX = w * 0.5f
+            val staveTop = h * 0.15f
+            val staveBottom = h * 0.58f
+            val runeWidth = w * 0.30f
+            val bindRune = Path().apply {
+                moveTo(staveX, staveTop)
+                lineTo(staveX, staveBottom)
+                spec.runes.forEach { rune ->
+                    RuneSegments[rune].forEach { seg ->
+                        moveTo(staveX + seg.x0 * runeWidth, staveTop + seg.y0 * (staveBottom - staveTop))
+                        lineTo(staveX + seg.x1 * runeWidth, staveTop + seg.y1 * (staveBottom - staveTop))
+                    }
+                }
+            }
+            drawPath(
+                bindRune,
+                metal,
+                style = Stroke(width = side * 0.045f, cap = StrokeCap.Butt, join = StrokeJoin.Miter),
+            )
+
+            // Octagon frame: neutral base hairline on all 8 edges, Gold
+            // overlaid thicker on the edges set in facetMask. The vertices are
+            // the clip shape's own cut, expanded once in Theme.kt, so the two
+            // cannot drift; their order is what facetMask indexes.
+            val vertices = octagonVertices(size)
+            for (edge in vertices.indices) {
+                drawLine(
+                    color = Color(0xFF3A3E45),
+                    start = vertices[edge],
+                    end = vertices[(edge + 1) % vertices.size],
+                    strokeWidth = side * 0.012f,
+                    cap = StrokeCap.Butt,
+                )
+            }
+            for (edge in vertices.indices) {
+                if ((spec.facetMask shr edge) and 1 == 1) {
+                    drawLine(
+                        color = Gold,
+                        start = vertices[edge],
+                        end = vertices[(edge + 1) % vertices.size],
+                        strokeWidth = side * 0.025f,
+                        cap = StrokeCap.Butt,
+                    )
+                }
+            }
+        }
+        Text(
+            text = label,
+            color = Bone,
+            fontFamily = NidavellirType.Display,
+            fontWeight = FontWeight.Black,
+            modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp),
+            style = MaterialTheme.typography.labelMedium,
+        )
+    }
+}

@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 
-	"github.com/NielsdaWheelz/skidbladnir/internal/herdr"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/herdr"
 )
 
-const metadataSource = "user:skidbladnir"
+const metadataSource = "user:herdr-mobile"
 
 type workspaceInfo struct {
 	ID    string `json:"workspace_id"`

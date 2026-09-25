@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/NielsdaWheelz/skidbladnir/internal/catalog"
-	"github.com/NielsdaWheelz/skidbladnir/internal/herdr"
-	"github.com/NielsdaWheelz/skidbladnir/internal/profile"
-	"github.com/NielsdaWheelz/skidbladnir/internal/workdir"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/catalog"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/herdr"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/profile"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/workdir"
 )
 
 // A dwarf's name is a herdr agent name ([a-z][a-z0-9_-]{0,31}) with room for,
@@ -159,14 +159,14 @@ func (manager *Manager) project(ctx context.Context, pane paneInfo, agent agentI
 	}
 	if pane.Label != nil {
 		terminal.NativeLabel = *pane.Label
-		if pane.Tokens["skid_named"] == "1" && validateName(*pane.Label) == nil {
+		if pane.Tokens["herdr_mobile_named"] == "1" && validateName(*pane.Label) == nil {
 			terminal.Name = *pane.Label
 		}
 	}
 	if pane.CWD != nil {
 		terminal.CWD = *pane.CWD
 	}
-	if key := profile.Key(pane.Tokens["skid_launch_profile"]); key != "" {
+	if key := profile.Key(pane.Tokens["herdr_mobile_launch_profile"]); key != "" {
 		if _, configured := manager.profilesByKey[key]; configured {
 			terminal.LaunchProfile = key
 		}
@@ -304,7 +304,7 @@ func (manager *Manager) generatedName(ctx context.Context, profile string) (stri
 		}
 	}
 	for index := 1; ; index++ {
-		name := fmt.Sprintf("skidbladnir-%s-%d", profile, index)
+		name := fmt.Sprintf("herdr-mobile-%s-%d", profile, index)
 		if !used[name] {
 			return name, nil
 		}

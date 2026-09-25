@@ -34,18 +34,18 @@ case "$goos/$goarch/$platform" in
     ;;
 esac
 
-staging_dir="$(mktemp -d /tmp/skidbladnir-host-release.XXXXXX)"
+staging_dir="$(mktemp -d /tmp/herdr-mobile-host-release.XXXXXX)"
 case "$staging_dir" in
-  /tmp/skidbladnir-host-release.* | /private/tmp/skidbladnir-host-release.*) ;;
+  /tmp/herdr-mobile-host-release.* | /private/tmp/herdr-mobile-host-release.*) ;;
   *) printf 'Unexpected host-release staging directory\n' >&2; exit 1 ;;
 esac
 trap 'rm -R -- "$staging_dir"' EXIT HUP INT TERM
 
 "$tool_repo_dir/scripts/build-host-binary" \
-  "$source_dir" "$tag" "$sha" "$goos" "$goarch" "$staging_dir/skidbladnir"
+  "$source_dir" "$tag" "$sha" "$goos" "$goarch" "$staging_dir/herdr-mobile"
 install -m 0644 "$source_dir/catalog/characters.json" "$staging_dir/characters.json"
 jq -n --arg platform "$platform" --arg sha "$sha" --arg version "$tag" \
   '{platform:$platform,sourceSha:$sha,version:$version}' > "$staging_dir/release.json"
 chmod 0644 "$staging_dir/release.json"
 COPYFILE_DISABLE=1 tar --no-xattrs -C "$staging_dir" -czf "$output" \
-  skidbladnir characters.json release.json
+  herdr-mobile characters.json release.json

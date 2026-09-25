@@ -31,7 +31,7 @@ composition through product code.
 record completed product proofs and remaining gaps separately. the
 [2026-09-23 decision](#accepted-non-blocking-follow-ups) removes the named
 remaining checks and defects as blockers; it does not turn missing proof into
-a pass. [claude submission](issues/herdr-claude-submission.md) retains the
+a pass. [claude submission](https://github.com/NielsdaWheelz/herdr-mobile/blob/99990332cfcbb713a741e37519548c7e674a46db/docs/issues/herdr-claude-submission.md) retains the
 host-specific results.
 
 the user waived the human dictation, gboard paste, local copy and rotation
@@ -268,7 +268,7 @@ convenience. android paths below are under its existing java package unless stat
 | independent reviewers | read/run only; no test, production or content edits |
 
 shared terminal state and admission helpers belong in
-[TerminalScreen.kt](../android/app/src/main/java/dev/niels/skidbladnir/TerminalScreen.kt);
+[TerminalScreen.kt](../android/app/src/main/java/dev/niels/herdr/mobile/TerminalScreen.kt);
 the domain owner retains navigation and attempt coordination. agree typed
 frame/input callbacks before parallel edits; no new lifecycle module. move reusable workspace
 label validation out of `internal/space` before removing cosmetic grouping.

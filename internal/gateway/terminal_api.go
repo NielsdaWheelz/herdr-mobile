@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/NielsdaWheelz/skidbladnir/internal/sessions"
-	"github.com/NielsdaWheelz/skidbladnir/internal/strictjson"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/sessions"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/strictjson"
 )
 
 const hostOperationBudget = 10 * time.Second

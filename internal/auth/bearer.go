@@ -17,7 +17,7 @@ import (
 const (
 	bearerBytes        = 32
 	bearerEncodedSize  = 43
-	bearerDigestDomain = "skidbladnir.gateway-bearer.v1\x00"
+	bearerDigestDomain = "herdr-mobile.gateway-bearer.v1\x00"
 )
 
 var bearerEncoding = base64.RawURLEncoding.Strict()

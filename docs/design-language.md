@@ -121,7 +121,7 @@ separate fact. the terminal uses the derived ansi table below.
 Labels, domain, error, and destructive copy stay literal (architecture §2).
 The dwarven voice lives entirely in geometry, material, and type — never in
 wording. No "ye olde" register, no rune-transliterated labels, no themed
-error messages. "Kill skidbladnir-work-1 on Devbox?" stays exactly that.
+error messages. "Kill herdr-mobile-work-1 on Devbox?" stays exactly that.
 
 ## 5. Color
 

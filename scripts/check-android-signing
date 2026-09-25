@@ -7,14 +7,14 @@ pin_file="$repo_dir/android/app-signing-cert.sha256"
 case "$(uname -s)" in
   Darwin)
     android_sdk="${ANDROID_HOME:-/Users/nnandal/Library/Android/sdk}"
-    default_config='/Users/nnandal/.config/skidbladnir/android-signing.properties'
+    default_config='/Users/nnandal/.config/herdr-mobile/android-signing.properties'
     if [[ -z "${JAVA_HOME:-}" ]]; then
       export JAVA_HOME='/Applications/Android Studio.app/Contents/jbr/Contents/Home'
     fi
     ;;
   Linux)
     android_sdk="${ANDROID_HOME:-/home/niels/Android/Sdk}"
-    default_config='/home/niels/.config/skidbladnir/android-signing.properties'
+    default_config='/home/niels/.config/herdr-mobile/android-signing.properties'
     ;;
   *)
     printf 'Android signing checks support only Linux and Darwin\n' >&2
@@ -185,7 +185,7 @@ verify_apk() {
   }
 }
 
-config_file="${SKIDBLADNIR_ANDROID_SIGNING_CONFIG:-$default_config}"
+config_file="${HERDR_MOBILE_ANDROID_SIGNING_CONFIG:-$default_config}"
 if [[ "${1:-}" == '--config-only' && "$#" -eq 1 ]]; then
   validate_config "$config_file"
   printf 'Android signing configuration accepted\n'

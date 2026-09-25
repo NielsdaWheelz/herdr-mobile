@@ -9,10 +9,10 @@ import (
 	"sort"
 	"time"
 
-	"github.com/NielsdaWheelz/skidbladnir/internal/logging"
-	"github.com/NielsdaWheelz/skidbladnir/internal/platform"
-	"github.com/NielsdaWheelz/skidbladnir/internal/pressure"
-	"github.com/NielsdaWheelz/skidbladnir/internal/workdir"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/logging"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/platform"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/pressure"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/workdir"
 )
 
 type apiError struct {
@@ -32,7 +32,7 @@ var (
 	errorDirectoryListingTooLarge    = apiError{Code: "DirectoryListingTooLarge", Message: "This directory has too many folders to show. Enter the path instead.", Status: http.StatusUnprocessableEntity, logCode: logging.ErrorDirectoryListingTooLarge}
 	errorPairingInviteRejected       = apiError{Code: "PairingInviteRejected", Message: "This fleet invite is invalid, expired, or already used.", Status: http.StatusUnauthorized, logCode: logging.ErrorPairingInviteRejected}
 	errorMachineIdentityMismatch     = apiError{Code: "MachineIdentityMismatch", Message: "The machine identity changed. Fleet reset is required.", Status: http.StatusConflict, logCode: logging.ErrorMachineIdentityMismatch}
-	errorInternal                    = apiError{Code: "InternalError", Message: "Skíðblaðnir could not complete the request.", Status: http.StatusInternalServerError, logCode: logging.ErrorInternal}
+	errorInternal                    = apiError{Code: "InternalError", Message: "herdr could not complete the request.", Status: http.StatusInternalServerError, logCode: logging.ErrorInternal}
 )
 
 type profileDTO struct {

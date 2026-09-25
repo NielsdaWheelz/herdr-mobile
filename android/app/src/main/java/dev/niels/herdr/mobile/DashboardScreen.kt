@@ -1,0 +1,749 @@
+package dev.niels.herdr.mobile
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.ScrollState
+import androidx.compose.foundation.gestures.BringIntoViewSpec
+import androidx.compose.foundation.gestures.LocalBringIntoViewSpec
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshState
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import kotlin.math.abs
+
+@Composable
+internal fun DashboardScreen(
+    state: HerdrMobileUiState.Dashboard,
+    entry: DashboardEntryState,
+    controller: HerdrMobileController,
+    onOpenTerminal: (TerminalTarget) -> Unit,
+) {
+    DashboardMain(state, entry, controller, controller::verifyVisibleInventory, onOpenTerminal)
+
+    state.forge?.let { forge ->
+        ForgeSheet(
+            state = forge,
+            machines = state.machines,
+            actions = ForgeSheetActions(
+                dismiss = controller::dismissForge,
+                updateDraft = controller::updateForgeDraft,
+                submit = controller::forge,
+                openWorkingDirectoryPicker = controller::openWorkingDirectoryPicker,
+                openExactWorkingDirectoryPicker = controller::openExactWorkingDirectoryPicker,
+                workingDirectory = WorkingDirectoryPickerActions(
+                    browseHome = controller::browseWorkingDirectoryHome,
+                    openChild = controller::openWorkingDirectoryChild,
+                    openParent = controller::openWorkingDirectoryParent,
+                    retry = controller::retryWorkingDirectory,
+                    updateFilter = controller::updateWorkingDirectoryFilter,
+                    setHidden = controller::setWorkingDirectoryHidden,
+                    updateViewport = controller::updateWorkingDirectoryViewport,
+                    showExact = controller::showExactWorkingDirectory,
+                    updateExact = controller::updateExactWorkingDirectory,
+                    chooseActive = controller::chooseActiveWorkingDirectory,
+                    useCurrent = controller::useCurrentWorkingDirectory,
+                    useExact = controller::useExactWorkingDirectory,
+                    back = controller::workingDirectoryBack,
+                    cancel = controller::cancelWorkingDirectoryPicker,
+                ),
+            ),
+        )
+    }
+    state.workspaceEditor?.let { editor ->
+        WorkspaceSheet(
+            editor = editor,
+            machine = state.machines.single { it.machine.handle == editor.target.machineHandle },
+            workspaces = observedWorkspaces(state.machines),
+            onChange = controller::updateWorkspaceDraft,
+            onDismiss = controller::dismissWorkspaceEditor,
+            onSubmit = controller::submitWorkspace,
+        )
+    }
+    state.kill?.let { kill ->
+        KillConfirmation(
+            state = kill,
+            actionAdmissible = state.machines.singleOrNull {
+                it.machine.handle == kill.target.machineHandle
+            }?.canMutate == true,
+            onDismiss = controller::dismissKill,
+            onConfirm = controller::confirmKill,
+        )
+    }
+}
+@Composable
+internal fun DashboardMain(
+    state: HerdrMobileUiState.Dashboard,
+    entry: DashboardEntryState,
+    controller: HerdrMobileController,
+    onVerify: () -> Unit,
+    onOpenTerminal: (TerminalTarget) -> Unit,
+) {
+    var selectedPressureHandle by rememberSaveable { mutableStateOf<String?>(null) }
+    val scope = entry.scope
+    val selectedPressureMachine = selectedPressureHandle?.let { handle ->
+        when (scope) {
+            DashboardScope.All -> null
+            is DashboardScope.Machine -> state.machines.singleOrNull {
+                it.machine.handle.encoded == handle && it.machine.handle == scope.handle
+            }
+        }
+    }
+    if (selectedPressureHandle != null && selectedPressureMachine == null) {
+        LaunchedEffect(selectedPressureHandle) { selectedPressureHandle = null }
+    }
+    val machines = state.machines.filter { machine ->
+        when (scope) {
+            DashboardScope.All -> true
+            is DashboardScope.Machine -> machine.machine.handle == scope.handle
+        }
+    }
+    val sessions = visibleSessions(state.machines, scope).filter { entry.workspace.matches(it.target) }
+    val canForge = machines.any(MachineState::canForge)
+    val showPressureRails = pressureRailsVisible(scope)
+    Box(modifier = Modifier.fillMaxSize().background(Ink).systemBarsPadding()) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            DashboardTopBar(
+                summary = dashboardSummary(sessions.size, machines.size),
+                onReconnect = controller::requestFleetReconnect,
+            )
+
+            MachineFilters(state.machines, scope, entry::selectScope)
+            WorkspaceSelector(entry.workspace, observedWorkspaces(state.machines), entry::selectWorkspace)
+            machines.forEach { machine ->
+                key(machine.machine.handle) {
+                    MachineStrip(
+                        machine = machine,
+                        showPressureRail = showPressureRails,
+                        onShowPressure = { selectedPressureHandle = machine.machine.handle.encoded },
+                    )
+                }
+            }
+
+            state.notice?.let { NoticePanel(tone = NoticeTone.Failure, body = it) }
+
+            state.forgeRecovery?.let { recovery ->
+                NoticePanel(
+                    tone = NoticeTone.Armed,
+                    body = forgeRecoveryMessage(state, recovery, scope),
+                    actions = if (recovery is ForgeRecovery.ReviewReady) {
+                        {
+                            TextButton(onClick = controller::resumeForgeRecovery) { Text("Resume draft") }
+                            TextButton(onClick = controller::discardForgeRecovery) { Text("Discard") }
+                        }
+                    } else {
+                        null
+                    },
+                )
+            }
+
+            DashboardDwarfCollection(
+                state = state,
+                entry = entry,
+                onVerify = onVerify,
+                onRestore = controller::restoreDashboardOnce,
+                onOpen = onOpenTerminal,
+                onKill = controller::requestKill,
+                onSpace = controller::openWorkspaceEditor,
+            )
+        }
+
+        // The create affordance left the header for here (forge-seal.md,
+        // "Placement and semantics"): anchored over the grid, and rendered in
+        // every dashboard state including zero machines, where it is cold.
+        // Absence is displayed, not hidden. The 16dp margin is the wrapper's,
+        // not the seal's — padding threaded into ForgeSeal would grow its
+        // semantics bounds past its ink, and the grid's bottom inset below is
+        // measured against those bounds.
+        Box(modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp)) {
+            ForgeSeal(canForge = canForge, onClick = controller::openForge)
+        }
+    }
+    selectedPressureMachine?.let { machine ->
+        MachinePressureDetailsSheet(
+            machine = machine.machine,
+            state = machine.pressure,
+            onDismiss = { selectedPressureHandle = null },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun DashboardDwarfCollection(
+    state: HerdrMobileUiState.Dashboard,
+    entry: DashboardEntryState,
+    onVerify: () -> Unit,
+    onRestore: (List<DashboardItemKey>) -> Unit,
+    onOpen: (TerminalTarget) -> Unit,
+    onKill: (TerminalTarget) -> Unit,
+    onSpace: (TerminalTarget) -> Unit,
+) {
+    val scope = entry.scope
+    val machines = state.machines.filter { machine ->
+        when (scope) {
+            DashboardScope.All -> true
+            is DashboardScope.Machine -> machine.machine.handle == scope.handle
+        }
+    }
+    val items = dashboardItems(state.machines, scope, entry.workspace)
+    val keys = items.map(DashboardItem::key)
+    val restorationOutcomes = machines.map { machine ->
+        Triple(machine.machine.handle, machine.access, machine.inventory)
+    }
+    LaunchedEffect(entry.restorationPending, scope, restorationOutcomes, keys) {
+        if (entry.restorationPending) onRestore(keys)
+    }
+    if (entry.restorationPending) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+        return
+    }
+    val motionEnabled = rememberMotionEnabled()
+    if (machines.any { it.access == MachineAccess.Ready }) {
+        PullableDwarfCollection(state = state, motionEnabled = motionEnabled, onVerify = onVerify) {
+            DashboardDwarfGrid(
+                state,
+                scope,
+                machines,
+                items,
+                entry.gridState,
+                motionEnabled,
+                onOpen,
+                onKill,
+                onSpace,
+            )
+        }
+    } else {
+        DashboardDwarfGrid(
+            state,
+            scope,
+            machines,
+            items,
+            entry.gridState,
+            motionEnabled,
+            onOpen,
+            onKill,
+            onSpace,
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PullableDwarfCollection(
+    state: HerdrMobileUiState.Dashboard,
+    motionEnabled: Boolean,
+    onVerify: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    val pullState = rememberPullToRefreshState()
+    PullToRefreshBox(
+        isRefreshing = state.refreshing,
+        onRefresh = {
+            if (!state.refreshing) onVerify()
+        },
+        modifier = Modifier.fillMaxSize(),
+        state = pullState,
+        indicator = {
+            DwarfCollectionPullIndicator(
+                state = pullState,
+                isRefreshing = state.refreshing,
+                motionEnabled = motionEnabled,
+                modifier = Modifier.align(Alignment.TopCenter),
+            )
+        },
+    ) {
+        content()
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun DwarfCollectionPullIndicator(
+    state: PullToRefreshState,
+    isRefreshing: Boolean,
+    motionEnabled: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val indicatorModifier = modifier
+        .fillMaxWidth()
+        .padding(horizontal = 12.dp)
+        .height(2.dp)
+    when {
+        isRefreshing && !motionEnabled -> LinearProgressIndicator(
+            progress = { 1f },
+            modifier = indicatorModifier.semantics {
+                contentDescription = "Checking terminals"
+                progressBarRangeInfo = ProgressBarRangeInfo.Indeterminate
+            },
+            color = Gold,
+            trackColor = Color.Transparent,
+            strokeCap = StrokeCap.Butt,
+            gapSize = 0.dp,
+            drawStopIndicator = {},
+        )
+        isRefreshing -> LinearProgressIndicator(
+            modifier = indicatorModifier.semantics {
+                contentDescription = "Checking terminals"
+            },
+            color = Gold,
+            trackColor = Color.Transparent,
+            strokeCap = StrokeCap.Butt,
+            gapSize = 0.dp,
+        )
+        state.distanceFraction > 0f -> LinearProgressIndicator(
+            progress = { state.distanceFraction.coerceIn(0f, 1f) },
+            modifier = indicatorModifier,
+            color = Gold,
+            trackColor = Color.Transparent,
+            strokeCap = StrokeCap.Butt,
+            gapSize = 0.dp,
+            drawStopIndicator = {},
+        )
+    }
+}
+
+@Composable
+private fun DashboardDwarfGrid(
+    state: HerdrMobileUiState.Dashboard,
+    scope: DashboardScope,
+    machines: List<MachineState>,
+    items: List<DashboardItem>,
+    gridState: LazyGridState,
+    motionEnabled: Boolean,
+    onOpen: (TerminalTarget) -> Unit,
+    onKill: (TerminalTarget) -> Unit,
+    onSpace: (TerminalTarget) -> Unit,
+) {
+    val topPadding = 12.dp
+    val bottomPadding = 84.dp
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val emptyItemHeight = (maxHeight - topPadding - bottomPadding).coerceAtLeast(0.dp)
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(170.dp),
+            modifier = Modifier.fillMaxSize(),
+            state = gridState,
+            contentPadding = PaddingValues(
+                start = 12.dp,
+                top = topPadding,
+                end = 12.dp,
+                bottom = bottomPadding,
+            ),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            if (items.isEmpty()) {
+                item(
+                    key = "dashboard-empty-state",
+                    span = { GridItemSpan(maxLineSpan) },
+                ) {
+                    Box(Modifier.fillMaxWidth().height(emptyItemHeight)) {
+                        dashboardInventoryWaitCopy(machines)?.let {
+                            EmptyState("no matching terminals in available inventory", it.message, tone = it.tone)
+                        } ?: EmptyState(
+                            "no terminals in this view",
+                            "Create a dwarf here, or open herdr on the visible " +
+                                if (machines.size == 1) "machine." else "machines.",
+                            ornament = true,
+                        )
+                    }
+                }
+            } else {
+                items(
+                    items = items,
+                    key = { it.key.encoded },
+                    span = { if (it is DashboardItem.Heading) GridItemSpan(maxLineSpan) else GridItemSpan(1) },
+                ) { item ->
+                    when (item) {
+                        is DashboardItem.Heading -> {
+                            val label = "workspace: ${item.workspace.workspace.label.text} · ${item.workspace.workspace.ref.takeLast(6)}"
+                            Text(label, fontFamily = NidavellirType.Data, color = Muted,
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).semantics {
+                                    heading()
+                                    contentDescription = label
+                                }, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                        is DashboardItem.Session -> {
+                            val visible = item.visible
+                            val machine = state.machines.single { it.machine.handle == visible.target.machineHandle }
+                            SessionCard(
+                                visible,
+                                machine,
+                                showMachineLabel = scope == DashboardScope.All,
+                                motionEnabled = motionEnabled,
+                                onOpen = { onOpen(visible.target) },
+                                onKill = { onKill(visible.target) },
+                                onSpace = { onSpace(visible.target) },
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun DashboardTopBar(
+    summary: String,
+    onReconnect: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // The Hlíðskjálf mark on the surface it names (design-language.md §8):
+        // Gold, decorative, and silent — "Dwarves" beside it carries the label.
+        HlidskjalfMark(color = Gold, markSize = 24.dp)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                "Dwarves",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                // The row is a fixed 64dp and now leads with the 24dp mark, so at a large
+                // font scale an unbounded title would wrap and clip against it. The summary
+                // line below has always bounded itself; this matches it.
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                summary,
+                color = Muted,
+                style = MaterialTheme.typography.labelMedium,
+                fontFamily = NidavellirType.Data,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        TextButton(onClick = onReconnect) {
+            Text("Reconnect fleet", maxLines = 1)
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun MachineFilters(
+    machines: List<MachineState>,
+    scope: DashboardScope,
+    onSelect: (DashboardScope) -> Unit,
+) {
+    val selectedChip = remember { BringIntoViewRequester() }
+    LaunchedEffect(scope) { selectedChip.bringIntoView() }
+    CompositionLocalProvider(LocalBringIntoViewSpec provides MachineFilterBringIntoViewSpec) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(remember { ScrollState(0) })
+                .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            val allSelected = when (scope) {
+                DashboardScope.All -> true
+                is DashboardScope.Machine -> false
+            }
+            FilterChip(
+                selected = allSelected,
+                onClick = { onSelect(DashboardScope.All) },
+                label = { Text("All", fontFamily = NidavellirType.Data) },
+                shape = NidavellirShapes.Chip,
+                modifier = Modifier
+                    .then(if (allSelected) Modifier.bringIntoViewRequester(selectedChip) else Modifier),
+            )
+            machines.forEach { machine ->
+                val machineScope = DashboardScope.Machine(machine.machine.handle)
+                val selected = when (scope) {
+                    DashboardScope.All -> false
+                    is DashboardScope.Machine -> scope.handle == machineScope.handle
+                }
+                FilterChip(
+                    selected = selected,
+                    onClick = { onSelect(machineScope) },
+                    label = { Text(machine.machine.label.text, fontFamily = NidavellirType.Data) },
+                    shape = NidavellirShapes.Chip,
+                    modifier = Modifier
+                        .then(if (selected) Modifier.bringIntoViewRequester(selectedChip) else Modifier),
+                )
+            }
+        }
+    }
+}
+
+private object MachineFilterBringIntoViewSpec : BringIntoViewSpec {
+    override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float {
+        if (size > containerSize) return offset
+        val trailingDistance = offset + size - containerSize
+        return when {
+            offset >= 0f && trailingDistance <= 0f -> 0f
+            abs(offset) < abs(trailingDistance) -> offset
+            else -> trailingDistance
+        }
+    }
+}
+
+@Composable
+private fun MachineStrip(
+    machine: MachineState,
+    showPressureRail: Boolean,
+    onShowPressure: () -> Unit,
+) {
+    val notice = machineNotice(machine)
+    if (!showPressureRail && notice == null) return
+    Column {
+        if (showPressureRail) {
+            MachinePressureRail(
+                machine = machine.machine,
+                state = machine.pressure,
+                onOpenDetails = onShowPressure,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+            )
+        }
+        notice?.let {
+            Text(
+                it.message,
+                color = noticeToneColor(it.tone),
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.padding(horizontal = 28.dp, vertical = 2.dp),
+            )
+        }
+    }
+}
+
+@Composable
+internal fun KillConfirmation(
+    state: KillState,
+    actionAdmissible: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    val stoppingAgent = state.target.terminal.agentControllable && !state.terminalOnly
+    val verb = if (stoppingAgent) "Stop" else "Close"
+    // No ornament near destructive surfaces (design-language.md §7): the kill
+    // dialog carries the cut-corner shape and nothing decorative.
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(killConfirmationTitle(state.machine.label, state.target, state.terminalOnly)) },
+        text = {
+            Text(when {
+                state.pending -> "$verb is in progress on ${state.machine.label.text}."
+                !actionAdmissible ->
+                    "${state.machine.label.text} inventory is not fresh. $verb is disabled. " +
+                        "Cancel, return to Dwarves, then pull down to check again."
+                stoppingAgent -> "Send one interrupt, then close this terminal. Linked workspaces and their running terminals may also close; detached work may continue."
+                else -> "Close this terminal. Linked workspaces and their running terminals may also close; detached work may continue."
+            })
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                enabled = actionAdmissible && !state.pending,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = noticeToneColor(NoticeTone.Failure),
+                    contentColor = Ink,
+                ),
+                shape = NidavellirShapes.Cleft,
+            ) {
+                Text(if (state.pending) "$verb in progress…" else "$verb on ${state.machine.label.text}")
+            }
+        },
+        dismissButton = { OutlinedButton(onClick = onDismiss, enabled = !state.pending) { Text("Cancel") } },
+        shape = NidavellirShapes.Card,
+        containerColor = DeepSurface,
+    )
+}
+
+@Composable
+internal fun EmptyState(
+    title: String,
+    body: String,
+    tone: NoticeTone = NoticeTone.Degraded,
+    ornament: Boolean = false,
+) {
+    Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            if (ornament) {
+                // The same mark the top bar carries, at the one size the
+                // empty hall deserves. It renders only when the inventory is
+                // genuinely empty, never beside degraded or repair states.
+                HlidskjalfMark(
+                    color = Muted.copy(alpha = 0.40f),
+                    markSize = 48.dp,
+                    modifier = Modifier.padding(bottom = 12.dp),
+                )
+            }
+            Text(title, style = MaterialTheme.typography.titleLarge)
+            Text(body, color = noticeToneColor(tone), modifier = Modifier.padding(top = 8.dp))
+        }
+    }
+}
+
+internal fun forgeRecoveryMessage(
+    dashboard: HerdrMobileUiState.Dashboard,
+    recovery: ForgeRecovery,
+    scope: DashboardScope,
+): String {
+    val target = dashboard.machines.singleOrNull {
+        it.machine.handle == recovery.draft.machineHandle
+    }
+    val label = target?.machine?.label?.text ?: "Machine"
+    return when (recovery) {
+        is ForgeRecovery.RefreshRequired -> {
+            val repair = when (target?.access) {
+                null, MachineAccess.IdentityChanged ->
+                    "Fleet reset is required before reviewing this draft."
+                MachineAccess.AuthRequired -> "Reconnect fleet before reviewing this draft."
+                MachineAccess.Ready -> {
+                    val targetVisible = when (scope) {
+                        DashboardScope.All -> true
+                        is DashboardScope.Machine -> scope.handle == target.machine.handle
+                    }
+                    if (targetVisible) {
+                        "Pull down to check again before reviewing this draft."
+                    } else {
+                        "Select $label, then pull down to check again before reviewing this draft."
+                    }
+                }
+            }
+            "$label: create outcome unknown. $repair"
+        }
+        is ForgeRecovery.ReviewReady ->
+            "$label refreshed. Review its terminals before resuming this draft."
+    }
+}
+
+internal fun dashboardSummary(sessionCount: Int, machineCount: Int): String =
+    "$sessionCount ${if (sessionCount == 1) "terminal" else "terminals"} across " +
+        "$machineCount ${if (machineCount == 1) "machine" else "machines"}"
+
+// Its own prose again, and its own concatenation — but not its own tone. The strip and this
+// empty state can be on screen together naming the same machine, so a bearer failure that the
+// strip paints Failure cannot be whispered here; one Failure among the machines carries the
+// whole notice, since the loudest unresolved state is the one the reader must act on.
+internal fun dashboardInventoryWaitCopy(machines: List<MachineState>): MachineNotice? {
+    val waiting = machines.mapNotNull { machine ->
+        val label = machine.machine.label.text
+        val availability = machineAvailability(machine)
+        when (availability) {
+            MachineAvailability.Ready -> null
+            MachineAvailability.Refreshing -> "$label: confirming the latest terminal inventory."
+            MachineAvailability.AuthRequired -> "$label: authentication required; its terminals may be out of date."
+            MachineAvailability.IdentityChanged -> "$label: identity changed; fleet reset is required."
+            MachineAvailability.Reading -> "$label: reading terminals."
+            is MachineAvailability.Stale ->
+                "$label: showing its last inventory; it is STALE and actions are disabled."
+            is MachineAvailability.Unavailable -> "$label: unavailable; its terminals cannot be read."
+        }?.let { it to availabilityTone(availability) }
+    }
+    if (waiting.isEmpty()) return null
+    val tone = if (waiting.any { it.second == NoticeTone.Failure }) NoticeTone.Failure else NoticeTone.Degraded
+    return MachineNotice(waiting.joinToString(" ") { it.first }, tone)
+}
+
+internal fun forgeMachineChoiceLabel(machine: MachineState): String = machine.machine.label.text + when (
+    machineAvailability(machine)
+) {
+    MachineAvailability.Ready -> ""
+    MachineAvailability.Refreshing -> " · REFRESHING"
+    MachineAvailability.AuthRequired -> " · AUTH REQUIRED"
+    MachineAvailability.IdentityChanged -> " · IDENTITY CHANGED"
+    MachineAvailability.Reading -> " · READING"
+    is MachineAvailability.Stale -> " · STALE"
+    is MachineAvailability.Unavailable -> " · UNAVAILABLE"
+}
+
+// Its own prose, not machineNotice's: the Forge names the disabled draft fields
+// where the strip names the machine. The tone is NOT its own — it defers to
+// availabilityTone, so the two surfaces cannot disagree about how loud the same
+// machine state is, which is the class of drift this delta exists to end.
+internal fun forgeUnavailableCopy(machine: MachineState): MachineNotice? {
+    val label = machine.machine.label.text
+    val availability = machineAvailability(machine)
+    val tone = availabilityTone(availability)
+    return when (availability) {
+        MachineAvailability.Ready -> null
+        MachineAvailability.Refreshing -> MachineNotice(
+            "$label is confirming its latest terminal inventory. Draft fields and Create are disabled.",
+            tone,
+        )
+        MachineAvailability.AuthRequired -> MachineNotice(
+            "$label needs the fleet reconnected. Draft fields and Create are disabled.",
+            tone,
+        )
+        MachineAvailability.IdentityChanged -> MachineNotice(
+            "$label identity changed. Fleet reset is required; draft fields and Create are disabled.",
+            tone,
+        )
+        MachineAvailability.Reading -> MachineNotice(
+            "$label is reading terminals. Draft fields and Create are disabled until the inventory is fresh.",
+            tone,
+        )
+        is MachineAvailability.Stale -> MachineNotice(
+            "$label inventory is STALE. Draft fields and Create are disabled until a fresh read succeeds.",
+            tone,
+        )
+        is MachineAvailability.Unavailable -> MachineNotice(
+            "$label is unavailable. Draft fields and Create are disabled until it reconnects.",
+            tone,
+        )
+    }
+}
