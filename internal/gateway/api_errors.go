@@ -4,14 +4,13 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/NielsdaWheelz/skidbladnir/internal/agentcontrol"
 	"github.com/NielsdaWheelz/skidbladnir/internal/logging"
 	"github.com/NielsdaWheelz/skidbladnir/internal/reference"
 	"github.com/NielsdaWheelz/skidbladnir/internal/sessions"
 )
 
 func (gateway *Gateway) writeOperationError(writer http.ResponseWriter, err error) {
-	if errors.Is(err, reference.ErrInvalid) || errors.Is(err, agentcontrol.ErrInvalidInput) {
+	if errors.Is(err, reference.ErrInvalid) {
 		failure := errorInvalidRequest
 		failure.Dispatch = "not_sent"
 		writeError(writer, failure)
@@ -46,14 +45,8 @@ func (gateway *Gateway) writeOperationError(writer http.ResponseWriter, err erro
 		failure.Status, failure.Message = http.StatusBadGateway, "The terminal metadata could not be confirmed."
 	case sessions.ErrorNameInvalid:
 		failure.Status, failure.Message = http.StatusUnprocessableEntity, "Use a valid terminal name."
-	case sessions.ErrorNameAmbiguous:
-		failure.Status, failure.Message = http.StatusConflict, "Several resources match that name. Use an exact reference."
 	case sessions.ErrorObjectiveInvalid:
 		failure.Status, failure.Message = http.StatusUnprocessableEntity, "Use 1–240 characters without terminal controls."
-	case sessions.ErrorReadinessUnconfirmed:
-		failure.Status, failure.Message = http.StatusConflict, "The agent is not confirmed ready. Inspect it or choose terminal mode deliberately."
-	case sessions.ErrorMethodUnavailable:
-		failure.Status, failure.Message = http.StatusConflict, "This agent method is unavailable."
 	case sessions.ErrorClosureConfirmationRequired:
 		failure.Status, failure.Message = http.StatusConflict, "Herdr requires native confirmation before closing this terminal."
 	case sessions.ErrorHerdrUnavailable:

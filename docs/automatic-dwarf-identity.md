@@ -1,17 +1,21 @@
 # Automatic dwarf identity
 
-## herdr pr 2 candidate
+## herdr pr 5
 
 one visible dwarf represents one live herdr terminal, including a manual pane.
-its catalogue character is selected deterministically from machine and terminal
-lifetime; no `@skid_character` write or character registry is needed. the
-character is separate from the operator's terminal name, workspace and optional
-foreground agent. the terminal ref survives rename, move and gateway restart
-while that herdr lifetime survives; cold herdr restart creates new lifetimes.
-metadata token claim failures make a resource unaddressable and inventory
-partial, never a fabricated card. [pr 1's projection](herdr-pr1.md#identity-inventory-and-metadata)
-and [pr 2](herdr-pr2.md) own this candidate. the tmux allocation, persistence,
-api, and acceptance material below is historical.
+its catalogue character is seeded deterministically by machine and herdr
+`terminal_id`; no character write or registry exists. a gateway launch names
+its agent after the first dwarf, in that seeded order, whose name no live
+agent on the server holds (`haugspori` for `norse.haugspori`; `haugspori-2`
+only when every dwarf's name is held), and a terminal whose herdr agent carries
+a dwarf's name shows that dwarf, so the phone's name and herdr's are one. when
+that agent exits, herdr clears its name and the card shows the seeded dwarf
+again, which is the same one unless the launch skipped past a held name. the
+character is separate from the operator's terminal name, workspace and
+foreground agent. the terminal ref survives rename, move and gateway restart;
+a herdr restart issues new terminal ids and so new dwarves. the
+[architecture](architecture.md#product-language) owns this contract. the pr 2
+and tmux material below is historical.
 
 ## historical tmux character assignment
 
@@ -20,9 +24,8 @@ acceptance green on that source. The final behavior is cut
 into [`architecture.md`](architecture.md); this document remains the
 historical scope and red/green plan.
 
-[agent control](agent-control.md) owns sampled status; the phone grid orders by
-machine/name/id within space groups. [desktop ordering](desktop-browser.md)
-has its own contract. dwarf assignment remains independent of
+[agent status](architecture.md#agent-status-and-controls) is herdr's; the phone grid orders by
+machine/name/id within space groups. dwarf assignment remains independent of
 provider status. older gateway-owned product ordering and status-era names
 below are historical.
 

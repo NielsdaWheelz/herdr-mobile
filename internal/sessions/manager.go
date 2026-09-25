@@ -3,62 +3,76 @@ package sessions
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/NielsdaWheelz/skidbladnir/internal/agentruntime"
 	"github.com/NielsdaWheelz/skidbladnir/internal/catalog"
 	"github.com/NielsdaWheelz/skidbladnir/internal/herdr"
-	"github.com/NielsdaWheelz/skidbladnir/internal/process"
+	"github.com/NielsdaWheelz/skidbladnir/internal/profile"
 	"github.com/NielsdaWheelz/skidbladnir/internal/workdir"
 )
 
+// A dwarf's name is a herdr agent name ([a-z][a-z0-9_-]{0,31}) with room for,
+// and not itself ending in, the numbered variant that a collision takes.
+var (
+	dwarfNamePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,23}$`)
+	numberedVariant  = regexp.MustCompile(`-[0-9]+$`)
+)
+
+// Manager is one host's view of its herdr server. Reads observe herdr without
+// the mutation lock; every write re-reads its target and dispatches under it,
+// so the gateway's own writes never interleave between a check and its write.
+// Another herdr client still can.
 type Manager struct {
 	herdr         *herdr.Client
 	workdir       *workdir.Service
-	catalogue     catalog.Catalogue
-	profiles      []agentruntime.Profile
-	profilesByKey map[agentruntime.ProfileKey]agentruntime.Profile
+	dwarves       []catalog.Character
+	dwarfByName   map[string]catalog.Character
+	profiles      []profile.Profile
+	profilesByKey map[profile.Key]profile.Profile
 	machineHandle string
-	fingerprint   func(process.Observation) (string, error)
 	mutations     sync.Mutex
 }
 
 func New(config Config) (*Manager, error) {
-	if config.Herdr == nil || config.Workdir == nil || config.MachineHandle == "" || config.Fingerprint == nil {
+	if config.Herdr == nil || config.Workdir == nil || config.MachineHandle == "" {
 		return nil, errors.New("terminal discovery is not configured")
 	}
-	characters, err := catalog.Load(config.CataloguePath)
+	catalogue, err := catalog.Load(config.CataloguePath)
 	if err != nil {
 		return nil, err
 	}
-	profiles, err := agentruntime.ValidateProfiles(config.Profiles)
+	dwarves := catalogue.Characters()
+	byName := make(map[string]catalog.Character, len(dwarves))
+	for _, dwarf := range dwarves {
+		name := agentName(dwarf)
+		if _, duplicate := byName[name]; duplicate || !dwarfNamePattern.MatchString(name) || numberedVariant.MatchString(name) {
+			return nil, fmt.Errorf("character %s has no unique herdr agent name", dwarf.Key)
+		}
+		byName[name] = dwarf
+	}
+	profiles, err := profile.Validate(config.Profiles)
 	if err != nil {
 		return nil, err
 	}
-	byKey := make(map[agentruntime.ProfileKey]agentruntime.Profile, len(profiles))
-	for _, profile := range profiles {
-		byKey[profile.Key] = profile
+	byKey := make(map[profile.Key]profile.Profile, len(profiles))
+	for _, launch := range profiles {
+		byKey[launch.Key] = launch
 	}
-	return &Manager{herdr: config.Herdr, workdir: config.Workdir, catalogue: characters,
-		profiles: profiles, profilesByKey: byKey, machineHandle: config.MachineHandle,
-		fingerprint: config.Fingerprint}, nil
+	return &Manager{herdr: config.Herdr, workdir: config.Workdir, dwarves: dwarves, dwarfByName: byName,
+		profiles: profiles, profilesByKey: byKey, machineHandle: config.MachineHandle}, nil
 }
 
-func (manager *Manager) Profiles() []agentruntime.Profile {
-	return agentruntime.CloneProfiles(manager.profiles)
+func (manager *Manager) Profiles() []profile.Profile {
+	return profile.Clone(manager.profiles)
 }
 
 func (manager *Manager) List(ctx context.Context) (Inventory, error) {
-	manager.mutations.Lock()
-	defer manager.mutations.Unlock()
-	return manager.list(ctx)
-}
-
-func (manager *Manager) list(ctx context.Context) (Inventory, error) {
 	workspaces, err := manager.workspaces(ctx)
 	if err != nil {
 		return Inventory{}, err
@@ -67,179 +81,82 @@ func (manager *Manager) list(ctx context.Context) (Inventory, error) {
 	if err != nil {
 		return Inventory{}, err
 	}
+	agents, err := manager.agents(ctx)
+	if err != nil {
+		return Inventory{}, err
+	}
+	agentByTerminal := make(map[string]agentInfo, len(agents))
+	for _, agent := range agents {
+		agentByTerminal[agent.TerminalID] = agent
+	}
 	inventory := Inventory{Workspaces: make([]Workspace, 0, len(workspaces)), Terminals: make([]Terminal, 0, len(panes))}
-	workspaceTargets := make(map[string]WorkspaceTarget, len(workspaces))
+	addressable := make(map[string]bool, len(workspaces))
 	for _, workspace := range workspaces {
 		if !validWorkspaceLabel(workspace.Label) {
 			inventory.UnaddressableWorkspaces++
 			continue
 		}
-		target, err := manager.claimWorkspace(ctx, workspace)
-		if err != nil {
-			inventory.UnaddressableWorkspaces++
-			continue
-		}
-		workspaceTargets[workspace.ID] = target
-		inventory.Workspaces = append(inventory.Workspaces, Workspace{Target: target, Label: workspace.Label})
+		addressable[workspace.ID] = true
+		inventory.Workspaces = append(inventory.Workspaces, Workspace{Target: WorkspaceTarget{WorkspaceID: workspace.ID}, Label: workspace.Label})
 	}
 	for _, pane := range panes {
-		workspaceTarget, addressable := workspaceTargets[pane.WorkspaceID]
-		if !addressable {
+		if !addressable[pane.WorkspaceID] {
 			inventory.UnaddressableTerminals++
 			continue
 		}
-		target, err := manager.claimPane(ctx, pane)
-		if err != nil {
-			inventory.UnaddressableTerminals++
-			continue
-		}
-		// Metadata returned by pane.list preceded the token claim. Its other
-		// fields may have changed, so project one current pane read.
-		current, err := manager.pane(ctx, pane.ID)
-		if err != nil || current.TerminalID != target.TerminalID || current.WorkspaceID != workspaceTarget.WorkspaceID || current.Tokens[lifetimeKey] != target.IdentityToken {
-			inventory.UnaddressableTerminals++
-			continue
-		}
-		inventory.Terminals = append(inventory.Terminals, manager.project(ctx, current, target, workspaceTarget))
+		agent, found := agentByTerminal[pane.TerminalID]
+		inventory.Terminals = append(inventory.Terminals, manager.project(ctx, pane, agent, found))
 	}
 	inventory.ObservedAt = time.Now().UTC()
 	inventory.Partial = inventory.UnaddressableWorkspaces > 0 || inventory.UnaddressableTerminals > 0
 	return inventory, nil
 }
 
-func (manager *Manager) Info(ctx context.Context, target TerminalTarget) (ObservedTerminal, error) {
-	manager.mutations.Lock()
-	defer manager.mutations.Unlock()
-	resolved, err := manager.resolveTerminal(ctx, target)
-	if err != nil {
-		return ObservedTerminal{}, err
-	}
-	return ObservedTerminal{ObservedAt: time.Now().UTC(), Terminal: resolved.Terminal}, nil
+// CheckTerminal re-reads that target's terminal still exists.
+func (manager *Manager) CheckTerminal(ctx context.Context, target TerminalTarget) error {
+	_, err := manager.resolvePane(ctx, target)
+	return err
 }
 
-func (manager *Manager) ResolveTerminal(ctx context.Context, target TerminalTarget) (ResolvedTerminal, error) {
-	manager.mutations.Lock()
-	defer manager.mutations.Unlock()
-	return manager.resolveTerminal(ctx, target)
-}
-
-func (manager *Manager) resolveTerminal(ctx context.Context, target TerminalTarget) (ResolvedTerminal, error) {
-	if target.TerminalID == "" || !validLifetime(target.IdentityToken) {
-		return ResolvedTerminal{}, &Error{Code: ErrorTerminalStale, Message: "The selected terminal changed.", Dispatch: "not_sent"}
-	}
+func (manager *Manager) resolvePane(ctx context.Context, target TerminalTarget) (paneInfo, error) {
 	panes, err := manager.panes(ctx)
 	if err != nil {
-		return ResolvedTerminal{}, err
+		return paneInfo{}, err
 	}
-	var found *paneInfo
-	for index := range panes {
-		if panes[index].TerminalID == target.TerminalID {
-			found = &panes[index]
-			break
+	for _, pane := range panes {
+		if pane.TerminalID == target.TerminalID {
+			return pane, nil
 		}
 	}
-	if found == nil {
-		return ResolvedTerminal{}, &Error{Code: ErrorTerminalNotFound, Message: "The selected terminal no longer exists.", Dispatch: "not_sent"}
-	}
-	if found.Tokens[lifetimeKey] != target.IdentityToken {
-		return ResolvedTerminal{}, &Error{Code: ErrorTerminalStale, Message: "The selected terminal changed.", Dispatch: "not_sent"}
-	}
-	workspaces, err := manager.workspaces(ctx)
-	if err != nil {
-		return ResolvedTerminal{}, err
-	}
-	for _, workspace := range workspaces {
-		if workspace.ID == found.WorkspaceID && validWorkspaceLabel(workspace.Label) && validLifetime(workspace.Tokens[lifetimeKey]) {
-			workspaceTarget := WorkspaceTarget{WorkspaceID: workspace.ID, IdentityToken: workspace.Tokens[lifetimeKey]}
-			current, err := manager.pane(ctx, found.ID)
-			if err != nil || current.TerminalID != target.TerminalID || current.WorkspaceID != workspace.ID || current.Tokens[lifetimeKey] != target.IdentityToken {
-				return ResolvedTerminal{}, &Error{Code: ErrorTerminalStale, Message: "The selected terminal changed.", Dispatch: "not_sent"}
-			}
-			return ResolvedTerminal{Terminal: manager.project(ctx, current, target, workspaceTarget), PaneID: current.ID}, nil
-		}
-	}
-	return ResolvedTerminal{}, &Error{Code: ErrorWorkspaceStale, Message: "The terminal workspace changed.", Dispatch: "not_sent"}
+	return paneInfo{}, &Error{Code: ErrorTerminalNotFound, Message: "The selected terminal no longer exists.", Dispatch: "not_sent"}
 }
 
-func (manager *Manager) ResolveAgent(ctx context.Context, target AgentTarget) (ResolvedAgent, error) {
-	manager.mutations.Lock()
-	defer manager.mutations.Unlock()
-	resolved, err := manager.resolveTerminal(ctx, target.TerminalTarget)
+func (manager *Manager) observe(ctx context.Context, target TerminalTarget) (Terminal, error) {
+	pane, err := manager.resolvePane(ctx, target)
 	if err != nil {
-		return ResolvedAgent{}, err
+		return Terminal{}, err
 	}
-	if resolved.Terminal.Agent == nil || resolved.Terminal.Agent.Target != target {
-		return ResolvedAgent{}, &Error{Code: ErrorAgentStale, Message: "The selected agent changed.", Dispatch: "not_sent"}
+	agent, found, err := manager.agent(ctx, pane.ID)
+	if err != nil {
+		return Terminal{}, err
 	}
-	observation, err := process.Observe(target.PID)
-	if err != nil || observation.StartIdentity != target.StartIdentity {
-		return ResolvedAgent{}, &Error{Code: ErrorAgentStale, Message: "The selected agent changed.", Dispatch: "not_sent"}
-	}
-	fingerprint, err := manager.fingerprint(observation)
-	if err != nil || fingerprint != target.CommandFingerprint {
-		return ResolvedAgent{}, &Error{Code: ErrorAgentStale, Message: "The selected agent changed.", Dispatch: "not_sent"}
-	}
-	return ResolvedAgent{Terminal: resolved.Terminal, PaneID: resolved.PaneID, Process: observation}, nil
+	return manager.project(ctx, pane, agent, found), nil
 }
 
-// revalidateStop checks the original worker after an interrupt. A vanished
-// worker permits native close only when the pane has returned to its shell;
-// an unclassified foreground successor is still a different worker.
-func (manager *Manager) revalidateStop(ctx context.Context, target AgentTarget) (string, bool, error) {
-	resolved, err := manager.resolveTerminal(ctx, target.TerminalTarget)
-	if err != nil {
-		return "", false, err
+// project maps one pane and herdr's agent there, if any, to a terminal. A
+// terminal's dwarf is the one its agent's herdr name names, and otherwise the
+// one seeded by its terminal id.
+func (manager *Manager) project(ctx context.Context, pane paneInfo, agent agentInfo, hasAgent bool) Terminal {
+	terminal := Terminal{
+		Target:          TerminalTarget{TerminalID: pane.TerminalID},
+		WorkspaceTarget: WorkspaceTarget{WorkspaceID: pane.WorkspaceID},
+		Character:       manager.dwarves[manager.seed(pane.TerminalID)],
 	}
-	stale := func() error {
-		return &Error{Code: ErrorAgentStale, Message: "The selected agent changed.", Dispatch: "not_sent"}
-	}
-	if resolved.Terminal.Agent != nil && resolved.Terminal.Agent.Target != target {
-		return "", false, stale()
-	}
-	observed, observationErr := process.Observe(target.PID)
-	if observationErr == nil && observed.StartIdentity == target.StartIdentity {
-		if resolved.Terminal.Agent == nil {
-			return "", false, stale()
-		}
-		fingerprint, err := manager.fingerprint(observed)
-		if err != nil || fingerprint != target.CommandFingerprint {
-			return "", false, stale()
-		}
-		return resolved.PaneID, false, nil
-	}
-	if observationErr != nil && !errors.Is(observationErr, process.ErrProcessAbsent) {
-		return "", false, stale()
-	}
-	if resolved.Terminal.Agent != nil {
-		return "", false, stale()
-	}
-	info, err := manager.processInfo(ctx, resolved.PaneID)
-	if err != nil || info.ShellPID == nil || info.ForegroundPGID == nil || *info.ForegroundPGID == 0 || len(info.Foreground) == 0 {
-		return "", false, stale()
-	}
-	for _, foreground := range info.Foreground {
-		if foreground.PID != *info.ShellPID || process.PID(foreground.PID) == target.PID {
-			return "", false, stale()
+	if hasAgent {
+		if dwarf, found := manager.dwarfOf(nameOf(agent)); found {
+			terminal.Character = dwarf
 		}
 	}
-	shell, err := process.Observe(process.PID(*info.ShellPID))
-	if err != nil || shell.ProcessGroup != process.PID(*info.ForegroundPGID) || shell.ForegroundProcessGroup != shell.ProcessGroup {
-		return "", false, stale()
-	}
-	if !isShell(shell.ExecutableBase()) {
-		return "", false, stale()
-	}
-	return resolved.PaneID, true, nil
-}
-
-func (manager *Manager) project(ctx context.Context, pane paneInfo, target TerminalTarget, workspaceTarget WorkspaceTarget) Terminal {
-	characters := manager.catalogue.Characters()
-	seed := sha256.Sum256([]byte(manager.machineHandle + "\x00" + pane.TerminalID + "\x00" + target.IdentityToken))
-	index := uint64(0)
-	for _, value := range seed[:8] {
-		index = index<<8 | uint64(value)
-	}
-	terminal := Terminal{Target: target, WorkspaceTarget: workspaceTarget, Character: characters[index%uint64(len(characters))]}
 	if pane.Label != nil {
 		terminal.NativeLabel = *pane.Label
 		if pane.Tokens["skid_named"] == "1" && validateName(*pane.Label) == nil {
@@ -249,124 +166,130 @@ func (manager *Manager) project(ctx context.Context, pane paneInfo, target Termi
 	if pane.CWD != nil {
 		terminal.CWD = *pane.CWD
 	}
-	if profile := agentruntime.ProfileKey(pane.Tokens["skid_launch_profile"]); profile != "" {
-		if _, configured := manager.profilesByKey[profile]; configured {
-			terminal.LaunchProfile = profile
+	if key := profile.Key(pane.Tokens["skid_launch_profile"]); key != "" {
+		if _, configured := manager.profilesByKey[key]; configured {
+			terminal.LaunchProfile = key
 		}
 	}
 	terminal.Objective = decodeObjective(pane.Tokens)
-	terminal.Agent = manager.observeAgent(ctx, pane, target)
+	if hasAgent {
+		terminal.Agent = manager.observeAgent(ctx, pane, agent)
+	}
 	return terminal
 }
 
-func (manager *Manager) observeAgent(ctx context.Context, pane paneInfo, terminal TerminalTarget) *Agent {
-	if pane.Agent == nil {
+// observeAgent projects herdr's agent in one pane as herdr reports it: the
+// status from herdr's agent state, and readiness only when agent explain
+// matched the idle or blocked screen rule for that same unchanged state. It
+// parses no terminal text.
+func (manager *Manager) observeAgent(ctx context.Context, pane paneInfo, observed agentInfo) *Agent {
+	if pane.Agent == nil || observed.TerminalID != pane.TerminalID || observed.Agent == nil || *observed.Agent != *pane.Agent {
 		return nil
 	}
-	var provider agentruntime.Provider
-	switch strings.ToLower(*pane.Agent) {
-	case "codex":
-		provider = agentruntime.ProviderCodex
-	case "claude":
-		provider = agentruntime.ProviderClaude
+	provider, known := providerOf(*pane.Agent)
+	if !known {
+		return nil
+	}
+	agent := &Agent{Name: nameOf(observed), Provider: provider, Status: Status{Source: "herdr"}, Readiness: "unconfirmed"}
+	switch observed.Status {
+	case "working", "blocked", "idle":
+		agent.Status.State = observed.Status
+	case "done":
+		agent.Status.State = "idle"
 	default:
-		return nil
+		agent.Status.State, agent.Status.Reason = "unknown", "unrecognized"
 	}
-	info, err := manager.processInfo(ctx, pane.ID)
-	if err != nil || info.ForegroundPGID == nil || *info.ForegroundPGID == 0 {
-		return nil
+	var explanation struct {
+		Type    string `json:"type"`
+		Explain struct {
+			MatchedRule *struct {
+				State string `json:"state"`
+			} `json:"matched_rule"`
+			VisibleIdle            bool    `json:"visible_idle"`
+			VisibleBlocker         bool    `json:"visible_blocker"`
+			ScreenDetectionSkipped bool    `json:"screen_detection_skipped"`
+			FallbackReason         *string `json:"fallback_reason"`
+		} `json:"explain"`
 	}
-	var candidates []process.Observation
-	var foreground []process.Observation
-	for _, listed := range info.Foreground {
-		observed, err := process.Observe(process.PID(listed.PID))
-		if err != nil || uint32(observed.ProcessGroup) != *info.ForegroundPGID {
-			continue
-		}
-		// The launch shell may exec the worker without changing its PID.
-		if info.ShellPID != nil && listed.PID == *info.ShellPID && isShell(observed.ExecutableBase()) {
-			continue
-		}
-		foreground = append(foreground, observed)
-		classified, known := agentruntime.ClassifyForeground(manager.profiles, observed)
-		if known && classified.Provider == provider ||
-			provider == agentruntime.ProviderCodex && observed.ExecutableBase() == "codex" ||
-			provider == agentruntime.ProviderClaude && observed.ExecutableBase() == "claude" {
-			candidates = append(candidates, observed)
-		}
+	if err := manager.herdr.Call(ctx, "agent.explain", map[string]string{"target": pane.ID}, &explanation); err != nil || explanation.Type != "agent_explain" {
+		return agent
 	}
-	var candidate process.Observation
-	switch len(candidates) {
-	case 1:
-		candidate = candidates[0]
-	case 0:
-		// Herdr supplies provider classification. On a zero-profile host, one
-		// independently observed non-shell foreground process is the worker.
-		if len(foreground) == 1 {
-			candidate = foreground[0]
-		}
-	case 2:
-		if provider != agentruntime.ProviderCodex {
-			return nil
-		}
-		for _, wrapper := range candidates {
-			if wrapper.ExecutableBase() != "node" {
-				continue
-			}
-			for _, native := range candidates {
-				if native.ExecutableBase() == "codex" && native.ParentPID == wrapper.PID {
-					candidate = wrapper
-				}
-			}
-		}
-	default:
-		return nil
+	explain := explanation.Explain
+	if agent.Status.State == "idle" && explain.FallbackReason != nil && *explain.FallbackReason == "default_known_agent_idle_fallback" {
+		agent.Status.Reason = "default_idle"
 	}
-	if candidate.PID <= 0 {
-		return nil
+	latest, found, err := manager.agent(ctx, pane.ID)
+	if err != nil || !found || latest.TerminalID != observed.TerminalID || nameOf(latest) != agent.Name || latest.Status != observed.Status || latest.Seq != observed.Seq {
+		agent.Status = Status{State: "unknown", Source: "unavailable", Reason: "observation_failed"}
+		return agent
 	}
-	fingerprint, err := manager.fingerprint(candidate)
-	if err != nil || fingerprint == "" {
-		return nil
+	if explain.ScreenDetectionSkipped || explain.FallbackReason != nil || explain.MatchedRule == nil {
+		return agent
 	}
-	target := AgentTarget{TerminalTarget: terminal, PID: candidate.PID, StartIdentity: candidate.StartIdentity,
-		CommandFingerprint: fingerprint, Provider: provider}
-	agent := &Agent{Target: target, Provider: provider, Status: agentruntime.Status{State: "unknown", Source: "unavailable", Reason: "unrecognized"},
-		Readiness: "unconfirmed", Methods: agentruntime.Methods{Read: "terminal", Send: "terminal", Interrupt: "terminal"}}
-	if pane.Tokens[agentruntime.RegistrationToken] != "" {
-		if registration, ok := agentruntime.ProjectRegistration(manager.profiles, candidate, provider, pane.Tokens); ok {
-			agent.ProvenRuntimeProfile = registration.Profile
-			agent.ProviderSession = registration.ProviderSession
-		}
+	if agent.Status.State == "idle" && explain.VisibleIdle && explain.MatchedRule.State == "idle" {
+		agent.Readiness = "ready"
+	} else if agent.Status.State == "blocked" && explain.VisibleBlocker && explain.MatchedRule.State == "blocked" {
+		agent.Readiness = "blocked"
 	}
 	return agent
 }
 
-func isShell(executable string) bool {
-	name := strings.ToLower(strings.TrimSuffix(strings.TrimLeft(executable, "-"), ".exe"))
-	switch name {
-	case "sh", "bash", "dash", "ash", "zsh", "fish", "ksh", "mksh", "csh", "tcsh",
-		"elvish", "xonsh", "nu", "pwsh", "powershell", "cmd":
-		return true
+func providerOf(agent string) (profile.Provider, bool) {
+	switch agent {
+	case "codex":
+		return profile.ProviderCodex, true
+	case "claude":
+		return profile.ProviderClaude, true
 	default:
-		return false
+		return "", false
 	}
 }
 
-func (manager *Manager) resolveWorkspace(ctx context.Context, target WorkspaceTarget) (workspaceInfo, error) {
-	if target.WorkspaceID == "" || !validLifetime(target.IdentityToken) {
-		return workspaceInfo{}, &Error{Code: ErrorWorkspaceStale, Message: "The selected workspace changed.", Dispatch: "not_sent"}
+func nameOf(agent agentInfo) string {
+	if agent.Name == nil {
+		return ""
 	}
+	return *agent.Name
+}
+
+// sameAgent says whether herdr's agent is the target's: the same terminal and
+// the same herdr name.
+func sameAgent(agent agentInfo, target AgentTarget) bool {
+	return agent.TerminalID == target.Terminal.TerminalID && nameOf(agent) == target.Name
+}
+
+// seed is the catalogue index a terminal id seeds on this machine.
+func (manager *Manager) seed(terminalID string) int {
+	digest := sha256.Sum256([]byte(manager.machineHandle + "\x00" + terminalID))
+	return int(binary.BigEndian.Uint64(digest[:8]) % uint64(len(manager.dwarves)))
+}
+
+// agentName is a dwarf's herdr agent name: the final segment of its catalogue
+// key, e.g. haugspori for norse.haugspori.
+func agentName(dwarf catalog.Character) string {
+	return dwarf.Key[strings.LastIndexByte(dwarf.Key, '.')+1:]
+}
+
+// dwarfOf reads a herdr agent name as a dwarf's name or its numbered variant.
+func (manager *Manager) dwarfOf(name string) (catalog.Character, bool) {
+	if dwarf, found := manager.dwarfByName[name]; found {
+		return dwarf, true
+	}
+	dwarf, found := manager.dwarfByName[numberedVariant.ReplaceAllString(name, "")]
+	return dwarf, found
+}
+
+func (manager *Manager) resolveWorkspace(ctx context.Context, target WorkspaceTarget) error {
 	workspaces, err := manager.workspaces(ctx)
 	if err != nil {
-		return workspaceInfo{}, err
+		return err
 	}
 	for _, workspace := range workspaces {
-		if workspace.ID == target.WorkspaceID && validWorkspaceLabel(workspace.Label) && workspace.Tokens[lifetimeKey] == target.IdentityToken {
-			return workspace, nil
+		if workspace.ID == target.WorkspaceID && validWorkspaceLabel(workspace.Label) {
+			return nil
 		}
 	}
-	return workspaceInfo{}, &Error{Code: ErrorWorkspaceStale, Message: "The selected workspace changed.", Dispatch: "not_sent"}
+	return &Error{Code: ErrorWorkspaceStale, Message: "The selected workspace changed.", Dispatch: "not_sent"}
 }
 
 func (manager *Manager) generatedName(ctx context.Context, profile string) (string, error) {

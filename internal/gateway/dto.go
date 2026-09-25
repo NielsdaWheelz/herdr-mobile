@@ -46,11 +46,6 @@ type characterDTO struct {
 	DisplayName string `json:"displayName"`
 }
 
-type providerSessionDTO struct {
-	ID   string `json:"id,omitempty"`
-	Name string `json:"name,omitempty"`
-}
-
 type machineDTO struct {
 	Handle   string        `json:"handle"`
 	Platform platform.Kind `json:"platform"`
@@ -340,5 +335,3 @@ func pressureLogValues(sample pressure.Sample) (logging.PressureLevel, []logging
 	}
 	return level, reasons, nil
 }
-
-// Shell creation addresses only the source session lifetime.

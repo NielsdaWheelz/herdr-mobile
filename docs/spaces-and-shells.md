@@ -1,11 +1,16 @@
 # spaces, shells, and client composition
 
+2026-09-24 herdr pr 5: the skid desktop cli, tui and browser are retired; humans
+use herdr's own client, `herdr --remote` and `ssh <host> herdr`. the phone parts
+below stand; the desktop parts are history. [architecture.md](architecture.md)
+owns the current contract.
+
 [spaces](spaces.md) and [terminal creation](shells.md) are implemented.
 [the roadmap](roadmap.md) indexes delivery; [hands-on acceptance](issues/spaces-shells-hands-on.md)
 remains open. this document owns the delivery boundary.
 
 2026-09-17: approved navigation direction, split into two further prs: pr 3
-implements the [organized desktop browser](desktop-browser.md) with existing fullscreen attachment;
+implements the organized desktop browser (now retired) with existing fullscreen attachment;
 pr 4 investigates an embedded terminal and has no implementation or scaffolding.
 pr 3 is independently useful and does not depend on pr 4 succeeding.
 
@@ -30,7 +35,7 @@ sessions; it does not own them. git owns checkouts and worktrees.
 | --- | --- | --- |
 | 1. spaces | optional per-session work label, inventory exposure, assignment and clearing, grouped views in cli/tui/phone. see [spaces.md](spaces.md). | sessions remain addressable and usable through regrouping. labels last only for the tmux session lifetime; manual filing; no saved empty spaces. |
 | 2. new shell here | standalone terminal choice; source-session create/attach. see [shells.md](shells.md). works with zero agent profiles or no space. | independent lifetime, generated shortcut name, sampled location, manual uncertainty recovery; browser-based return. |
-| 3. organized desktop browser | spaces, global agents, session tabs and main browser content; immediate local selection; existing fullscreen attachment. [desktop-browser.md](desktop-browser.md) owns implementation and acceptance. | one current browser state survives detach; no per-space memory or special source return. navigation and fleet status are hidden while attached. |
+| 3. organized desktop browser | spaces, global agents, session tabs and main browser content; immediate local selection; existing fullscreen attachment. its retired spec owned implementation and acceptance. | one current browser state survives detach; no per-space memory or special source return. navigation and fleet status are hidden while attached. |
 | 4. embedded-terminal experiment | evaluate one borrowed terminal component inside the main area, using the existing authenticated attachment. persistent navigation during attachment is the proposed outcome. | establish terminal compatibility before committing to production integration. a negative feasibility result is valid; it does not block pr 3 or justify a homegrown emulator. |
 
 each shipping pr completes its feature end to end, including docs and appropriate checks.
@@ -40,7 +45,7 @@ prs 1 and 2 remains separate; neither of the new desktop prs requires phone ui c
 
 ## desktop navigation boundary
 
-[the pr 3 spec](desktop-browser.md) owns behavior, state, keys, geometry, file
+the retired pr 3 spec owned behavior, state, keys, geometry, file
 ownership, hard cut and acceptance. latest decisions replace the earlier proposed
 per-space memory and source-return exception: selection updates locally; detach
 resumes the same browser model; a new shell stays selected. no history is added.
@@ -57,7 +62,7 @@ from pr 3; no permanent parallel renderer is implied by this delivery split.
 
 current discovery follows the active pane in a session's current window. selecting
 a shell inside that same tmux session changes the observed agent and makes the
-old agent target stale. see [agent-control.md](agent-control.md#identity-state-and-dispatch),
+old agent target stale. see [the architecture](architecture.md#5-host-architecture),
 [manager.go](../internal/sessions/manager.go), and
 [control.go](../internal/sessions/control.go).
 
@@ -88,11 +93,9 @@ feasibility investigation, not an accepted production terminal contract. never
 relabel historical evidence as new proof.
 broader capability changes require a new explicit scope decision.
 
-read [../AGENTS.md](../AGENTS.md), [rules/index.md](rules/index.md),
-[agent-control.md](agent-control.md), and
-[agent-control-ux.md](agent-control-ux.md) before implementation. the accepted
-agent-control deltas extend v0; the old activity-only language is not the whole
-current contract. use [design-language.md](design-language.md) for presentation.
+read [../AGENTS.md](../AGENTS.md), [rules/index.md](rules/index.md) and
+[the architecture](architecture.md) before implementation. the old
+activity-only language is not the whole current contract. use [design-language.md](design-language.md) for presentation.
 
 retain the [testing rules](rules/testing.md) and architecture's bounded red/green
 proof shape. builders observe their acceptance test fail before implementing;

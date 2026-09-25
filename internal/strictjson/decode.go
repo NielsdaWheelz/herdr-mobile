@@ -6,8 +6,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"reflect"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
@@ -29,7 +31,7 @@ func Decode(encoded []byte, target any) error {
 	if target == nil {
 		return errors.New("JSON target is nil")
 	}
-	if err := validateExactSchema(encoded, reflect.TypeOf(target)); err != nil {
+	if err := validateExactValue(encoded, reflect.TypeOf(target)); err != nil {
 		return err
 	}
 	decoder := json.NewDecoder(bytes.NewReader(encoded))
@@ -45,18 +47,32 @@ func Decode(encoded []byte, target any) error {
 
 var jsonUnmarshalerType = reflect.TypeOf((*json.Unmarshaler)(nil)).Elem()
 
-// validateExactSchema closes encoding/json's case-insensitive struct-field
-// matching before decoding. Custom JSON unmarshallers remain the exact owner of
-// their own value shape; every ordinary struct, slice, and map is traversed
-// against its declared schema.
-func validateExactSchema(encoded []byte, targetType reflect.Type) error {
-	var document json.RawMessage = encoded
-	if err := validateExactValue(document, targetType); err != nil {
-		return errors.New("JSON object members do not match their exact schema")
-	}
-	return nil
+// unknownMemberError names a member the schema does not declare by its path
+// from the document root, which is assembled only as the error unwinds.
+type unknownMemberError struct{ path string }
+
+func (err *unknownMemberError) Error() string {
+	return fmt.Sprintf("JSON member %q is unknown", err.path)
 }
 
+// within prefixes an unknown member's path with the member or index holding it.
+func within(err error, segment string) error {
+	var unknown *unknownMemberError
+	if errors.As(err, &unknown) {
+		if strings.HasPrefix(unknown.path, "[") {
+			unknown.path = segment + unknown.path
+		} else {
+			unknown.path = segment + "." + unknown.path
+		}
+	}
+	return err
+}
+
+// validateExactValue closes encoding/json's case-insensitive struct-field
+// matching before decoding, and names the path of a member the schema does not
+// declare. Custom JSON unmarshallers remain the exact owner of their own value
+// shape; every ordinary struct, slice, and map is traversed against its
+// declared schema.
 func validateExactValue(encoded json.RawMessage, targetType reflect.Type) error {
 	for targetType.Kind() == reflect.Pointer {
 		targetType = targetType.Elem()
@@ -81,10 +97,10 @@ func validateExactValue(encoded json.RawMessage, targetType reflect.Type) error 
 		for name, value := range object {
 			fieldType, present := fields[name]
 			if !present {
-				return errors.New("JSON object member is unknown or has the wrong case")
+				return &unknownMemberError{path: name}
 			}
 			if err := validateExactValue(value, fieldType); err != nil {
-				return err
+				return within(err, name)
 			}
 		}
 	case reflect.Slice, reflect.Array:
@@ -95,9 +111,9 @@ func validateExactValue(encoded json.RawMessage, targetType reflect.Type) error 
 		if err := json.Unmarshal(encoded, &values); err != nil {
 			return errors.New("JSON value is not an array")
 		}
-		for _, value := range values {
+		for index, value := range values {
 			if err := validateExactValue(value, targetType.Elem()); err != nil {
-				return err
+				return within(err, "["+strconv.Itoa(index)+"]")
 			}
 		}
 	case reflect.Map:
@@ -108,9 +124,9 @@ func validateExactValue(encoded json.RawMessage, targetType reflect.Type) error 
 		if err := json.Unmarshal(encoded, &values); err != nil {
 			return errors.New("JSON value is not an object")
 		}
-		for _, value := range values {
+		for key, value := range values {
 			if err := validateExactValue(value, targetType.Elem()); err != nil {
-				return err
+				return within(err, key)
 			}
 		}
 	}

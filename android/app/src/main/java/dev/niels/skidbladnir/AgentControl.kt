@@ -26,12 +26,6 @@ internal enum class AgentReadiness {
 }
 
 @Serializable
-internal enum class AgentMethod {
-    @SerialName("terminal") Terminal,
-    @SerialName("unavailable") Unavailable,
-}
-
-@Serializable
 internal enum class AgentReason {
     @SerialName("default_idle") DefaultIdle,
     @SerialName("unrecognized") Unrecognized,
@@ -42,17 +36,13 @@ internal enum class AgentReason {
 internal data class AgentStatus(val state: AgentState, val source: AgentStatusSource, val reason: AgentReason? = null)
 
 @Serializable
-internal data class AgentMethods(val read: AgentMethod, val send: AgentMethod, val interrupt: AgentMethod)
-
-@Serializable
-internal data class AgentWriteResult(val method: AgentMethod, val outcome: String, val dispatch: String)
+internal data class AgentWriteResult(val outcome: String, val dispatch: String)
 
 @Serializable
 internal data class AgentStopResult(val agent: String, val terminal: String, val dispatch: String)
 
 internal fun decodeAgentWriteResult(encoded: String): AgentWriteResult = decodeProtocol {
     productJson.decodeFromJsonElement<AgentWriteResult>(strictJsonObject(encoded)).also {
-        require(it.method == AgentMethod.Terminal)
         require((it.outcome == "written" && it.dispatch == "sent") ||
             (it.outcome == "unknown" && it.dispatch == "unknown"))
     }

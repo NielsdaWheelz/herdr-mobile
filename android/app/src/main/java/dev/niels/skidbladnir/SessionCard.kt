@@ -176,20 +176,11 @@ internal fun SessionCard(
 }
 
 internal fun sessionProfileLabel(session: TerminalRecord, profiles: List<ProfileChoice>): String {
-    val agent = session.agent
-    return if (agent != null) {
-        agent.provenRuntimeProfile?.let { runtimeProfile ->
-            profiles.single {
-                it.key == runtimeProfile && it.provider == agent.provider
-            }.label
-        } ?: when (agent.provider) {
-            AgentProvider.Codex -> "Codex · profile unknown"
-            AgentProvider.Claude -> "Claude · profile unknown"
-        }
-    } else {
-        session.launchProfile?.let { launchProfile ->
-            profiles.single { it.key == launchProfile }.label
-        } ?: "terminal"
+    val launch = session.launchProfile?.let { launchProfile -> profiles.single { it.key == launchProfile } }
+    val agent = session.agent ?: return launch?.label ?: "terminal"
+    return launch?.takeIf { it.provider == agent.provider }?.label ?: when (agent.provider) {
+        AgentProvider.Codex -> "Codex · profile unknown"
+        AgentProvider.Claude -> "Claude · profile unknown"
     }
 }
 

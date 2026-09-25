@@ -2,111 +2,12 @@ package sessions
 
 import (
 	"context"
-	"crypto/rand"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 )
-
-const lifetimeKey = "skid_lifetime"
-
-func validLifetime(value string) bool {
-	decoded, err := base64.RawURLEncoding.DecodeString(value)
-	return err == nil && len(decoded) == 16 && base64.RawURLEncoding.EncodeToString(decoded) == value
-}
-
-func newLifetime() (string, error) {
-	var token [16]byte
-	if _, err := rand.Read(token[:]); err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(token[:]), nil
-}
-
-// Claims are serialized by Manager.mutations. A failed or unknown write never
-// manufactures an addressable reference; a later inventory may read its token.
-func (manager *Manager) claimWorkspace(ctx context.Context, workspace workspaceInfo) (WorkspaceTarget, error) {
-	if token, exists := workspace.Tokens[lifetimeKey]; exists {
-		if !validLifetime(token) {
-			return WorkspaceTarget{}, errors.New("invalid workspace lifetime token")
-		}
-		return WorkspaceTarget{WorkspaceID: workspace.ID, IdentityToken: token}, nil
-	}
-	token, err := newLifetime()
-	if err != nil {
-		return WorkspaceTarget{}, err
-	}
-	workspaces, err := manager.workspaces(ctx)
-	if err != nil {
-		return WorkspaceTarget{}, err
-	}
-	found := false
-	for _, current := range workspaces {
-		if current.ID != workspace.ID {
-			continue
-		}
-		found = true
-		if !validWorkspaceLabel(current.Label) {
-			return WorkspaceTarget{}, errors.New("workspace label changed before lifetime claim")
-		}
-		if existing, exists := current.Tokens[lifetimeKey]; exists {
-			if !validLifetime(existing) {
-				return WorkspaceTarget{}, errors.New("invalid workspace lifetime token")
-			}
-			return WorkspaceTarget{WorkspaceID: current.ID, IdentityToken: existing}, nil
-		}
-		break
-	}
-	if !found {
-		return WorkspaceTarget{}, errors.New("workspace disappeared before lifetime claim")
-	}
-	if err := manager.reportWorkspace(ctx, workspace.ID, map[string]string{lifetimeKey: token}); err != nil {
-		return WorkspaceTarget{}, err
-	}
-	workspaces, err = manager.workspaces(ctx)
-	if err != nil {
-		return WorkspaceTarget{}, err
-	}
-	for _, current := range workspaces {
-		if current.ID == workspace.ID && validWorkspaceLabel(current.Label) && current.Tokens[lifetimeKey] == token {
-			return WorkspaceTarget{WorkspaceID: current.ID, IdentityToken: token}, nil
-		}
-	}
-	return WorkspaceTarget{}, errors.New("workspace lifetime token was not retained")
-}
-
-func (manager *Manager) claimPane(ctx context.Context, pane paneInfo) (TerminalTarget, error) {
-	if token, exists := pane.Tokens[lifetimeKey]; exists {
-		if !validLifetime(token) {
-			return TerminalTarget{}, errors.New("invalid terminal lifetime token")
-		}
-		return TerminalTarget{TerminalID: pane.TerminalID, IdentityToken: token}, nil
-	}
-	token, err := newLifetime()
-	if err != nil {
-		return TerminalTarget{}, err
-	}
-	current, err := manager.pane(ctx, pane.ID)
-	if err != nil || current.TerminalID != pane.TerminalID || current.WorkspaceID != pane.WorkspaceID {
-		return TerminalTarget{}, errors.New("terminal changed before lifetime claim")
-	}
-	if existing, exists := current.Tokens[lifetimeKey]; exists {
-		if !validLifetime(existing) {
-			return TerminalTarget{}, errors.New("invalid terminal lifetime token")
-		}
-		return TerminalTarget{TerminalID: current.TerminalID, IdentityToken: existing}, nil
-	}
-	if err := manager.reportPane(ctx, pane.ID, map[string]string{lifetimeKey: token}); err != nil {
-		return TerminalTarget{}, err
-	}
-	current, err = manager.pane(ctx, pane.ID)
-	if err != nil || current.TerminalID != pane.TerminalID || current.WorkspaceID != pane.WorkspaceID || current.Tokens[lifetimeKey] != token {
-		return TerminalTarget{}, errors.New("terminal lifetime token was not retained")
-	}
-	return TerminalTarget{TerminalID: pane.TerminalID, IdentityToken: token}, nil
-}
 
 func encodeObjective(objective string) map[string]string {
 	if objective == "" {

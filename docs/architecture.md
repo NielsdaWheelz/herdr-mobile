@@ -1,24 +1,30 @@
 # skíðblaðnir: product and architecture
 
-this document describes the herdr pr 2 source candidate. it is not a claim that
-any host or phone has been upgraded. [the roadmap](roadmap.md) records delivery
-and open acceptance; [pr 1](herdr-pr1.md) owns the exact public wire and upstream
-mappings, and [pr 2](herdr-pr2.md) owns this cutover's implementation and gates.
-accepted feature specifications own their detailed interactions. [codebase
-rules](rules/index.md) own implementation conventions.
+this document describes the herdr pr 5 source candidate: the android app and one
+phone gateway per host. it is not a claim that any host or phone has been
+upgraded. [the roadmap](roadmap.md) records delivery and open acceptance;
+[pr 5](herdr-pr5.md) owns this reduction, [pr 1](herdr-pr1.md) the retained
+wire and [pr 2](herdr-pr2.md) the stream. accepted feature specifications own
+their detailed interactions. [codebase rules](rules/index.md) own
+implementation conventions.
 
 ## 1. Philosophy
 
-herdr owns terminal and process lifetimes, terminal emulation, workspaces,
-layout, and sampled observations. providers own execution and history. skid
-owns an authenticated, machine-bound projection and direct controls over one
-host's herdr server. each client composes independent gateways; no gateway
-coordinates another host. there is no application database or replay engine.
+herdr owns terminals, panes, workspaces, agent detection and lifecycle,
+desktop and remote attach over ssh, and agent integrations.
+providers own execution and history. skid owns nothing herdr already does: one
+authenticated gateway per host projects that host's herdr for the phone and
+adds what herdr has no equivalent for, namely phone pairing, bearer auth,
+pressure, directory browsing, profile launch and dwarves. the phone composes
+independent gateways; no gateway coordinates another host or holds ssh
+authority. there is no application database or replay engine.
 
-one dwarf is one live herdr terminal. a provider may be observed within that
-terminal; its agent identity and readiness are separate facts. a terminal can
-exist without an agent, and an agent ref can become stale while its terminal
-remains live. phone and desktop address the same worker without a focus broker.
+one dwarf is one live herdr terminal. herdr may detect an agent in it; the
+agent's identity and readiness are herdr's facts. a terminal can exist without
+an agent, and an agent ref can become stale while its terminal remains live.
+humans attach with `herdr --remote` and run `ssh <host> herdr …`; jarvis goes
+through its ssh gate. phone, desktop and jarvis address the same worker without
+a focus broker.
 
 ## 2. Fixed contract
 
@@ -31,139 +37,168 @@ remains live. phone and desktop address the same worker without a focus broker.
 | ingress | one tailscale serve tls `:8443` origin per machine to a loopback gateway; no funnel or public ingress |
 | machine identity | immutable random `mh-` installation handle; a label, origin, bearer, or platform is not identity |
 | authentication | independent bearer per gateway and one-use five-minute pairing invitation; `/v1` requests bind bearer and pinned machine handle |
-| profiles | empty or the closed ordered `personal`, `work`, `work2`, `claude-work` table; each row fixes provider, command, home, arguments, and foreground signature |
-| state | herdr panes, workspaces, process facts, and reserved `skid_*` metadata are runtime truth; android persists encrypted pairings and local presentation preferences |
-| host app | go gateway, public herdr socket/client, platform process and pressure observation |
-| clients | bare local `skid` executes configured `herdr client`; fleet cli and phone use exact gateway refs |
-| delivery | one coordinated release in pr 4; source changes here do not install, publish, or update the phone |
+| profiles | empty or the closed ordered `personal`, `work`, `work2`, `claude-work` table; each row fixes label, provider and the pane environment holding its account home |
+| state | herdr panes, workspaces, agents and reserved `skid_*` pane metadata (name flag, launch profile, objective) are runtime truth; android persists encrypted pairings and local presentation preferences |
+| host app | go gateway over the local public herdr socket, platform pressure and directory observation |
+| clients | the phone only; humans and jarvis call herdr directly |
+| delivery | skid v0.8.0 is herdr pr 5 step 3; source changes install, publish, or update nothing |
 | trust | agents run as the host user; same-uid adversarial containment is out of scope |
 
-new agent launches use deployment-owned permission bypass flags. callers choose
-only a declared profile and validated cwd; they cannot supply a command, account
-home, permission option, or objective-as-prompt. a zero-profile host still has
-terminal creation and process-based agent discovery. launch metadata names a
+callers choose only a declared profile and a validated cwd; they cannot supply
+a command, account home, argument or objective-as-prompt. a launch creates the
+pane with the profile's environment and asks herdr to start the provider's
+bare `codex` or `claude` there. the pane shell resolves that name: the
+deployment's `codex` wrapper respects a preset `CODEX_HOME`, and the
+deployment's shell aliases add the permission flags. skid passes no arguments,
+because codex refuses a repeated `--yolo`. a zero-profile host still has
+terminal creation and herdr's agent detection. launch metadata names a
 candidate profile, never proves the account of a running process.
 
 ### product language
 
 skíðblaðnir is the app; the dashboard presents dwarves from dvergatal, the
-append-only character catalogue. a dwarf's landmark is independent of its
-operator-owned terminal name. `agent` means an observed foreground provider
-program. errors and destructive confirmations name the actual terminal and
-possible linked-workspace effects rather than relying on the metaphor.
+append-only character catalogue. a terminal's dwarf is seeded by its herdr
+terminal id. an agent the gateway launches takes the first dwarf, in that seeded
+order, whose name no live agent on the server holds (`haugspori` for
+`norse.haugspori`; `haugspori-2` only when every dwarf's name is held), and a
+terminal whose agent carries a dwarf's herdr name shows that dwarf, so the
+phone's name and herdr's are one. a dwarf's landmark is independent of its
+operator-owned terminal name. `agent` means a codex or claude process herdr
+detects in a terminal; only an agent herdr named can be interrupted or stopped.
+errors and destructive confirmations name the actual terminal and possible
+linked-workspace effects rather than relying on the metaphor.
 
 ### guarantees
 
 - detach releases only the attachment; kill requires confirmation and an exact
   current terminal ref. native close can also end linked workers, and the
   confirmation says so.
-- validate names, workspace labels, cwd, refs, input, and encoded sizes at their
-  owners. reject stale and ambiguous targets; never substitute a refreshed ref
-  for a mutation target.
+- validate names, workspace labels, cwd, refs and encoded sizes at their
+  owners. reject stale targets before dispatch; never substitute a refreshed
+  ref for a mutation target.
 - host credentials stay on their host. phone pairings remain encrypted and
   machine-bound. logs and evidence contain no terminal bytes, prompts,
   objectives, tokens, account data, or clipboard text.
 - restart rediscovers runtime state. it never replays input or claims completion.
-  a cold herdr restart gives new terminal lifetimes and loses old worker metadata.
+  a herdr restart gives new terminal ids, so every earlier terminal and agent
+  ref is stale.
 
 ### non-goals
 
-provider transcript storage or search, semantic task state, orchestration,
-automatic resume/retry/replay, a persistent worker registry, cross-host move or
+a skid cli, peer client, attach client, identity hook or notifier; provider
+transcript storage or search, semantic task state, orchestration, automatic
+resume/retry/replay, a persistent worker registry, cross-host move or
 broadcast, remote terminal clicks/drags, multi-user isolation, and a second
 terminal runtime are excluded. retired hook status/history machinery, sqlite
 lifecycle facts, provenance, contract codegen, and proof ledgers stay retired.
 
 ## 3. Platform facts and accepted limits
 
-herdr's public api supplies pane/workspace discovery, metadata, launch,
-mutation, bounded reads, visual scroll, and a separate terminal-control child.
-its v0.9.1 key parser does not accept home, end, insert, delete, or modified
-page keys, and trims modified non-ascii whitespace. android keeps home/end
-visible and disabled. unsupported hardware, desktop, and cli keys fail locally
-with an explanation. unmodified page up/down use public visual scroll. no client
-guesses raw escape sequences to recover an unsupported key.
+herdr's public api supplies pane/workspace/agent discovery, metadata, launch,
+agent start and send-keys, mutation, visual scroll, and a separate
+terminal-control child. its v0.9.1 key parser does not accept home, end,
+insert, delete, or modified page keys, and trims modified non-ascii
+whitespace. android keeps home/end visible and disabled. unmodified page
+up/down use public visual scroll. no client guesses raw escape sequences to
+recover an unsupported key.
 
-native pane close may close a linked group or be refused. herdr does not offer
-compare-and-set metadata or an atomic check-and-write action. skid rereads
-before a metadata claim and reads back a write, but a foreign writer may still
-interleave. desktop and api writers can coexist with phone control. claude
-status/history/halt confirmation is unavailable through the accepted public
-contract; a bounded terminal read is evidence, not a provider transcript.
+herdr never repeats a `terminal_id` and reissues every one on restore. a pane
+id is workspace-scoped: it changes when the pane moves and is reused after a
+restart. herdr clears an agent's name when that agent exits or another replaces
+it. no workspace counter is persisted: a restart without a session file
+numbers workspaces from `w1` again, and one with a session file continues from
+the restored maximum plus one, so a closed workspace's id can return after a
+restart. no api field identifies a server instance.
+
+native pane close may close a linked group or be refused. herdr offers no
+compare-and-set write: skid re-reads its target before every write, but another
+herdr client may still interleave between check and write. an agent herdr
+detected without a name (one a human typed) has no identity beyond its
+terminal, since another unnamed agent could replace it there unseen; it gets
+no agent ref, so the phone shows its status but only closes or types into its
+terminal.
+herdr's readiness is a projection of its screen rules; codex's trust menus and
+sign-in screen read as idle ([issue](issues/codex-menu-readiness.md)).
 
 ## 4. Product behavior
 
 ### dashboard and forge
 
 android composes paired host inventories. each card carries machine identity,
-terminal ref, optional current agent ref, runtime facts, name, workspace, and
-deterministic landmark. one unavailable host does not disable actions on another.
-the forge takes an explicit machine, validated host directory, and terminal or
-that host's declared profile. creation returns launch/partial facts, not
-readiness. a shell is a terminal choice and needs no profile. [the directory
-chooser](working-directory-chooser.md), [spaces](spaces.md), [shells](shells.md),
-[rename](session-renaming.md), and [pressure](machine-pressure-rail.md) own their
-surface contracts.
+terminal ref, herdr's agent status with an agent ref when herdr named the agent,
+name, workspace, launch profile and deterministic landmark. one unavailable host
+does not disable actions on another. the forge takes an explicit machine,
+validated host directory, and terminal or that host's declared profile. creation
+returns launch/partial facts, not readiness. a shell is a terminal choice and
+needs no profile. [the directory chooser](working-directory-chooser.md),
+[spaces](spaces.md), [shells](shells.md), [rename](session-renaming.md), and
+[pressure](machine-pressure-rail.md) own their surface contracts.
 
-### attachment and agent controls
+### attachment
 
-phone and fleet cli attach one exact terminal through the gateway websocket.
-initial fitted geometry precedes public control acquisition; a valid full frame
+the phone attaches one exact terminal through the gateway websocket. initial
+fitted geometry precedes public control acquisition; a valid full frame
 precedes input. the phone applies it before admitting input to that attempt.
 subsequent frames are sequenced and bounded. a disconnect ends only that
 attachment. conflict/takeover is explicit and never replays input. terminal
 text, paste, keys, scroll, resize, and detach have distinct meanings; terminal
 output is never a source of outbound emulator replies.
 
-[agent controls](agent-control.md) own sampled readiness, bounded reads,
-ordinary send, explicit terminal send, key sequences, interrupt, and stop.
-ordinary send requires independently recognized idle. `send --terminal` is an
-explicit readiness override, still bound to the original current agent. send
-returns dispatch evidence, not provider effect or task completion. stop
-interrupts once, then revalidates before close; an unknown interrupt does not
-proceed to close. native close refusal remains refusal.
+### agent status and controls
 
-### identity registration
-
-[identity projection](agent-identity-projection.md) owns the content-free,
-process-lifetime-bound `SessionStart` registration. deployment-owned codex and
-claude hooks may register a documented session id after matching inherited pane
-identity, foreground process group, process ancestry/start and profile facts.
-hooks do not report status, activity, history, prompt payloads,
-or completion. absent or stale registration does not block honest process and
-terminal observation. a codex completion notifier may emit BEL as terminal-local
-presentation; it stores no state and has no product authority.
+status is herdr's `agent get` state. readiness is `ready` or `blocked` only
+when `agent explain` matched that same visible screen rule for the same
+unchanged state, and `unconfirmed` otherwise; skid adds no rule and reads no
+terminal text. interrupt and stop need a named agent. interrupt re-reads the
+terminal, requires the same agent name there, and sends the provider's
+interrupt key (escape for codex, ctrl-c for claude) through herdr's agent
+send-keys addressed by that name, so herdr binds the write to that agent and
+refuses it if the agent is no longer the foreground process. it returns
+dispatch evidence, not provider effect. stop interrupts once, re-reads the
+original target, then closes the terminal's pane: the same agent, or none
+because it exited, permits the close; another agent refuses it. an unknown
+interrupt does not proceed to close. native close refusal remains refusal, and
+each partial says how far the stop got. the phone offers interrupt and stop
+only for an agent with a ref.
 
 ## 5. Host architecture
 
 `internal/herdr` alone speaks the pinned public socket and owns one
-terminal-control child per attachment. `sessions` discovers panes/workspaces,
-claims reserved lifetime metadata, resolves original refs, and performs
-validated mutations. `agentcontrol` enriches observed terminals and enforces
-agent action policy; it depends on sessions, never the reverse. `agentruntime`,
-`process`, and `agenthook` own launch/foreground/registration facts. `gateway`
-composes these concrete modules with auth, pairing, pressure, directory, http,
-and websocket lifetimes. `fleetclient` and `agentcli` own peer routing, strict
-result decoding, and exact selection. `terminal` and `terminalclient` own typed
-stream frames and cancellable local tty input.
-`skidbladnir validate-host-config` admits a deployment-owned configuration
-through the same `hostconfig` loader without reading the runtime; dev-server
-calls it before staging a generation. validity is not runtime readiness.
+terminal-control child per attachment. `sessions` projects panes, workspaces
+and agents, launches, and performs every pane write: mutations, agent controls
+and the stream's text, paste and key input. each write re-reads its target and
+dispatches under one mutation lock, so the gateway's own writes never
+interleave between a check and its write; reads take no lock. `profile` owns launch profiles;
+`hostconfig` admits the deployment's host configuration, including through
+`skidbladnir validate-host-config`, which dev-server calls before staging a
+generation; validity is not runtime readiness. `reference` owns the opaque ref
+encoding. `gateway` composes these with auth, pairing, pressure, directory,
+http, and websocket lifetimes; `terminal` owns the typed stream frames.
 
-terminal, agent, and workspace refs encode different lifetimes. rename, move,
-and gateway restart preserve a terminal ref; runtime restart makes it stale.
-agent replacement or bearer rotation makes an agent ref stale. metadata
-conflict/exhaustion makes a resource unaddressable and inventory partial. labels
-are for observation and selection; they never authenticate a mutation. name
-selection rejects duplicates. no empty-host or guessed ref projection occurs.
+refs are thin encodings of herdr ids. a terminal ref is its `terminal_id`, so
+rename, move and gateway restart preserve it and a herdr restart makes it
+stale. an agent ref adds herdr's agent name and exists only for a named
+agent; before a write the gateway finds the pane hosting that terminal and
+requires herdr to report the same agent name there, which is herdr's own check
+in `agent start`. a workspace ref is
+herdr's workspace id and only places a new tab or a moved pane. labels are for
+observation and selection; they never authenticate a mutation. a workspace
+with an invalid label is unaddressable and makes inventory partial.
 
-`/v1/terminals` owns inventory, create, info, rename, move, shell, kill, and
-stream. `/v1/agents` owns read, send, keys, interrupt, and stop. machine/auth,
-pairing, directory, and pressure retain their separate boundaries. successful
-host operations expose observed/partial facts and `not_sent | sent | unknown`
-dispatch where applicable. the ten-second host budget and fifteen-second client
-deadline bound ordinary operations. [the pr 1 operation table](herdr-pr1.md#retained-gateway-operations)
-is the exact wire contract.
+`/v1/terminals` owns inventory, create, rename, move, shell, kill, and stream.
+`/v1/agents/{ref}` owns interrupt and stop. machine/auth, pairing, directory,
+and pressure retain their separate boundaries. successful host operations
+expose observed/partial facts and `not_sent | sent | unknown` dispatch where
+applicable. the ten-second host budget and fifteen-second client deadline bound
+ordinary operations. herdr refuses `agent start` before writing anything when
+the pane's foreground is not its shell alone (as while a new shell's startup
+files run a command), or when another client took the chosen name; the gateway
+retries those refusals for two seconds, each attempt re-reading the pane and
+the live names, without holding the mutation lock while it waits. when herdr
+definitely refused the launch and a fresh read shows its terminal still hosts
+no agent, the gateway closes that terminal and reports the refusal. otherwise
+(the outcome is unknown, herdr now sees an agent there, or the read or the
+close fails) it keeps the terminal and reports it as partial.
 
 one websocket attempt owns one control child. acquisition waits at most ten
 seconds for geometry and first full frame; bearer revalidation and ping/pong
@@ -182,11 +217,11 @@ selection/copy, key deck state, and gestures. native code owns credentials and
 transport; the WebView receives only bounded frame data and semantic input
 callbacks. foreground loss invalidates input before callbacks can reopen it.
 
-pairings survive this source cutover. the existing directory, pressure, forge,
-filter, dashboard, and terminal presentation surfaces remain. after a native
-close, the affected host inventory is refreshed because linked closure may
-remove several cards. user-waived dictation, gboard paste, local copy, and
-rotation checks remain `NOT_RUN` until observed.
+a card names its launch profile when herdr's agent is that profile's provider,
+and the provider with an unknown profile otherwise. pairings survive this
+source cutover. after a native close, the affected host inventory is refreshed
+because linked closure may remove several cards. user-waived dictation, gboard
+paste, local copy, and rotation checks remain `NOT_RUN` until observed.
 
 ## 7. Security
 
@@ -206,11 +241,11 @@ secrecy guarantee.
 
 ## 8. Upgrade ladder
 
-this branch implements the pr 2 source candidate. pr 3 must align jarvis's
-strict consumer to the changed contract. pr 4 owns installation, coordinated
-activation, and rollback. neither source implementation nor a synthetic probe
-is fleet acceptance. [the roadmap](roadmap.md) records remaining live and phone
-proofs.
+this branch is [pr 5](herdr-pr5.md#8-delivery) step 3. step 4 pins it in
+dev-server, rewrites the host configs to the reduced profile table, and removes
+the skid link, hooks, notifier, plugin and jarvis cli copy. hosts update before
+the phone. neither source implementation nor a synthetic probe is fleet
+acceptance. [the roadmap](roadmap.md) records remaining live and phone proofs.
 
 push, unread-result attention, provenance, copied provider history, durable
 receipts and replay remain excluded. a new capability requires an explicit
@@ -222,5 +257,5 @@ authorize its return.
 [testing policy](rules/testing.md) owns temporary integration/live probes and
 cleanup. `scripts/check verify` performs engineering checks and builds only;
 it is not behavioral acceptance. unavailable devices, unexecuted gates, and
-waived manual checks are `NOT_RUN`, never passes. pr 1 and pr 2 record each
-boundary's actual evidence and remaining blockers.
+waived manual checks are `NOT_RUN`, never passes. each pr records its
+boundaries' actual evidence and remaining blockers.

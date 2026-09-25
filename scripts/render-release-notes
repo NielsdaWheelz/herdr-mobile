@@ -64,8 +64,9 @@ render_notes() {
     '4. Install Tailscale from Google Play, sign into the fleet tailnet, and leave' \
     '   Tailscale connected.' \
     '5. Open Skíðblaðnir and tap **Connect**.' \
-    '6. On a computer configured for `skid`, run `scripts/fleet invite`,' \
-    '   then scan the fresh QR within five minutes. It works once.' "" \
+    '6. On the MacBook, with the peer credentials in `~/.config/skidbladnir/client.json`,' \
+    '   run `scripts/fleet invite`, then scan the fresh QR within five minutes.' \
+    '   It works once.' "" \
     '## Update order' "" \
     'Apply and verify all three hosts first; update the phone second. Mixed' \
     'versions and ordinary APK downgrade are not supported. Same-version reinstall' \

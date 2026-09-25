@@ -4,6 +4,14 @@ status 2026-09-23: the remaining macbook qualification is an
 [accepted non-blocking follow-up](../herdr-pr2.md#accepted-non-blocking-follow-ups),
 not a merge or cutover gate. preserve the host-specific evidence below.
 
+2026-09-24 herdr pr 5: launch is now `agent start` of the bare provider in a
+pane created with the profile's environment, so a restored pane has neither the
+environment nor a live agent. dev-server's managed herdr config keeps
+`resume_agents_on_restore = false`; with it on, herdr would relaunch a named
+agent without its account home and the respecting `codex` wrapper would pick
+the personal home. a disposable darwin herdr confirmed the pane environment
+reaches the wrapper at launch; the claude profile was a stand-in binary.
+
 problem: the inspected herdr v0.9.1 cold-restore path does not retain per-pane
 environment overrides. skid's account profiles rely on distinct provider homes.
 

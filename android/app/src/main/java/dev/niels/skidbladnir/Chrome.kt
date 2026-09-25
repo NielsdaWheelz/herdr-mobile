@@ -157,7 +157,7 @@ internal fun KillButton(
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                text = if (target.terminal.agent == null) "Close" else "Stop",
+                text = if (target.terminal.agentControllable) "Stop" else "Close",
                 // Disabled goes to Bone, not a dimmed Ember: Ember at 38% over
                 // an Ember-tinted ground measures 1.82:1, where Bone holds
                 // 3.21:1 — the legibility the TextButton had. The hue change

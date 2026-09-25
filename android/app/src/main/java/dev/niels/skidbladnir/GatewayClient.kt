@@ -227,8 +227,8 @@ internal class GatewayClient {
     internal fun agentRequest(credential: MachineCredential, target: TerminalTarget, operation: String): Request {
         require(target.machineHandle == credential.machine.handle)
         require(operation == "interrupt" || operation == "stop")
-        val agent = requireNotNull(target.terminal.agent)
-        return authorizedRequest(credential, listOf("v1", "agents", agent.ref, operation))
+        val ref = requireNotNull(target.terminal.agent?.ref)
+        return authorizedRequest(credential, listOf("v1", "agents", ref, operation))
             .post("{}".toRequestBody(jsonMediaType)).build()
     }
 
@@ -452,7 +452,6 @@ private fun apiErrorHttpStatus(code: ApiErrorCode): Int = when (code) {
     ApiErrorCode.RequestTooLarge -> 413
     ApiErrorCode.TerminalNotFound -> 404
     ApiErrorCode.TerminalStale, ApiErrorCode.AgentStale, ApiErrorCode.WorkspaceStale,
-    ApiErrorCode.NameAmbiguous, ApiErrorCode.ReadinessUnconfirmed,
     ApiErrorCode.ClosureConfirmationRequired, ApiErrorCode.MachineIdentityMismatch -> 409
     ApiErrorCode.ProfileUnknown, ApiErrorCode.WorkingDirectoryInvalid, ApiErrorCode.NameInvalid,
     ApiErrorCode.ObjectiveInvalid, ApiErrorCode.DirectoryListingUnavailable,
@@ -460,7 +459,6 @@ private fun apiErrorHttpStatus(code: ApiErrorCode): Int = when (code) {
     ApiErrorCode.MetadataUnavailable, ApiErrorCode.UpstreamRejected -> 502
     ApiErrorCode.HerdrUnavailable -> 503
     ApiErrorCode.OutcomeUnknown -> 504
-    ApiErrorCode.MethodUnavailable -> 409
     ApiErrorCode.InternalError -> 500
     ApiErrorCode.ReconnectRequired -> throw SerializationException("websocket only code")
 }

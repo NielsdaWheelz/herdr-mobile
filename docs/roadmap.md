@@ -5,6 +5,18 @@ accepted feature specifications own detailed product contracts.
 [the codebase map](codebase-map.md) locates their implementation.
 this index records present scope and open work, not a release diary.
 
+## herdr pr 5
+
+2026-09-24: this branch is the step 3 source candidate of [pr 5](herdr-pr5.md):
+skid reduces to the android app and one phone gateway per host. the cli, peer
+and attach clients, identity hook, process identity and agent read/send/keys
+routes are gone; refs encode herdr ids, and only a named agent has one;
+launch uses herdr's agent start and names the agent after a free dwarf. a
+disposable herdr and gateway on the macbook exercised every phone route; no
+release, host or phone change is claimed. step 4 must rewrite the host configs
+to the reduced profile table in the same apply that pins this release, and the
+phone updates after all three hosts.
+
 ## herdr migration
 
 2026-09-23: pr 2 merged as pr 134 at `9999033`; no deployment is claimed.
@@ -74,10 +86,9 @@ jarvis alignment is required under the changed candidate wire format.
 | capability | contract owner |
 | --- | --- |
 | herdr-backed inventory, exact terminal lifetimes, launch, rename, move, kill and direct attachment | [architecture](architecture.md), [pr 2](herdr-pr2.md), [rename](session-renaming.md) |
-| sampled agent status, bounded reads, terminal input, interrupt and stop | [agent control](agent-control.md) |
+| herdr agent status, interrupt and stop | [architecture §4](architecture.md#agent-status-and-controls) |
 | real herdr workspaces, client grouping/filtering and dashboard restoration | [spaces](spaces.md), [dashboard continuity](dashboard-return-continuity.md) |
 | standalone terminal and new terminal here | [terminal creation](shells.md) |
-| local herdr desktop and exact fleet terminal attachment | [pr 2](herdr-pr2.md), [desktop history](desktop-browser.md) |
 | phone fleet connect/reconnect, encrypted pairings and quarantine | [fleet distribution](public-fleet-distribution.md), [architecture §6](architecture.md#6-android-surface) |
 | phone dashboard, directory chooser and machine pressure | [refresh](dashboard-pull-to-refresh.md), [chooser](working-directory-chooser.md), [pressure](machine-pressure-rail.md) |
 | terminal sizing, keys, touch, selection and input composition | [sizing](terminal-readable-sizing.md), [key deck](terminal-key-deck.md), [touch](terminal-touch-scroll.md), [selection](terminal-selection-copy.md) |
@@ -94,22 +105,22 @@ installed version of any host or phone. this cleanup changes source only;
 it does not publish or deploy a release.
 
 `dev-server` owns machine-local installation, services and configuration.
-`scripts/fleet` owns `verify`, direct `invite`, and `provision-clients`.
+`scripts/fleet` owns `verify` and direct `invite`; `invite` reads the peers'
+private credentials from the macbook's `~/.config/skidbladnir/client.json`.
 `scripts/install-android` validates and installs an apk in place; installation
 alone is not pairing or behavioral acceptance. [architecture §5](architecture.md#5-host-architecture)
 and [§6](architecture.md#6-android-surface) own those boundaries.
 
-new agent launches use deployment-owned permission bypass flags under
-[architecture §2](architecture.md#2-fixed-contract). deployed configuration was
-verified; new provider launches were not exercised in that change. existing
-sessions retain their original launch policy.
+new agent launches take their permission flags from the deployment's shell
+aliases under [architecture §2](architecture.md#2-fixed-contract); skid passes
+none. existing sessions retain their original launch policy.
 
 ## open work and acceptance
 
 - [sequential cleanup](codebase-map.md): verified findings live in [issues](issues),
   one per issue. finish one reviewed pr before starting the next.
-- [desktop cutover](issues/herdr-terminal-acceptance.md): the real local herdr
-  desktop, gateway stream, and linux/darwin behavior need product live proof.
+- [phone terminal interaction](issues/herdr-terminal-acceptance.md): the
+  gateway stream and linux/darwin phone behavior need product live proof.
 - [spaces and shells hands-on](issues/spaces-shells-hands-on.md): human workflow
   and usability acceptance remains unperformed; automated phone results do not
   supply it.
@@ -120,8 +131,6 @@ sessions retain their original launch policy.
   tests are removed before commit. no retained suite protects the important
   behavior automatically. [testing policy](rules/testing.md) owns the workflow;
   `scripts/check verify` runs engineering checks and builds only.
-- [retired desktop browser evidence](issues/desktop-browser-runtime-acceptance.md):
-  its tmux journey remains historical and does not qualify the herdr cutover.
 
 other unperformed visual/device checks and explicitly waived shipment checks
 remain with their feature owners. a waiver is not a pass. unavailable or

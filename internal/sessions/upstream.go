@@ -10,9 +10,8 @@ import (
 const metadataSource = "user:skidbladnir"
 
 type workspaceInfo struct {
-	ID     string            `json:"workspace_id"`
-	Label  string            `json:"label"`
-	Tokens map[string]string `json:"tokens"`
+	ID    string `json:"workspace_id"`
+	Label string `json:"label"`
 }
 
 type paneInfo struct {
@@ -26,13 +25,13 @@ type paneInfo struct {
 	Tokens        map[string]string `json:"tokens"`
 }
 
-type processInfo struct {
-	PaneID         string  `json:"pane_id"`
-	ShellPID       *uint32 `json:"shell_pid"`
-	ForegroundPGID *uint32 `json:"foreground_process_group_id"`
-	Foreground     []struct {
-		PID uint32 `json:"pid"`
-	} `json:"foreground_processes"`
+type agentInfo struct {
+	TerminalID string  `json:"terminal_id"`
+	PaneID     string  `json:"pane_id"`
+	Name       *string `json:"name"`
+	Agent      *string `json:"agent"`
+	Status     string  `json:"agent_status"`
+	Seq        uint64  `json:"state_change_seq"`
 }
 
 func (manager *Manager) workspaces(ctx context.Context) ([]workspaceInfo, error) {
@@ -92,18 +91,38 @@ func (manager *Manager) pane(ctx context.Context, paneID string) (paneInfo, erro
 	return result.Pane, nil
 }
 
-func (manager *Manager) processInfo(ctx context.Context, paneID string) (processInfo, error) {
+// agent reads herdr's agent in one pane. found is false when herdr reports no
+// agent there.
+func (manager *Manager) agent(ctx context.Context, paneID string) (agentInfo, bool, error) {
 	var result struct {
-		Type string      `json:"type"`
-		Info processInfo `json:"process_info"`
+		Type  string    `json:"type"`
+		Agent agentInfo `json:"agent"`
 	}
-	if err := manager.herdr.Call(ctx, "pane.process_info", map[string]string{"pane_id": paneID}, &result); err != nil {
-		return processInfo{}, mapReadHerdrError(err)
+	if err := manager.herdr.Call(ctx, "agent.get", map[string]string{"target": paneID}, &result); err != nil {
+		var upstream *herdr.Error
+		if errors.As(err, &upstream) && upstream.Dispatch == "sent" && upstream.Code == "agent_not_found" {
+			return agentInfo{}, false, nil
+		}
+		return agentInfo{}, false, mapReadHerdrError(err)
 	}
-	if result.Type != "pane_process_info" || result.Info.PaneID != paneID {
-		return processInfo{}, errors.New("invalid herdr process response")
+	if result.Type != "agent_info" || result.Agent.PaneID != paneID || result.Agent.TerminalID == "" {
+		return agentInfo{}, false, errors.New("invalid herdr agent response")
 	}
-	return result.Info, nil
+	return result.Agent, true, nil
+}
+
+func (manager *Manager) agents(ctx context.Context) ([]agentInfo, error) {
+	var result struct {
+		Type   string      `json:"type"`
+		Agents []agentInfo `json:"agents"`
+	}
+	if err := manager.herdr.Call(ctx, "agent.list", struct{}{}, &result); err != nil {
+		return nil, mapReadHerdrError(err)
+	}
+	if result.Type != "agent_list" || result.Agents == nil {
+		return nil, errors.New("invalid herdr agent inventory")
+	}
+	return result.Agents, nil
 }
 
 func (manager *Manager) reportPane(ctx context.Context, paneID string, tokens map[string]string) error {
@@ -111,19 +130,6 @@ func (manager *Manager) reportPane(ctx context.Context, paneID string, tokens ma
 		Type string `json:"type"`
 	}
 	if err := manager.herdr.Call(ctx, "pane.report_metadata", map[string]any{"pane_id": paneID, "source": metadataSource, "tokens": tokens}, &result); err != nil {
-		return mapHerdrError(err)
-	}
-	if result.Type != "ok" {
-		return errors.New("invalid herdr metadata response")
-	}
-	return nil
-}
-
-func (manager *Manager) reportWorkspace(ctx context.Context, workspaceID string, tokens map[string]string) error {
-	var result struct {
-		Type string `json:"type"`
-	}
-	if err := manager.herdr.Call(ctx, "workspace.report_metadata", map[string]any{"workspace_id": workspaceID, "source": metadataSource, "tokens": tokens}, &result); err != nil {
 		return mapHerdrError(err)
 	}
 	if result.Type != "ok" {
@@ -150,6 +156,8 @@ func mapHerdrError(err error) *Error {
 		return &Error{Code: ErrorTerminalStale, Message: "The selected terminal changed.", Dispatch: upstream.Dispatch}
 	case "workspace_not_found":
 		return &Error{Code: ErrorWorkspaceStale, Message: "The selected workspace changed.", Dispatch: upstream.Dispatch}
+	case "agent_not_found", "agent_not_ready":
+		return &Error{Code: ErrorAgentStale, Message: "The selected agent changed.", Dispatch: upstream.Dispatch}
 	default:
 		return &Error{Code: ErrorUpstreamRejected, Message: "Herdr rejected the operation.", Dispatch: upstream.Dispatch}
 	}

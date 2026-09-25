@@ -3,10 +3,9 @@ package sessions
 import (
 	"time"
 
-	"github.com/NielsdaWheelz/skidbladnir/internal/agentruntime"
 	"github.com/NielsdaWheelz/skidbladnir/internal/catalog"
 	"github.com/NielsdaWheelz/skidbladnir/internal/herdr"
-	"github.com/NielsdaWheelz/skidbladnir/internal/process"
+	"github.com/NielsdaWheelz/skidbladnir/internal/profile"
 	"github.com/NielsdaWheelz/skidbladnir/internal/workdir"
 )
 
@@ -14,27 +13,30 @@ type Config struct {
 	Herdr         *herdr.Client
 	Workdir       *workdir.Service
 	CataloguePath string
-	Profiles      []agentruntime.Profile
+	Profiles      []profile.Profile
 	MachineHandle string
-	Fingerprint   func(process.Observation) (string, error)
 }
 
+// TerminalTarget is herdr's terminal_id: stable across pane moves and
+// renames, reissued on every herdr restore, and never repeated.
 type TerminalTarget struct {
-	TerminalID    string `json:"terminalId"`
-	IdentityToken string `json:"identityToken"`
+	TerminalID string
 }
 
+// WorkspaceTarget is herdr's workspace id. herdr may reissue the number of a
+// closed workspace after a restart; a workspace target only places a new tab
+// or a moved pane, never input or closure.
 type WorkspaceTarget struct {
-	WorkspaceID   string `json:"workspaceId"`
-	IdentityToken string `json:"identityToken"`
+	WorkspaceID string
 }
 
+// AgentTarget is one named agent lifetime in one terminal: herdr clears an
+// agent's name when that agent exits or another replaces it, and names are
+// unique among a server's live agents. Name is never empty; an agent herdr
+// detected without a name has no target.
 type AgentTarget struct {
-	TerminalTarget     TerminalTarget        `json:"-"`
-	PID                process.PID           `json:"pid"`
-	StartIdentity      process.StartIdentity `json:"startIdentity"`
-	CommandFingerprint string                `json:"commandFingerprint"`
-	Provider           agentruntime.Provider `json:"provider"`
+	Terminal TerminalTarget
+	Name     string
 }
 
 type Workspace struct {
@@ -42,14 +44,19 @@ type Workspace struct {
 	Label  string
 }
 
+type Status struct {
+	State  string `json:"state"`
+	Source string `json:"source"`
+	Reason string `json:"reason,omitempty"`
+}
+
+// Agent is herdr's agent in a terminal. Name is herdr's agent name, empty when
+// herdr detected the agent without one; only a named agent can be addressed.
 type Agent struct {
-	Target               AgentTarget
-	Provider             agentruntime.Provider
-	ProvenRuntimeProfile agentruntime.ProfileKey
-	ProviderSession      *agentruntime.ProviderSessionFacts
-	Status               agentruntime.Status
-	Readiness            string
-	Methods              agentruntime.Methods
+	Name      string
+	Provider  profile.Provider
+	Status    Status
+	Readiness string
 }
 
 type Terminal struct {
@@ -59,7 +66,7 @@ type Terminal struct {
 	Character       catalog.Character
 	WorkspaceTarget WorkspaceTarget
 	CWD             string
-	LaunchProfile   agentruntime.ProfileKey
+	LaunchProfile   profile.Key
 	Objective       string
 	Agent           *Agent
 }
@@ -91,21 +98,15 @@ type Closed struct {
 	Dispatch string
 }
 
-type StopClosure struct {
-	Closed         Closed
-	AgentExited    bool
-	CloseAttempted bool
+type WriteResult struct {
+	Outcome  string `json:"outcome"`
+	Dispatch string `json:"dispatch"`
 }
 
-type ResolvedTerminal struct {
-	Terminal Terminal
-	PaneID   string
-}
-
-type ResolvedAgent struct {
-	Terminal Terminal
-	PaneID   string
-	Process  process.Observation
+type StopResult struct {
+	Agent    string `json:"agent"`
+	Terminal string `json:"terminal"`
+	Dispatch string `json:"dispatch"`
 }
 
 type LaunchKind string
@@ -142,10 +143,7 @@ const (
 	ErrorWorkspaceStale              ErrorCode = "WorkspaceStale"
 	ErrorMetadataUnavailable         ErrorCode = "MetadataUnavailable"
 	ErrorNameInvalid                 ErrorCode = "NameInvalid"
-	ErrorNameAmbiguous               ErrorCode = "NameAmbiguous"
 	ErrorObjectiveInvalid            ErrorCode = "ObjectiveInvalid"
-	ErrorReadinessUnconfirmed        ErrorCode = "ReadinessUnconfirmed"
-	ErrorMethodUnavailable           ErrorCode = "MethodUnavailable"
 	ErrorClosureConfirmationRequired ErrorCode = "ClosureConfirmationRequired"
 	ErrorHerdrUnavailable            ErrorCode = "HerdrUnavailable"
 	ErrorUpstreamRejected            ErrorCode = "UpstreamRejected"

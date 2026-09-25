@@ -452,76 +452,6 @@ verify_host() {
   printf '%s\t%s\t%s\t%s\t%s\n' "$expected_handle" "$platform" "$runtime" "$origin" "$herdr"
 }
 
-# The operator transfers this private configuration once; clients then route
-# directly to each peer over HTTPS. Re-run after rotating a host bearer.
-client_peer() (
-  set +x
-  local platform="$1" label="$2" machine origin bearer
-  validate_host_platform "$platform" "$label" || return 64
-  [[ "$(uname -s)" == "$platform" ]] || return 1
-  machine="$(secret_value "$HOME/.config/skidbladnir/machine-handle" '^mh-[0-9a-f]{32}$')" || return
-  bearer="$(secret_value "$HOME/.config/skidbladnir/bearer" '^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$')" || return
-  origin="$(private_serve_origin "$platform")" || return
-  printf '%s\n' "$bearer" | jq -Rn --arg label "$label" --arg machine "$machine" --arg origin "$origin" \
-    '{label:$label,machine:$machine,origin:$origin,bearer:input}'
-)
-
-install_client_config() (
-  set -euo pipefail
-  set +x
-  umask 077
-  local config temporary
-  config="$HOME/.config/skidbladnir"
-  if [[ "$1" == jarvis ]]; then
-    config="${TMPDIR:-/tmp}"
-  else
-    mkdir -p "$config" || return
-  fi
-  temporary="$(mktemp "$config/.client.XXXXXX")" || return
-  trap 'rm -f -- "$temporary"' EXIT
-  cat >"$temporary" || return
-  chmod 0600 "$temporary" || return
-  if [[ "$1" == jarvis ]]; then
-    sudo -n install -o jarvis -g jarvis -m 0600 "$temporary" /etc/jarvis/agent-client.json || return
-  else
-    mv -f -- "$temporary" "$config/client.json"
-  fi
-)
-
-provision_clients() (
-  set +x
-  local temporary command label
-  temporary="$(mktemp "${TMPDIR:-/tmp}/skidbladnir-clients.XXXXXX")" || return
-  trap 'rm -f -- "$temporary"' EXIT
-  {
-    client_peer Darwin macbook || exit 1
-    remote_host client-peer devbox || exit 1
-    remote_host client-peer arch || exit 1
-  } | jq -s '{peers:.}' >"$temporary" || return
-  jq -e '
-    (.peers | map(.label)) == ["macbook", "devbox", "arch"] and
-    all(.peers[];
-      (.machine | type == "string" and test("^mh-[0-9a-f]{32}$")) and
-      (.bearer | type == "string" and test("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")) and
-      (.origin | type == "string" and test("^https://[a-z0-9.-]+:8443/$"))) and
-    (.peers | map(.machine) | unique | length) == 3 and
-    (.peers | map(.origin) | unique | length) == 3 and
-    (.peers | map(.bearer) | unique | length) == 3
-  ' "$temporary" >/dev/null 2>&1 || die 'fleet client identities, origins, or credentials are invalid or not unique'
-  install_client_config user <"$temporary" || return
-  for label in devbox arch; do
-    command="$(declare -f install_client_config)"
-    command+=$'\ninstall_client_config user'
-    printf -v command 'bash -c %q' "$command"
-    fleet_ssh "$label" "$command" <"$temporary" || return
-  done
-  command="$(declare -f install_client_config)"
-  command+=$'\ninstall_client_config jarvis'
-  printf -v command 'bash -c %q' "$command"
-  fleet_ssh devbox-deploy "$command" <"$temporary" || return
-  printf 'private peer configuration installed on macbook, devbox, arch, and jarvis\n'
-)
-
 host_main() {
   local action="${1:-}"
   local platform="${2:-}"
@@ -529,30 +459,21 @@ host_main() {
   [[ "${SKIDBLADNIR_FLEET_TRANSPORT:-}" == fleet-host-v1 ]] || return 64
   [[ $# -eq 3 ]] || return 64
   validate_host_platform "$platform" "$label" || return 64
-  case "$action" in
-  client-peer)
-    client_peer "$platform" "$label"
-    ;;
-  verify)
-    verify_host "$platform" "$label"
-    ;;
-  *) return 64 ;;
-  esac
+  [[ "$action" == verify ]] || return 64
+  verify_host "$platform" "$label"
 }
 
 fleet_ssh() {
   local label="$1"
   shift
   case "$label" in
-  devbox | devbox-deploy)
-    local target=dev-server
-    [[ "$label" != devbox-deploy ]] || target=dev-server-deploy
+  devbox)
     local config="$HOME/.ssh/config.d/dev-server"
     [[ -f "$config" && ! -L "$config" && -O "$config" &&
       "$(file_mode "$config" 2>/dev/null)" == 600 ]] ||
       die 'managed devbox SSH config is unavailable or not mode 0600'
     ssh -F "$config" -T -o BatchMode=yes -o RequestTTY=no -o ConnectTimeout=10 \
-      -o ConnectionAttempts=1 "$target" "$@"
+      -o ConnectionAttempts=1 dev-server "$@"
     ;;
   arch)
     ssh -T -o BatchMode=yes -o RequestTTY=no -o ConnectTimeout=10 -o ConnectionAttempts=1 \
@@ -562,18 +483,12 @@ fleet_ssh() {
   esac
 }
 
-remote_host() {
-  local action="$1"
-  local label="$2"
-  [[ $# -eq 2 ]] || return 64
+remote_verify() {
+  local label="$1"
+  [[ $# -eq 1 ]] || return 64
   [[ -f "$fleet_source" && ! -L "$fleet_source" ]] || die 'fleet operator source is unavailable'
-  case "$action" in
-  verify | client-peer)
-    fleet_ssh "$label" env SKIDBLADNIR_FLEET_TRANSPORT=fleet-host-v1 \
-      bash -s -- _host "$action" Linux "$label" <"$fleet_source"
-    ;;
-  *) return 64 ;;
-  esac
+  fleet_ssh "$label" env SKIDBLADNIR_FLEET_TRANSPORT=fleet-host-v1 \
+    bash -s -- _host verify Linux "$label" <"$fleet_source"
 }
 
 verify_fleet() {
@@ -588,8 +503,8 @@ verify_fleet() {
   local arch_handle arch_platform arch_release arch_origin arch_herdr
   local failures=0
   local_result="$(verify_host Darwin macbook)" || failures=$((failures + 1))
-  devbox_result="$(remote_host verify devbox)" || failures=$((failures + 1))
-  arch_result="$(remote_host verify arch)" || failures=$((failures + 1))
+  devbox_result="$(remote_verify devbox)" || failures=$((failures + 1))
+  arch_result="$(remote_verify arch)" || failures=$((failures + 1))
   if ((failures > 0)); then
     printf 'error: fleet gateway verification failed on %d host%s\n' \
       "$failures" "$([[ "$failures" == 1 ]] || printf s)" >&2
@@ -649,7 +564,7 @@ invite() (
   local config peers label origin handle bearer display_label platform response
   local machines='[]' payload bytes
   [[ -f "$config_file" && ! -L "$config_file" && "$(file_mode "$config_file")" == 600 ]] ||
-    die 'invite requires ~/.config/skidbladnir/client.json with mode 0600, as used by skid'
+    die 'invite requires the private peer credentials in ~/.config/skidbladnir/client.json with mode 0600'
   config="$(cat "$config_file")" || return
   json_is_single_and_duplicate_free "$config" 2>/dev/null || die 'client configuration is invalid'
   peers="$(printf '%s' "$config" | jq -er '
@@ -717,14 +632,13 @@ invite() (
 
 usage() {
   cat <<'EOF'
-usage: scripts/fleet <verify|invite|provision-clients>
+usage: scripts/fleet <verify|invite>
 
-invite uses ~/.config/skidbladnir/client.json on linux or macos; requires jq,
-curl, qrencode, and a tailnet connection. it prints one qr and exits.
+invite reads the three peers' private credentials from
+~/.config/skidbladnir/client.json (mode 0600); requires jq, curl, qrencode, and
+a tailnet connection. it prints one qr and exits.
 
-verify and provision-clients run on the macbook and use the managed devbox
-ssh config. provision-clients copies private credentials to macbook, devbox,
-arch, and jarvis; it requires tailscale and ssh, not a deployment checkout.
+verify runs on the macbook and uses the managed devbox ssh config.
 
 verify requires SKIDBLADNIR_DEV_SERVER_CHECKOUT naming the exact local dev-server
 checkout with its release pin tracked and byte-exact at HEAD.
@@ -758,7 +672,7 @@ main() {
     usage
     return
     ;;
-  verify | invite | provision-clients) ;;
+  verify | invite) ;;
   *)
     usage >&2
     return 64
@@ -774,22 +688,15 @@ main() {
   [[ "$(uname -s)" == Darwin ]] || die 'this fleet command requires the MacBook'
   require_command ssh
   fleet_source="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/fleet"
-  case "$command" in
-  verify)
-    require_checkout
-    require_command git
-    require_command curl
-    expected_darwin_release="$(candidate_release_digest "$dev_server_checkout" Darwin)" || return
-    expected_linux_release="$(candidate_release_digest "$dev_server_checkout" Linux)" || return
-    expected_darwin_herdr="$(candidate_herdr_digest "$dev_server_checkout" Darwin)" || return
-    expected_linux_herdr="$(candidate_herdr_digest "$dev_server_checkout" Linux)" || return
-    verify_fleet "$expected_darwin_release" "$expected_linux_release" \
-      "$expected_darwin_herdr" "$expected_linux_herdr"
-    ;;
-  provision-clients)
-    provision_clients
-    ;;
-  esac
+  require_checkout
+  require_command git
+  require_command curl
+  expected_darwin_release="$(candidate_release_digest "$dev_server_checkout" Darwin)" || return
+  expected_linux_release="$(candidate_release_digest "$dev_server_checkout" Linux)" || return
+  expected_darwin_herdr="$(candidate_herdr_digest "$dev_server_checkout" Darwin)" || return
+  expected_linux_herdr="$(candidate_herdr_digest "$dev_server_checkout" Linux)" || return
+  verify_fleet "$expected_darwin_release" "$expected_linux_release" \
+    "$expected_darwin_herdr" "$expected_linux_herdr"
 }
 
 dev_server_checkout=''

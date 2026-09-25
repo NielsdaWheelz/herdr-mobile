@@ -32,7 +32,6 @@ type Route string
 
 const (
 	RouteAgentControl      Route = "/v1/agents/{ref}/{operation}"
-	RouteHealth            Route = "/healthz"
 	RouteTerminals         Route = "/v1/terminals"
 	RouteTerminal          Route = "/v1/terminals/{ref}"
 	RouteTerminalWorkspace Route = "/v1/terminals/{ref}/workspace"
@@ -47,7 +46,7 @@ const (
 
 func (route Route) valid() bool {
 	switch route {
-	case RouteAgentControl, RouteHealth, RouteTerminals, RouteTerminal, RouteTerminalWorkspace,
+	case RouteAgentControl, RouteTerminals, RouteTerminal, RouteTerminalWorkspace,
 		RouteTerminalShell, RouteTerminalStream, RoutePressure, RoutePairingInvites,
 		RoutePairings, RouteDirectoryListings, RouteUnmatched:
 		return true
@@ -75,10 +74,7 @@ const (
 	ErrorProfileUnknown              ErrorCode = "ProfileUnknown"
 	ErrorWorkingDirectoryInvalid     ErrorCode = "WorkingDirectoryInvalid"
 	ErrorNameInvalid                 ErrorCode = "NameInvalid"
-	ErrorNameAmbiguous               ErrorCode = "NameAmbiguous"
 	ErrorObjectiveInvalid            ErrorCode = "ObjectiveInvalid"
-	ErrorReadinessUnconfirmed        ErrorCode = "ReadinessUnconfirmed"
-	ErrorMethodUnavailable           ErrorCode = "MethodUnavailable"
 	ErrorClosureConfirmationRequired ErrorCode = "ClosureConfirmationRequired"
 	ErrorHerdrUnavailable            ErrorCode = "HerdrUnavailable"
 	ErrorUpstreamRejected            ErrorCode = "UpstreamRejected"
@@ -92,8 +88,7 @@ func (code ErrorCode) valid() bool {
 		ErrorDirectoryListingUnavailable, ErrorDirectoryListingTooLarge, ErrorPairingInviteRejected,
 		ErrorTerminalNotFound, ErrorTerminalStale, ErrorAgentStale, ErrorWorkspaceStale,
 		ErrorMetadataUnavailable, ErrorProfileUnknown, ErrorWorkingDirectoryInvalid,
-		ErrorNameInvalid, ErrorNameAmbiguous,
-		ErrorObjectiveInvalid, ErrorReadinessUnconfirmed, ErrorMethodUnavailable,
+		ErrorNameInvalid, ErrorObjectiveInvalid,
 		ErrorClosureConfirmationRequired, ErrorHerdrUnavailable, ErrorUpstreamRejected,
 		ErrorOutcomeUnknown, ErrorInternal:
 		return true
@@ -140,10 +135,19 @@ func (reason PressureReason) valid() bool {
 	}
 }
 
+// Signal is a shutdown signal the gateway handles, named as the platform names it.
+type Signal string
+
+const (
+	SignalInterrupt  Signal = "interrupt"
+	SignalTerminated Signal = "terminated"
+)
+
 type eventKind string
 
 const (
 	eventGatewayStarted         eventKind = "Gateway.Started"
+	eventGatewayStopping        eventKind = "Gateway.Stopping"
 	eventRequestCompleted       eventKind = "Request.Completed"
 	eventPressureSampled        eventKind = "Pressure.Sampled"
 	eventAuthenticationRejected eventKind = "Authentication.Rejected"
@@ -158,9 +162,18 @@ type Event struct {
 	errorCode ErrorCode
 	level     PressureLevel
 	reasons   []PressureReason
+	signal    Signal
 }
 
 func NewGatewayStarted() Event { return Event{kind: eventGatewayStarted} }
+
+func NewGatewayStopping(signal Signal) (Event, error) {
+	event := Event{kind: eventGatewayStopping, signal: signal}
+	if !event.valid() {
+		return Event{}, errors.New("invalid gateway-stopping log event")
+	}
+	return event, nil
+}
 
 func NewRequestCompleted(method Method, route Route, status int, duration time.Duration, errorCode ErrorCode) (Event, error) {
 	event := Event{kind: eventRequestCompleted, method: method, route: route, status: status, duration: duration, errorCode: errorCode}
@@ -190,6 +203,8 @@ func (event Event) valid() bool {
 	switch event.kind {
 	case eventGatewayStarted:
 		return true
+	case eventGatewayStopping:
+		return event.signal == SignalInterrupt || event.signal == SignalTerminated
 	case eventRequestCompleted:
 		if !event.method.valid() || !event.route.valid() || event.status < 100 || event.status > 599 || event.duration < 0 {
 			return false
@@ -233,6 +248,8 @@ func (logger Logger) Write(event Event) error {
 	fields := map[string]any{"event.name": event.kind}
 	switch event.kind {
 	case eventGatewayStarted:
+	case eventGatewayStopping:
+		fields["signal"] = event.signal
 	case eventRequestCompleted:
 		fields["http.request.method"] = event.method
 		fields["http.route"] = event.route

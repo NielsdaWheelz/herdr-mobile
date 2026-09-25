@@ -23,7 +23,7 @@ const (
 	controlWriteTimeout = 500 * time.Millisecond
 )
 
-var ErrClosed = errors.New("herdr terminal control closed")
+var errClosed = errors.New("herdr terminal control closed")
 
 type Frame struct {
 	Seq           uint64
@@ -110,7 +110,7 @@ func (control *Control) ReadFrame() (Frame, error) {
 		if err := strictjson.Decode(line, &closed); err != nil {
 			return Frame{}, errors.New("invalid herdr close event")
 		}
-		return Frame{}, ErrClosed
+		return Frame{}, errClosed
 	case "terminal.frame":
 		var wire struct {
 			Type     string `json:"type"`
@@ -168,7 +168,7 @@ func (control *Control) write(command any) error {
 	control.mu.Lock()
 	defer control.mu.Unlock()
 	if control.closed {
-		return ErrClosed
+		return errClosed
 	}
 	if err := control.stdin.(*os.File).SetWriteDeadline(time.Now().Add(controlWriteTimeout)); err != nil {
 		return errors.New("herdr control write deadline unavailable")

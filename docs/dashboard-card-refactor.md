@@ -4,7 +4,7 @@ Status: implemented and verified; routine verification, the 47-test physical
 S22+ platform gate, and hands-on synthetic-fixture visual/accessibility
 acceptance are green on 2026-08-27.
 
-current [agent control](agent-control.md) owns sampled status, its presentation
+current [agent status](architecture.md#agent-status-and-controls) owns sampled status, its presentation
 and machine/name/id ordering. this document's status, signal/age, attention and
 ordering examples are historical. work-first identity, geometry, metadata and
 action layout remain the card contract.

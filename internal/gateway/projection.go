@@ -7,8 +7,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/NielsdaWheelz/skidbladnir/internal/agentruntime"
 	"github.com/NielsdaWheelz/skidbladnir/internal/machine"
+	"github.com/NielsdaWheelz/skidbladnir/internal/profile"
 	"github.com/NielsdaWheelz/skidbladnir/internal/sessions"
 )
 
@@ -17,14 +17,13 @@ type workspaceWire struct {
 	Label string `json:"label"`
 }
 
+// agentWire carries a ref only for an agent herdr named: an unnamed agent is
+// observable but has no identity to interrupt or stop.
 type agentWire struct {
-	Ref                  string               `json:"ref"`
-	Provider             string               `json:"provider"`
-	ProvenRuntimeProfile string               `json:"provenRuntimeProfile,omitempty"`
-	ProviderSession      *providerSessionDTO  `json:"providerSession,omitempty"`
-	Status               agentruntime.Status  `json:"status"`
-	Readiness            string               `json:"readiness"`
-	Methods              agentruntime.Methods `json:"methods"`
+	Ref       string          `json:"ref,omitempty"`
+	Provider  string          `json:"provider"`
+	Status    sessions.Status `json:"status"`
+	Readiness string          `json:"readiness"`
 }
 
 type terminalWire struct {
@@ -76,18 +75,12 @@ func mapTerminal(handle machine.Handle, terminal sessions.Terminal) (terminalWir
 		card.NativeLabel = ""
 	}
 	if terminal.Agent != nil {
-		ref, err := agentReference(handle, terminal.Agent.Target)
-		if err != nil {
-			return terminalWire{}, err
-		}
-		agent := terminal.Agent
-		card.Agent = &agentWire{
-			Ref: ref, Provider: string(agent.Provider),
-			ProvenRuntimeProfile: string(agent.ProvenRuntimeProfile),
-			Status:               agent.Status, Readiness: agent.Readiness, Methods: agent.Methods,
-		}
-		if agent.ProviderSession != nil {
-			card.Agent.ProviderSession = &providerSessionDTO{ID: agent.ProviderSession.ID(), Name: agent.ProviderSession.Name()}
+		card.Agent = &agentWire{Provider: string(terminal.Agent.Provider), Status: terminal.Agent.Status, Readiness: terminal.Agent.Readiness}
+		if terminal.Agent.Name != "" {
+			card.Agent.Ref, err = agentReference(handle, sessions.AgentTarget{Terminal: terminal.Target, Name: terminal.Agent.Name})
+			if err != nil {
+				return terminalWire{}, err
+			}
 		}
 	}
 	return card, nil
@@ -106,7 +99,7 @@ func safeNativeLabel(value string) bool {
 	return true
 }
 
-func mapInventory(handle machine.Handle, platform machineDTO, inventory sessions.Inventory, profiles []agentruntime.Profile) (inventoryWire, error) {
+func mapInventory(handle machine.Handle, platform machineDTO, inventory sessions.Inventory, profiles []profile.Profile) (inventoryWire, error) {
 	observedAt, err := projectionInstant(inventory.ObservedAt)
 	if err != nil {
 		return inventoryWire{}, err

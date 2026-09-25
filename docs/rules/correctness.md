@@ -22,10 +22,10 @@ failure classification and repository-wide correctness invariants.
 - a successful parse proves a value's shape, not the continued existence of the
   session, process, or path it identified. reobserve changing external state at
   the boundary responsible for using it.
-- inventory is an observation of tmux, not a durable claim on a session. handle
+- inventory is an observation of herdr, not a durable claim on a terminal. handle
   later disappearance and replacement through the existing stale-target rules.
 - after dispatch, loss of confirmation does not prove that no effect occurred.
-  preserve the [agent-control outcomes](../agent-control.md#identity-state-and-dispatch)
+  preserve the [agent-control outcomes](../architecture.md#agent-status-and-controls)
   and the [architecture's mutation contracts](../architecture.md).
 - keep cross-boundary ordering explicit; see [mutation-ordering.md](mutation-ordering.md).
 - use types to enforce local invariants where they make the code simpler. parse

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"strconv"
-	"strings"
 	"unicode"
 	"unicode/utf8"
 
@@ -14,19 +13,19 @@ import (
 )
 
 const (
-	MaximumFrameBytes       = 3 << 20
+	maximumFrameBytes       = 3 << 20
 	MaximumClientFrameBytes = 2 << 20
-	MaximumANSIBytes        = 2 << 20
-	MaximumInputBytes       = 32768
-	MinimumColumns          = 20
-	MaximumColumns          = 1024
-	MinimumRows             = 5
-	MaximumRows             = 512
+	maximumANSIBytes        = 2 << 20
+	maximumInputBytes       = 32768
+	minimumColumns          = 20
+	maximumColumns          = 1024
+	minimumRows             = 5
+	maximumRows             = 512
 )
 
 var (
 	ErrInvalidFrame  = errors.New("invalid terminal frame")
-	ErrFrameTooLarge = errors.New("terminal frame too large")
+	errFrameTooLarge = errors.New("terminal frame too large")
 )
 
 type ClientFrame interface{ isClientFrame() }
@@ -54,13 +53,6 @@ func (ScrollFrame) isClientFrame() {}
 func (ResizeFrame) isClientFrame() {}
 func (DetachFrame) isClientFrame() {}
 
-type ServerFrame interface{ isServerFrame() }
-type Frame struct {
-	Seq           uint64
-	Columns, Rows int
-	Full          bool
-	ANSI          []byte
-}
 type EndCode string
 
 const (
@@ -69,11 +61,6 @@ const (
 	EndDetached           EndCode = "detached"
 	EndProtocolError      EndCode = "protocol_error"
 )
-
-type EndFrame struct{ Code EndCode }
-
-func (Frame) isServerFrame()    {}
-func (EndFrame) isServerFrame() {}
 
 func required(encoded []byte, names ...string) bool {
 	var fields map[string]json.RawMessage
@@ -94,14 +81,14 @@ func required(encoded []byte, names ...string) bool {
 	return true
 }
 func dimensions(columns, rows int) bool {
-	return columns >= MinimumColumns && columns <= MaximumColumns && rows >= MinimumRows && rows <= MaximumRows
+	return columns >= minimumColumns && columns <= maximumColumns && rows >= minimumRows && rows <= maximumRows
 }
 func endCode(code EndCode) bool {
 	return code == EndControlUnavailable || code == EndStreamLost || code == EndDetached || code == EndProtocolError
 }
 func bounded(encoded []byte, limit int) error {
 	if len(encoded) > limit {
-		return ErrFrameTooLarge
+		return errFrameTooLarge
 	}
 	return nil
 }
@@ -117,7 +104,7 @@ func marshal(value any, limit int) ([]byte, error) {
 }
 
 func EncodeFrame(seq uint64, columns, rows int, full bool, ansi []byte) ([]byte, error) {
-	if seq == 0 || !dimensions(columns, rows) || len(ansi) > MaximumANSIBytes {
+	if seq == 0 || !dimensions(columns, rows) || len(ansi) > maximumANSIBytes {
 		return nil, ErrInvalidFrame
 	}
 	return marshal(struct {
@@ -127,7 +114,7 @@ func EncodeFrame(seq uint64, columns, rows int, full bool, ansi []byte) ([]byte,
 		Rows       int    `json:"rows"`
 		Full       bool   `json:"full"`
 		ANSIBase64 string `json:"ansiBase64"`
-	}{"Frame", strconv.FormatUint(seq, 10), columns, rows, full, base64.StdEncoding.EncodeToString(ansi)}, MaximumFrameBytes)
+	}{"Frame", strconv.FormatUint(seq, 10), columns, rows, full, base64.StdEncoding.EncodeToString(ansi)}, maximumFrameBytes)
 }
 func EncodeEnd(code EndCode) ([]byte, error) {
 	if !endCode(code) {
@@ -136,108 +123,7 @@ func EncodeEnd(code EndCode) ([]byte, error) {
 	return marshal(struct {
 		Kind string  `json:"kind"`
 		Code EndCode `json:"code"`
-	}{"End", code}, MaximumFrameBytes)
-}
-func EncodeResize(columns, rows int) ([]byte, error) {
-	if !dimensions(columns, rows) {
-		return nil, ErrInvalidFrame
-	}
-	return marshal(struct {
-		Kind    string `json:"kind"`
-		Columns int    `json:"columns"`
-		Rows    int    `json:"rows"`
-	}{"Resize", columns, rows}, MaximumClientFrameBytes)
-}
-func EncodeDetach() []byte { return []byte(`{"kind":"Detach"}`) }
-func EncodeText(value string) ([]byte, error) {
-	if !validText(value) {
-		return nil, ErrInvalidFrame
-	}
-	return marshal(struct {
-		Kind string `json:"kind"`
-		Text string `json:"text"`
-	}{"Text", value}, MaximumClientFrameBytes)
-}
-func EncodePaste(value string) ([]byte, error) {
-	if !validPaste(value) {
-		return nil, ErrInvalidFrame
-	}
-	return marshal(struct {
-		Kind string `json:"kind"`
-		Text string `json:"text"`
-	}{"Paste", value}, MaximumClientFrameBytes)
-}
-func EncodeKey(key string, modifiers []string) ([]byte, error) {
-	if modifiers == nil {
-		modifiers = []string{}
-	}
-	if !validKey(key, modifiers) {
-		return nil, ErrInvalidFrame
-	}
-	return marshal(struct {
-		Kind      string   `json:"kind"`
-		Key       string   `json:"key"`
-		Modifiers []string `json:"modifiers"`
-	}{"Key", key, modifiers}, MaximumClientFrameBytes)
-}
-func EncodeScroll(source, direction string, lines uint16, column, row *uint16) ([]byte, error) {
-	if !validScroll(source, direction, lines, column, row) {
-		return nil, ErrInvalidFrame
-	}
-	return marshal(struct {
-		Kind      string  `json:"kind"`
-		Source    string  `json:"source"`
-		Direction string  `json:"direction"`
-		Lines     uint16  `json:"lines"`
-		Column    *uint16 `json:"column,omitempty"`
-		Row       *uint16 `json:"row,omitempty"`
-	}{"Scroll", source, direction, lines, column, row}, MaximumClientFrameBytes)
-}
-
-func ParseServerText(encoded []byte) (ServerFrame, error) {
-	if err := bounded(encoded, MaximumFrameBytes); err != nil {
-		return nil, err
-	}
-	var envelope struct {
-		Kind string `json:"kind"`
-	}
-	if json.Unmarshal(encoded, &envelope) != nil {
-		return nil, ErrInvalidFrame
-	}
-	switch envelope.Kind {
-	case "Frame":
-		var wire struct {
-			Kind       string `json:"kind"`
-			Seq        string `json:"seq"`
-			Columns    int    `json:"columns"`
-			Rows       int    `json:"rows"`
-			Full       bool   `json:"full"`
-			ANSIBase64 string `json:"ansiBase64"`
-		}
-		if strictjson.Decode(encoded, &wire) != nil || !required(encoded, "kind", "seq", "columns", "rows", "full", "ansiBase64") || !dimensions(wire.Columns, wire.Rows) || wire.Seq == "" || wire.Seq[0] == '0' || strings.Trim(wire.Seq, "0123456789") != "" {
-			return nil, ErrInvalidFrame
-		}
-		seq, err := strconv.ParseUint(wire.Seq, 10, 64)
-		if err != nil || seq == 0 {
-			return nil, ErrInvalidFrame
-		}
-		data, err := base64.StdEncoding.Strict().DecodeString(wire.ANSIBase64)
-		if err != nil || len(data) > MaximumANSIBytes || base64.StdEncoding.EncodeToString(data) != wire.ANSIBase64 {
-			return nil, ErrInvalidFrame
-		}
-		return Frame{seq, wire.Columns, wire.Rows, wire.Full, data}, nil
-	case "End":
-		var wire struct {
-			Kind string  `json:"kind"`
-			Code EndCode `json:"code"`
-		}
-		if strictjson.Decode(encoded, &wire) != nil || !required(encoded, "kind", "code") || !endCode(wire.Code) {
-			return nil, ErrInvalidFrame
-		}
-		return EndFrame{wire.Code}, nil
-	default:
-		return nil, ErrInvalidFrame
-	}
+	}{"End", code}, maximumFrameBytes)
 }
 func ParseClientText(encoded []byte) (ClientFrame, error) {
 	if err := bounded(encoded, MaximumClientFrameBytes); err != nil {
@@ -307,7 +193,7 @@ func ParseClientText(encoded []byte) (ClientFrame, error) {
 	return nil, ErrInvalidFrame
 }
 func validPaste(value string) bool {
-	return value != "" && len(value) <= MaximumInputBytes && utf8.ValidString(value)
+	return value != "" && len(value) <= maximumInputBytes && utf8.ValidString(value)
 }
 func validText(value string) bool {
 	if !validPaste(value) {
