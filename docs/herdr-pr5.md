@@ -13,8 +13,11 @@ herdr saved machines (§6).
 2026-09-24: delivered on devbox and the macbook: dev-server `b4b8c3b` (step 1)
 and `db32035` (step 4, v0.8.0 pin), jarvis `39d9c9c` (step 2) active and
 resumed, skid v0.8.0 (`7680c55`, step 3) published; the phone runs 8000. arch
-is down and gets steps 1 and 4 when reachable; the skid-cli residue goes after
-acceptance on all three (dev-server `docs/issues/skid-cli-retirement.md`).
+followed after its reboot the same day; the skid-cli residue is gone from all
+three hosts and `fleet verify` passes. open: the phone's own journeys and
+jarvis's first agent journey on v0.8.0 (dev-server
+`docs/issues/skid-phone-gateway-cutover.md`, jarvis
+`docs/issues/herdr-gate-activation.md`).
 
 ## 1. outcome
 
