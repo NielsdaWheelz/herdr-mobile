@@ -10,6 +10,12 @@ agents plus the pane creation an agent needs, not `pane run`; devbox holds no
 ssh access to a workstation except through jarvis's gate; no host declares
 herdr saved machines (§6).
 
+2026-09-24: delivered on devbox and the macbook: dev-server `b4b8c3b` (step 1)
+and `db32035` (step 4, v0.8.0 pin), jarvis `39d9c9c` (step 2) active and
+resumed, skid v0.8.0 (`7680c55`, step 3) published; the phone runs 8000. arch
+is down and gets steps 1 and 4 when reachable; the skid-cli residue goes after
+acceptance on all three (dev-server `docs/issues/skid-cli-retirement.md`).
+
 ## 1. outcome
 
 nothing in skid duplicates herdr. herdr 0.9.1 already provides remote attach
