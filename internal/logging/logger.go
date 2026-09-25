@@ -254,18 +254,18 @@ func (logger Logger) Write(event Event) error {
 		fields["http.request.method"] = event.method
 		fields["http.route"] = event.route
 		fields["http.response.status_code"] = event.status
-		fields["skidbladnir.duration.ms"] = event.duration.Milliseconds()
+		fields["herdr-mobile.duration.ms"] = event.duration.Milliseconds()
 		if event.errorCode != ErrorNone {
-			fields["skidbladnir.error.code"] = event.errorCode
+			fields["herdr-mobile.error.code"] = event.errorCode
 		}
 	case eventPressureSampled:
-		fields["skidbladnir.pressure.level"] = event.level
+		fields["herdr-mobile.pressure.level"] = event.level
 		reasons := event.reasons
 		if reasons == nil {
 			reasons = []PressureReason{}
 		}
-		fields["skidbladnir.pressure.reasons"] = reasons
-		fields["skidbladnir.duration.ms"] = event.duration.Milliseconds()
+		fields["herdr-mobile.pressure.reasons"] = reasons
+		fields["herdr-mobile.duration.ms"] = event.duration.Milliseconds()
 	case eventAuthenticationRejected:
 		fields["http.route"] = event.route
 	}

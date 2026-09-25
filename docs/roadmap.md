@@ -5,6 +5,24 @@ accepted feature specifications own detailed product contracts.
 [the codebase map](codebase-map.md) locates their implementation.
 this index records present scope and open work, not a release diary.
 
+## independent herdr-mobile and skidbladnir
+
+2026-09-25: the [separation spec](herdr-mobile-separation.md) plans this repo's
+rename to herdr-mobile and the original repo's reclamation of skidbladnir.
+both products must coexist independently on all three hosts and android.
+existing herdr panes are disposable; provider integration homes, github names,
+deployment ownership, credentials, and phone packages separate explicitly.
+the [original-repo handoff](skidbladnir-restoration-handoff.md) and
+[dev-server handoff](dev-server-separation-handoff.md) scope those agents'
+work; [the issue](issues/herdr-mobile-separation.md) tracks delivery.
+this repo's source split is implemented: command/module, android package and
+signer, wire, metadata, ports, generated mark, and release/fleet tooling.
+engineering checks, signed candidate build, and temporary isolated gateway and
+android parser probes passed. the [deployment contract](dev-server-handoff.md)
+records exact interfaces and remaining inputs. no github rename, publication,
+fleet cutover, pane reset, or phone installation is claimed. all fleet and
+phone coexistence acceptance remains pending.
+
 ## herdr pr 5
 
 2026-09-24: this branch is the step 3 source candidate of [pr 5](herdr-pr5.md):
@@ -99,20 +117,20 @@ criterion. feature specs retain their detailed acceptance requirements.
 
 ## release and operations
 
-[release-pin.json](../release-pin.json) is the single committed owner of the
-published version, source and artifact digests. it does not assert the currently
-installed version of any host or phone. this cleanup changes source only;
-it does not publish or deploy a release.
+`release-pin.json` will own the first published herdr-mobile version, source,
+and artifact digests. the old skid-named `v0.8.0` pin was removed from active
+source; it remains in git history at `d8bb9c4`. no separated release is yet
+published. a release pin does not assert any host or phone's installed version.
 
 `dev-server` owns machine-local installation, services and configuration.
 `scripts/fleet` owns `verify` and direct `invite`; `invite` reads the peers'
-private credentials from the macbook's `~/.config/skidbladnir/client.json`.
+private credentials from the macbook's `~/.config/herdr-mobile/client.json`.
 `scripts/install-android` validates and installs an apk in place; installation
 alone is not pairing or behavioral acceptance. [architecture §5](architecture.md#5-host-architecture)
 and [§6](architecture.md#6-android-surface) own those boundaries.
 
 new agent launches take their permission flags from the deployment's shell
-aliases under [architecture §2](architecture.md#2-fixed-contract); skid passes
+aliases under [architecture §2](architecture.md#2-fixed-contract); herdr-mobile passes
 none. existing sessions retain their original launch policy.
 
 ## open work and acceptance
@@ -138,7 +156,7 @@ unexecuted boundaries remain `NOT_RUN` and require their applicable approval.
 
 ## historical evidence
 
-[source-attributed release and acceptance records through this cleanup](https://github.com/NielsdaWheelz/skidbladnir/blob/5986a650d02106a2c10415a81a6ad956fe198665/docs/roadmap.md)
+[source-attributed release and acceptance records through this cleanup](https://github.com/NielsdaWheelz/herdr-mobile/blob/5986a650d02106a2c10415a81a6ad956fe198665/docs/roadmap.md)
 remain in git. they include the v0.5.0 failures, corrected v0.6.0 phone results,
 and shipment waivers. removing their duplicate active-document tables neither
 erases failures nor proves current acceptance. retired commands are historical

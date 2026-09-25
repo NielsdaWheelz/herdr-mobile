@@ -268,7 +268,7 @@ convenience. android paths below are under its existing java package unless stat
 | independent reviewers | read/run only; no test, production or content edits |
 
 shared terminal state and admission helpers belong in
-[TerminalScreen.kt](../android/app/src/main/java/dev/niels/skidbladnir/TerminalScreen.kt);
+[TerminalScreen.kt](../android/app/src/main/java/dev/niels/herdr/mobile/TerminalScreen.kt);
 the domain owner retains navigation and attempt coordination. agree typed
 frame/input callbacks before parallel edits; no new lifecycle module. move reusable workspace
 label validation out of `internal/space` before removing cosmetic grouping.

@@ -4,12 +4,12 @@ Before changing this repository, read [the architecture](docs/architecture.md),
 [the roadmap](docs/roadmap.md), and
 [the codebase rules](docs/rules/index.md). herdr owns terminals, panes,
 workspaces, agent detection and lifecycle; providers own execution and history.
-skid is the android app and one phone gateway per host over its local herdr;
+herdr-mobile is the android app and one phone gateway per host over its local herdr;
 humans and jarvis use herdr directly. [pr 5](docs/herdr-pr5.md) removed the skid
 cli, peer and attach clients, identity hook and notifier; do not reintroduce
 them or anything else herdr already provides, nor retired machinery:
 generalized hook runtimes, provenance, sqlite lifecycle facts, contract codegen
-or proof ledgers. skid installs and runs no hooks. architecture §8 governs
+or proof ledgers. herdr-mobile installs and runs no hooks. architecture §8 governs
 further upgrades: a new capability requires an explicit scope and
 acceptance-criterion change.
 

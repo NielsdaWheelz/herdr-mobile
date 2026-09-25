@@ -10,15 +10,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/NielsdaWheelz/skidbladnir/internal/auth"
-	"github.com/NielsdaWheelz/skidbladnir/internal/machine"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/auth"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/machine"
 )
 
 const (
 	inviteLifetime    = 5 * time.Minute
 	tokenBytes        = 32
 	tokenTextSize     = 43
-	tokenDigestDomain = "skidbladnir.pairing-invite.v1\x00"
+	tokenDigestDomain = "herdr-mobile.pairing-invite.v1\x00"
 )
 
 var (

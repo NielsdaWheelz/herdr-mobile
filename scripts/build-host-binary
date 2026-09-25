@@ -39,5 +39,5 @@ cd "$source_dir"
 GOTOOLCHAIN=local GOOS="$goos" GOARCH="$goarch" CGO_ENABLED="$cgo_enabled" \
   go build -buildvcs=false -mod=readonly -trimpath \
     -ldflags "-s -w -X main.releaseVersion=$tag -X main.releaseSHA=$sha" \
-    -o "$output" ./cmd/skidbladnir
+    -o "$output" ./cmd/herdr-mobile
 chmod 0755 "$output"

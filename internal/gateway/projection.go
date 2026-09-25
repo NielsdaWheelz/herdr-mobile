@@ -7,9 +7,9 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/NielsdaWheelz/skidbladnir/internal/machine"
-	"github.com/NielsdaWheelz/skidbladnir/internal/profile"
-	"github.com/NielsdaWheelz/skidbladnir/internal/sessions"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/machine"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/profile"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/sessions"
 )
 
 type workspaceWire struct {

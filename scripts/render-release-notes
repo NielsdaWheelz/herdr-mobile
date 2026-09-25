@@ -38,15 +38,15 @@ render_notes() {
   signer="$(sed -n '1p' "$signer_file")"
   [[ "$signer" =~ ^[0-9a-f]{64}$ ]] || return 1
   signer_asset_digest="$(manifest_digest "$manifest" android-signing-cert.sha256)" || return 1
-  apk_digest="$(manifest_digest "$manifest" skidbladnir-android.apk)" || return 1
-  darwin_digest="$(manifest_digest "$manifest" skidbladnir-darwin-arm64.tar.gz)" || return 1
-  linux_digest="$(manifest_digest "$manifest" skidbladnir-linux-amd64.tar.gz)" || return 1
+  apk_digest="$(manifest_digest "$manifest" herdr-mobile-android.apk)" || return 1
+  darwin_digest="$(manifest_digest "$manifest" herdr-mobile-darwin-arm64.tar.gz)" || return 1
+  linux_digest="$(manifest_digest "$manifest" herdr-mobile-linux-amd64.tar.gz)" || return 1
   [[ "$(wc -l <"$manifest" | tr -d ' ')" == 4 ]] || return 1
   checksums_digest="$("${digest_command[@]}" <"$manifest" | awk 'NF == 2 { print $1 }')" || return 1
   [[ "$checksums_digest" =~ ^[0-9a-f]{64}$ ]] || return 1
 
   # shellcheck disable=SC2016 # Literal Markdown code spans must not invoke shell expansion.
-  printf '%s\n' "# Skíðblaðnir $tag" "" \
+  printf '%s\n' "# herdr $tag" "" \
     "- Source: \`$sha\`" \
     "- Verify run: \`$run_id\`" \
     "- Android signer SHA-256: \`$signer\`" "" \
@@ -56,15 +56,16 @@ render_notes() {
     '   Pin the same tag, source, and two host-bundle' \
     '   digests in `dev-server`, then apply Devbox, Arch, and MacBook.' \
     '2. From that pin-control checkout, run' \
-    '   `SKIDBLADNIR_DEV_SERVER_CHECKOUT=/absolute/path/to/dev-server scripts/fleet verify`.' \
-    '3. On the phone, download `skidbladnir-android.apk` from this release and' \
+    '   `HERDR_MOBILE_DEV_SERVER_CHECKOUT=/absolute/path/to/dev-server scripts/fleet verify`.' \
+    '3. On the phone, download `herdr-mobile-android.apk` from this release and' \
     '   approve installation from the browser when Android asks. Or, with USB debugging' \
-    '   already authorized, run `scripts/install-android /path/to/skidbladnir-android.apk`.' \
-    '   The script installs in place without prompts and preserves app data.' \
+    '   already authorized, run `scripts/install-android /path/to/herdr-mobile-android.apk`.' \
+    '   This is the separate herdr app; first installation needs fresh pairing.' \
+    '   Later updates preserve its app data.' \
     '4. Install Tailscale from Google Play, sign into the fleet tailnet, and leave' \
     '   Tailscale connected.' \
-    '5. Open Skíðblaðnir and tap **Connect**.' \
-    '6. On the MacBook, with the peer credentials in `~/.config/skidbladnir/client.json`,' \
+    '5. Open herdr and tap **Connect**.' \
+    '6. On the MacBook, with the peer credentials in `~/.config/herdr-mobile/client.json`,' \
     '   run `scripts/fleet invite`, then scan the fresh QR within five minutes.' \
     '   It works once.' "" \
     '## Update order' "" \
@@ -75,15 +76,15 @@ render_notes() {
     '## Assets' "" \
     '| Asset | SHA-256 |' \
     '|---|---|' \
-    "| \`skidbladnir-android.apk\` | \`$apk_digest\` |" \
-    "| \`skidbladnir-linux-amd64.tar.gz\` | \`$linux_digest\` |" \
-    "| \`skidbladnir-darwin-arm64.tar.gz\` | \`$darwin_digest\` |" \
+    "| \`herdr-mobile-android.apk\` | \`$apk_digest\` |" \
+    "| \`herdr-mobile-linux-amd64.tar.gz\` | \`$linux_digest\` |" \
+    "| \`herdr-mobile-darwin-arm64.tar.gz\` | \`$darwin_digest\` |" \
     "| \`android-signing-cert.sha256\` | \`$signer_asset_digest\` |" \
     "| \`SHA256SUMS\` | \`$checksums_digest\` |" "" \
     '## Known limits' "" \
     'Android 16/API 36, Linux amd64, and Darwin arm64 only. Phone enrollment is' \
-    'fixed to three owner-managed hosts in one tailnet and two trusted phones.' \
-    'The CLI supports explicit configurable peers. There are four launch profiles.' \
+    'fixed to three owner-managed hosts in one tailnet. There are four launch profiles.' \
+    'Desktop users and Jarvis use upstream herdr directly.' \
     'There is no app store, automatic update, downgrade, mixed-version compatibility,' \
     'public ingress, fleet discovery, or embedded Tailscale login. GitHub is used' \
     'for installation and updates, never at runtime.'

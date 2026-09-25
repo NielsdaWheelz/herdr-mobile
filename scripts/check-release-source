@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-repo_name='NielsdaWheelz/skidbladnir'
+repo_name='NielsdaWheelz/herdr-mobile'
 
 if [[ "$#" -ne 1 ]]; then
   printf 'usage: %s vMAJOR.MINOR.PATCH\n' "$0" >&2
@@ -29,7 +29,7 @@ origin_url="$(git remote get-url origin)" || {
   exit 1
 }
 case "$origin_url" in
-  git@github.com:NielsdaWheelz/skidbladnir.git | https://github.com/NielsdaWheelz/skidbladnir.git) ;;
+  git@github.com:NielsdaWheelz/herdr-mobile.git | https://github.com/NielsdaWheelz/herdr-mobile.git) ;;
   *)
     printf 'Release origin does not identify %s\n' "$repo_name" >&2
     exit 1

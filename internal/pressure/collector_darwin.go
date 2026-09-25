@@ -9,7 +9,7 @@ package pressure
 #include <sys/mount.h>
 #include <sys/sysctl.h>
 
-struct skid_pressure_sample {
+struct herdr_mobile_pressure_sample {
   uint64_t cpu_total;
   uint64_t cpu_idle;
   double load;
@@ -22,8 +22,8 @@ struct skid_pressure_sample {
   unsigned int valid;
 };
 
-static struct skid_pressure_sample skid_collect_pressure(void) {
-  struct skid_pressure_sample out = {0};
+static struct herdr_mobile_pressure_sample herdr_mobile_collect_pressure(void) {
+  struct herdr_mobile_pressure_sample out = {0};
   host_cpu_load_info_data_t cpu; mach_msg_type_number_t count = HOST_CPU_LOAD_INFO_COUNT;
   mach_port_t host = mach_host_self();
   kern_return_t cpu_result = KERN_FAILURE;
@@ -53,7 +53,7 @@ import "C"
 func currentPolicy() policy { return darwinPolicy() }
 
 func (collector *collector) collect() rawSample {
-	raw := C.skid_collect_pressure()
+	raw := C.herdr_mobile_collect_pressure()
 	sample := rawSample{}
 	if raw.valid&1 != 0 {
 		sample.cpuPercent = collector.cpuPercent(cpuCounters{total: uint64(raw.cpu_total), idle: uint64(raw.cpu_idle)})

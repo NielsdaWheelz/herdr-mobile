@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "skidbladnir-android"
+rootProject.name = "herdr-mobile-android"
 include(":app")

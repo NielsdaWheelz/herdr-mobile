@@ -6,10 +6,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/NielsdaWheelz/skidbladnir/internal/herdr"
-	"github.com/NielsdaWheelz/skidbladnir/internal/logging"
-	"github.com/NielsdaWheelz/skidbladnir/internal/sessions"
-	"github.com/NielsdaWheelz/skidbladnir/internal/terminal"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/herdr"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/logging"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/sessions"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/terminal"
 	"github.com/coder/websocket"
 )
 
@@ -45,7 +45,7 @@ func (gateway *Gateway) openTerminal(writer http.ResponseWriter, request *http.R
 		return
 	}
 	takeover := false
-	takeoverValues := request.Header.Values("Skidbladnir-Terminal-Takeover")
+	takeoverValues := request.Header.Values("Herdr-Mobile-Terminal-Takeover")
 	if len(takeoverValues) != 1 {
 		writeError(writer, errorInvalidRequest)
 		return

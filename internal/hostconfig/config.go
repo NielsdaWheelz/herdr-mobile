@@ -10,9 +10,9 @@ import (
 	"syscall"
 	"unicode/utf8"
 
-	"github.com/NielsdaWheelz/skidbladnir/internal/platform"
-	"github.com/NielsdaWheelz/skidbladnir/internal/profile"
-	"github.com/NielsdaWheelz/skidbladnir/internal/strictjson"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/platform"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/profile"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/strictjson"
 )
 
 const maximumConfigBytes = 64 * 1024

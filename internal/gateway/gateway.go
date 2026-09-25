@@ -13,23 +13,23 @@ import (
 	"sync"
 	"time"
 
-	"github.com/NielsdaWheelz/skidbladnir/internal/auth"
-	"github.com/NielsdaWheelz/skidbladnir/internal/herdr"
-	"github.com/NielsdaWheelz/skidbladnir/internal/logging"
-	"github.com/NielsdaWheelz/skidbladnir/internal/machine"
-	"github.com/NielsdaWheelz/skidbladnir/internal/pairing"
-	"github.com/NielsdaWheelz/skidbladnir/internal/platform"
-	"github.com/NielsdaWheelz/skidbladnir/internal/pressure"
-	"github.com/NielsdaWheelz/skidbladnir/internal/sessions"
-	"github.com/NielsdaWheelz/skidbladnir/internal/strictjson"
-	"github.com/NielsdaWheelz/skidbladnir/internal/workdir"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/auth"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/herdr"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/logging"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/machine"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/pairing"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/platform"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/pressure"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/sessions"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/strictjson"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/workdir"
 )
 
 const (
 	MaximumBodyBytes      int64 = 256 * 1024
 	maximumHeaderBytes          = 64 * 1024
 	maximumDirectoryBytes       = 64 * 1024
-	machineHeader               = "Skidbladnir-Machine"
+	machineHeader               = "Herdr-Mobile-Machine"
 )
 
 type Config struct {
@@ -355,7 +355,7 @@ func (gateway *Gateway) redeemPairingInvite(writer http.ResponseWriter, request 
 	}
 	encodedToken := ""
 	if len(authorizationValues) == 1 {
-		presentedToken, canonicalScheme := strings.CutPrefix(authorizationValues[0], "Skidbladnir-Invite ")
+		presentedToken, canonicalScheme := strings.CutPrefix(authorizationValues[0], "Herdr-Mobile-Invite ")
 		if canonicalScheme {
 			encodedToken = presentedToken
 		}

@@ -7,12 +7,12 @@ case "$(uname -s)" in
   Darwin)
     android_sdk="${ANDROID_HOME:-/Users/nnandal/Library/Android/sdk}"
     digest_command=(shasum -a 256)
-    native_archive='skidbladnir-darwin-arm64.tar.gz'
+    native_archive='herdr-mobile-darwin-arm64.tar.gz'
     ;;
   Linux)
     android_sdk="${ANDROID_HOME:-/home/niels/Android/Sdk}"
     digest_command=(sha256sum)
-    native_archive='skidbladnir-linux-amd64.tar.gz'
+    native_archive='herdr-mobile-linux-amd64.tar.gz'
     ;;
   *)
     printf 'Release checks support only Linux and Darwin\n' >&2
@@ -61,7 +61,7 @@ validate_manifest_file() {
     jq --stream -er '
       if length == 1 then empty
       elif length == 2 and (.[0] | length) == 1 then .[0][0]
-      else "__SKIDBLADNIR_INVALID_NESTING__"
+      else "__HERDR_MOBILE_INVALID_NESTING__"
       end
     ' "$manifest_file" | LC_ALL=C sort
   )" || return 1
@@ -128,19 +128,19 @@ verify_archive() (
   local expected_binary
   verify_archive_metadata "$archive"
   entries="$(tar -tzf "$archive")"
-  [[ "$entries" == $'skidbladnir\ncharacters.json\nrelease.json' ]] || {
+  [[ "$entries" == $'herdr-mobile\ncharacters.json\nrelease.json' ]] || {
     printf '%s has an unexpected member set\n' "$(basename "$archive")" >&2
     return 1
   }
-  staging_dir="$(mktemp -d /tmp/skidbladnir-archive-check.XXXXXX)"
+  staging_dir="$(mktemp -d /tmp/herdr-mobile-archive-check.XXXXXX)"
   case "$staging_dir" in
-    /tmp/skidbladnir-archive-check.* | /private/tmp/skidbladnir-archive-check.*) ;;
+    /tmp/herdr-mobile-archive-check.* | /private/tmp/herdr-mobile-archive-check.*) ;;
     *) printf 'Unexpected archive-check staging directory\n' >&2; return 1 ;;
   esac
   trap 'rm -R -- "$staging_dir"' EXIT HUP INT TERM
   extract_release_archive "$archive" "$staging_dir"
-  [[ -f "$staging_dir/skidbladnir" && ! -L "$staging_dir/skidbladnir" &&
-    "$(file_mode "$staging_dir/skidbladnir")" == 755 ]] || {
+  [[ -f "$staging_dir/herdr-mobile" && ! -L "$staging_dir/herdr-mobile" &&
+    "$(file_mode "$staging_dir/herdr-mobile")" == 755 ]] || {
     printf '%s does not contain one mode-0755 regular binary\n' "$(basename "$archive")" >&2
     return 1
   }
@@ -160,19 +160,23 @@ verify_archive() (
     return 1
   }
   if [[ -n "$reproduce" ]]; then
-    expected_binary="$staging_dir/expected-skidbladnir"
+    expected_binary="$staging_dir/expected-herdr-mobile"
     "$repo_dir/scripts/build-host-binary" \
       "$source_dir" "$tag" "$sha" "$goos" "$goarch" "$expected_binary" || {
       printf '%s exact-source binary reproduction failed\n' "$(basename "$archive")" >&2
       return 1
     }
-    cmp -s "$expected_binary" "$staging_dir/skidbladnir" || {
+    cmp -s "$expected_binary" "$staging_dir/herdr-mobile" || {
       printf '%s binary differs from the exact release source\n' "$(basename "$archive")" >&2
       return 1
     }
   fi
-  build_info="$(GOTOOLCHAIN=local go version -m "$staging_dir/skidbladnir")" || {
+  build_info="$(GOTOOLCHAIN=local go version -m "$staging_dir/herdr-mobile")" || {
     printf '%s binary has no readable Go build identity\n' "$(basename "$archive")" >&2
+    return 1
+  }
+  grep -Fqx $'\tpath\tgithub.com/NielsdaWheelz/herdr-mobile/cmd/herdr-mobile' <<<"$build_info" || {
+    printf '%s binary is not the herdr-mobile command\n' "$(basename "$archive")" >&2
     return 1
   }
   grep -Fqx $'\tbuild\tGOOS='"$goos" <<<"$build_info" || {
@@ -244,7 +248,7 @@ fi
   exit 1
 }
 
-expected_assets=$'SHA256SUMS\nandroid-signing-cert.sha256\nskidbladnir-android.apk\nskidbladnir-darwin-arm64.tar.gz\nskidbladnir-linux-amd64.tar.gz'
+expected_assets=$'SHA256SUMS\nandroid-signing-cert.sha256\nherdr-mobile-android.apk\nherdr-mobile-darwin-arm64.tar.gz\nherdr-mobile-linux-amd64.tar.gz'
 observed_assets="$(find "$release_dir" -mindepth 1 -maxdepth 1 -exec basename {} \; | LC_ALL=C sort)"
 [[ "$observed_assets" == "$expected_assets" ]] || {
   printf 'Release directory does not contain the exact five owned assets\n' >&2
@@ -264,7 +268,7 @@ cmp -s "$source_dir/android/app-signing-cert.sha256" "$repo_dir/android/app-sign
   exit 1
 }
 
-expected_checksum_names=$'android-signing-cert.sha256\nskidbladnir-android.apk\nskidbladnir-darwin-arm64.tar.gz\nskidbladnir-linux-amd64.tar.gz'
+expected_checksum_names=$'android-signing-cert.sha256\nherdr-mobile-android.apk\nherdr-mobile-darwin-arm64.tar.gz\nherdr-mobile-linux-amd64.tar.gz'
 awk '
   !/^[0-9a-f]{64}  [A-Za-z0-9._-]+$/ { invalid = 1 }
   END { exit invalid || NR != 4 }
@@ -282,53 +286,53 @@ observed_checksum_names="$(awk '{ print $2 }' "$release_dir/SHA256SUMS" | LC_ALL
   exit 1
 }
 
-verify_archive "$release_dir/skidbladnir-linux-amd64.tar.gz" "$tag" "$sha" \
+verify_archive "$release_dir/herdr-mobile-linux-amd64.tar.gz" "$tag" "$sha" \
   'linux-amd64' linux amd64
-verify_archive "$release_dir/skidbladnir-darwin-arm64.tar.gz" "$tag" "$sha" \
+verify_archive "$release_dir/herdr-mobile-darwin-arm64.tar.gz" "$tag" "$sha" \
   'darwin-arm64' darwin arm64
 "$repo_dir/scripts/check-android-signing" --public-apk \
-  "$release_dir/skidbladnir-android.apk"
+  "$release_dir/herdr-mobile-android.apk"
 
 apkanalyzer="$(find_apkanalyzer | tail -n 1)"
 [[ -x "$apkanalyzer" ]] || {
   printf 'Android apkanalyzer is unavailable under the configured SDK\n' >&2
   exit 1
 }
-[[ "$($apkanalyzer manifest version-name "$release_dir/skidbladnir-android.apk")" == "$release_version_name" ]] || {
+[[ "$($apkanalyzer manifest version-name "$release_dir/herdr-mobile-android.apk")" == "$release_version_name" ]] || {
   printf 'APK versionName does not match the release tag\n' >&2
   exit 1
 }
-[[ "$($apkanalyzer manifest version-code "$release_dir/skidbladnir-android.apk")" == "$release_version_code" ]] || {
+[[ "$($apkanalyzer manifest version-code "$release_dir/herdr-mobile-android.apk")" == "$release_version_code" ]] || {
   printf 'APK versionCode does not match the canonical release code\n' >&2
   exit 1
 }
-[[ "$($apkanalyzer manifest application-id "$release_dir/skidbladnir-android.apk")" == 'dev.niels.skidbladnir' ]] || {
+[[ "$($apkanalyzer manifest application-id "$release_dir/herdr-mobile-android.apk")" == 'dev.niels.herdr.mobile' ]] || {
   printf 'APK application id is not the production package\n' >&2
   exit 1
 }
-[[ "$($apkanalyzer manifest min-sdk "$release_dir/skidbladnir-android.apk")" == 36 &&
-  "$($apkanalyzer manifest target-sdk "$release_dir/skidbladnir-android.apk")" == 36 ]] || {
+[[ "$($apkanalyzer manifest min-sdk "$release_dir/herdr-mobile-android.apk")" == 36 &&
+  "$($apkanalyzer manifest target-sdk "$release_dir/herdr-mobile-android.apk")" == 36 ]] || {
   printf 'APK SDK boundary is not exact API 36\n' >&2
   exit 1
 }
-[[ "$($apkanalyzer manifest debuggable "$release_dir/skidbladnir-android.apk")" == false ]] || {
+[[ "$($apkanalyzer manifest debuggable "$release_dir/herdr-mobile-android.apk")" == false ]] || {
   printf 'APK is debuggable instead of a production release\n' >&2
   exit 1
 }
-if "$apkanalyzer" manifest permissions "$release_dir/skidbladnir-android.apk" |
+if "$apkanalyzer" manifest permissions "$release_dir/herdr-mobile-android.apk" |
   grep -Fqx 'android.permission.CAMERA'; then
   printf 'APK unexpectedly requests camera permission\n' >&2
   exit 1
 fi
 
-staging_dir="$(mktemp -d /tmp/skidbladnir-release-check.XXXXXX)"
+staging_dir="$(mktemp -d /tmp/herdr-mobile-release-check.XXXXXX)"
 case "$staging_dir" in
-  /tmp/skidbladnir-release-check.* | /private/tmp/skidbladnir-release-check.*) ;;
+  /tmp/herdr-mobile-release-check.* | /private/tmp/herdr-mobile-release-check.*) ;;
   *) printf 'Unexpected release-check staging directory\n' >&2; exit 1 ;;
 esac
 trap 'rm -R -- "$staging_dir"' EXIT HUP INT TERM
-extract_release_archive "$release_dir/$native_archive" "$staging_dir" skidbladnir
-native_version="$("$staging_dir/skidbladnir" version)"
+extract_release_archive "$release_dir/$native_archive" "$staging_dir" herdr-mobile
+native_version="$("$staging_dir/herdr-mobile" version)"
 [[ "$native_version" == "$tag $sha" ]] || {
   printf 'Native host binary reports %q, want %s %s\n' "$native_version" "$tag" "$sha" >&2
   exit 1

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Rebuild or verify the source-pinned Skíðblaðnir xterm artifact."""
+"""Rebuild or verify the source-pinned herdr-mobile xterm artifact."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ OUTPUT_PATH = (
     / "assets"
     / "terminal"
     / "vendor"
-    / "xterm-6.0.0-skidbladnir.js"
+    / "xterm-6.0.0-herdr-mobile.js"
 )
 
 
@@ -224,7 +224,7 @@ def build_artifact(build: dict[str, str], environment: dict[str, str]) -> bytes:
     if digest_file(patch_path) != build["patchSha256"]:
         raise BuildError("xterm source patch digest differs from terminal lock")
 
-    with tempfile.TemporaryDirectory(prefix="skidbladnir-xterm-build-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="herdr-mobile-xterm-build-") as temporary:
         source = Path(temporary) / "source"
         environment = environment | {
             "NPM_CONFIG_CACHE": str(Path(temporary) / "npm-cache"),

@@ -1,4 +1,4 @@
-module github.com/NielsdaWheelz/skidbladnir
+module github.com/NielsdaWheelz/herdr-mobile
 
 go 1.26.0
 

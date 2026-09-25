@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/NielsdaWheelz/skidbladnir/internal/strictjson"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/strictjson"
 )
 
 const (

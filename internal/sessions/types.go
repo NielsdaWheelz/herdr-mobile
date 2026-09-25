@@ -3,10 +3,10 @@ package sessions
 import (
 	"time"
 
-	"github.com/NielsdaWheelz/skidbladnir/internal/catalog"
-	"github.com/NielsdaWheelz/skidbladnir/internal/herdr"
-	"github.com/NielsdaWheelz/skidbladnir/internal/profile"
-	"github.com/NielsdaWheelz/skidbladnir/internal/workdir"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/catalog"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/herdr"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/profile"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/workdir"
 )
 
 type Config struct {

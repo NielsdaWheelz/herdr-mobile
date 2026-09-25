@@ -11,8 +11,8 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/NielsdaWheelz/skidbladnir/internal/machine"
-	"github.com/NielsdaWheelz/skidbladnir/internal/strictjson"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/machine"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/strictjson"
 )
 
 type Value struct {

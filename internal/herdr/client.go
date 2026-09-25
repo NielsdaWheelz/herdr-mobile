@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/NielsdaWheelz/skidbladnir/internal/strictjson"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/strictjson"
 )
 
 const (
@@ -108,7 +108,7 @@ func (c *Client) request(ctx context.Context, method string, params any, result 
 		ID     string `json:"id"`
 		Method string `json:"method"`
 		Params any    `json:"params"`
-	}{ID: "skid", Method: method, Params: params})
+	}{ID: "herdr-mobile", Method: method, Params: params})
 	if err != nil {
 		return &Error{Code: "invalid_request", Dispatch: "not_sent"}
 	}
@@ -146,7 +146,7 @@ func (c *Client) request(ctx context.Context, method string, params any, result 
 			Message string `json:"message"`
 		} `json:"error"`
 	}
-	if err := strictjson.Decode(line, &envelope); err != nil || envelope.ID != "skid" {
+	if err := strictjson.Decode(line, &envelope); err != nil || envelope.ID != "herdr-mobile" {
 		return &Error{Code: "invalid_response", Dispatch: "unknown"}
 	}
 	var members map[string]json.RawMessage

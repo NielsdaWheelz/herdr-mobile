@@ -4,9 +4,9 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/NielsdaWheelz/skidbladnir/internal/logging"
-	"github.com/NielsdaWheelz/skidbladnir/internal/reference"
-	"github.com/NielsdaWheelz/skidbladnir/internal/sessions"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/logging"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/reference"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/sessions"
 )
 
 func (gateway *Gateway) writeOperationError(writer http.ResponseWriter, err error) {

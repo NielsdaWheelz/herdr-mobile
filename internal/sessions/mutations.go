@@ -6,10 +6,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/NielsdaWheelz/skidbladnir/internal/catalog"
-	"github.com/NielsdaWheelz/skidbladnir/internal/herdr"
-	"github.com/NielsdaWheelz/skidbladnir/internal/profile"
-	"github.com/NielsdaWheelz/skidbladnir/internal/workdir"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/catalog"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/herdr"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/profile"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/workdir"
 )
 
 // herdr refuses agent.start before writing anything with agent_pane_busy when
@@ -152,9 +152,9 @@ func (manager *Manager) create(ctx context.Context, input CreateInput) (Terminal
 	if err := manager.renamePane(ctx, pane.ID, name); err != nil {
 		return Terminal{}, createFailure(err, "resource_created", nil)
 	}
-	metadata := map[string]string{"skid_named": "1"}
+	metadata := map[string]string{"herdr_mobile_named": "1"}
 	if input.Kind == LaunchAgent {
-		metadata["skid_launch_profile"] = string(launch.Key)
+		metadata["herdr_mobile_launch_profile"] = string(launch.Key)
 	}
 	if err := manager.reportPane(ctx, pane.ID, metadata); err != nil {
 		return Terminal{}, createFailure(err, "resource_created", nil)
@@ -177,7 +177,7 @@ func (manager *Manager) create(ctx context.Context, input CreateInput) (Terminal
 // startAgent names the agent after a dwarf and asks herdr to type the
 // provider's bare command at the terminal's shell. The pane's environment
 // already carries the profile's account home, and the deployment's shell
-// aliases add its permission flags, so skid passes no arguments: a second
+// aliases add its permission flags, so herdr-mobile passes no arguments: a second
 // --yolo makes codex refuse to start. It returns the dwarf the agent is named
 // after.
 func (manager *Manager) startAgent(ctx context.Context, target TerminalTarget, provider profile.Provider) (catalog.Character, error) {
@@ -328,8 +328,8 @@ func (manager *Manager) Rename(ctx context.Context, target TerminalTarget, name 
 	if err != nil {
 		return ObservedTerminal{}, afterMutation(err)
 	}
-	if current.Tokens["skid_named"] != "1" {
-		if err := manager.reportPane(ctx, current.ID, map[string]string{"skid_named": "1"}); err != nil {
+	if current.Tokens["herdr_mobile_named"] != "1" {
+		if err := manager.reportPane(ctx, current.ID, map[string]string{"herdr_mobile_named": "1"}); err != nil {
 			failure := &Error{Code: ErrorMetadataUnavailable, Message: "The terminal was renamed but naming metadata was not retained.", Dispatch: "sent"}
 			var upstream *Error
 			if errors.As(err, &upstream) && upstream.Dispatch == "unknown" {

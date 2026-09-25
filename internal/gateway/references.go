@@ -3,9 +3,9 @@ package gateway
 import (
 	"errors"
 
-	"github.com/NielsdaWheelz/skidbladnir/internal/machine"
-	"github.com/NielsdaWheelz/skidbladnir/internal/reference"
-	"github.com/NielsdaWheelz/skidbladnir/internal/sessions"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/machine"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/reference"
+	"github.com/NielsdaWheelz/herdr-mobile/internal/sessions"
 )
 
 var errReferenceMachine = errors.New("resource reference names another machine")

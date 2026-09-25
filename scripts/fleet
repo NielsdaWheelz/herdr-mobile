@@ -73,7 +73,7 @@ secret_value() (
 
 authenticated_get() (
   set +x
-  local config_dir="$HOME/.config/skidbladnir"
+  local config_dir="$HOME/.config/herdr-mobile"
   local bearer handle
   bearer="$(secret_value "$config_dir/bearer" '^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$')" || return
   handle="$(secret_value "$config_dir/machine-handle" '^mh-[0-9a-f]{32}$')" || return
@@ -81,14 +81,14 @@ authenticated_get() (
     printf 'silent\nshow-error\nfail\nconnect-timeout = 2\nmax-time = 5\n'
     printf 'max-filesize = 262144\n'
     printf 'header = "Authorization: Bearer %s"\n' "$bearer"
-    printf 'header = "Skidbladnir-Machine: %s"\n' "$handle"
-    printf 'url = "http://127.0.0.1:7341/v1/pressure"\n'
+    printf 'header = "Herdr-Mobile-Machine: %s"\n' "$handle"
+    printf 'url = "http://127.0.0.1:7342/v1/pressure"\n'
   } | curl -q --noproxy '*' --config -
 )
 
 release_identity_digest() {
   local platform="$1"
-  local share="$HOME/.local/share/skidbladnir"
+  local share="$HOME/.local/share/herdr-mobile"
   local relative generation runtime_identity platform_key manifest manifest_bytes values
   local version source binary_identity
   case "$platform" in
@@ -104,7 +104,7 @@ release_identity_digest() {
   generation="$share/$relative"
   manifest="$generation/release.json"
   [[ -d "$generation" && ! -L "$generation" &&
-    -x "$generation/skidbladnir" && ! -L "$generation/skidbladnir" &&
+    -x "$generation/herdr-mobile" && ! -L "$generation/herdr-mobile" &&
     -f "$manifest" && ! -L "$manifest" ]] || return 1
   manifest_bytes="$(LC_ALL=C wc -c <"$manifest" | tr -d '[:space:]')" || return
   [[ "$manifest_bytes" =~ ^[1-9][0-9]*$ && "$manifest_bytes" -le 4096 ]] || return 1
@@ -118,22 +118,22 @@ release_identity_digest() {
   ' "$manifest" 2>/dev/null)" || return
   IFS=$'\t' read -r version source <<<"$values"
   [[ "$relative" == "releases/$version-$runtime_identity" ]] || return 1
-  binary_identity="$("$generation/skidbladnir" version 2>/dev/null)" || return
+  binary_identity="$("$generation/herdr-mobile" version 2>/dev/null)" || return
   [[ "$binary_identity" == "$version $source" ]] || return 1
-  printf 'skidbladnir-fleet-release-v3\0%s\0%s\0%s' \
+  printf 'herdr-mobile-fleet-release-v3\0%s\0%s\0%s' \
     "$version" "$source" "$platform_key" | sha256_stream
 }
 
 herdr_runtime_identity() {
   local platform="$1"
-  local share="$HOME/.local/share/skidbladnir"
+  local share="$HOME/.local/share/herdr-mobile"
   local host_config="$share/current/host-config.json"
   local values binary socket tested observed relative state
   require_command python3
-  [[ -f "$host_config" && ! -L "$host_config" && -x "$share/current/skidbladnir" ]] || return 1
+  [[ -f "$host_config" && ! -L "$host_config" && -x "$share/current/herdr-mobile" ]] || return 1
   # The installed binary owns the configuration schema; this probe only reads
   # the admitted herdr entry back.
-  "$share/current/skidbladnir" validate-host-config --host-config="$host_config" >/dev/null 2>&1 || return 1
+  "$share/current/herdr-mobile" validate-host-config --host-config="$host_config" >/dev/null 2>&1 || return 1
   values="$(jq -er '[.herdr.path, .herdr.socketPath, .herdr.testedVersion] | @tsv' "$host_config" 2>/dev/null)" || return
   IFS=$'\t' read -r binary socket tested <<<"$values"
   [[ -x "$binary" && -S "$socket" ]] || return 1
@@ -207,7 +207,7 @@ candidate_herdr_digest() {
 }
 
 active_runtime_is_current() {
-  local share="$HOME/.local/share/skidbladnir"
+  local share="$HOME/.local/share/herdr-mobile"
   local relative generation name expected active
   [[ -L "$share/current" ]] || return 1
   relative="$(readlink "$share/current")" || return
@@ -216,26 +216,26 @@ active_runtime_is_current() {
   generation="$share/$relative"
   [[ -d "$generation" && ! -L "$generation" ]] || return 1
   [[ "$(file_mode "$generation" 2>/dev/null)" == 700 ]] || return 1
-  for name in skidbladnir characters.json release.json host-config.json; do
+  for name in herdr-mobile characters.json release.json host-config.json; do
     [[ -f "$generation/$name" && ! -L "$generation/$name" ]] || return 1
   done
-  [[ "$(file_mode "$generation/skidbladnir" 2>/dev/null)" == 755 &&
+  [[ "$(file_mode "$generation/herdr-mobile" 2>/dev/null)" == 755 &&
   "$(file_mode "$generation/characters.json" 2>/dev/null)" == 644 &&
   "$(file_mode "$generation/release.json" 2>/dev/null)" == 644 &&
   "$(file_mode "$generation/host-config.json" 2>/dev/null)" == 600 ]] || return 1
   expected="$({
-    for name in skidbladnir characters.json release.json host-config.json; do
+    for name in herdr-mobile characters.json release.json host-config.json; do
       printf '%s\0%s\n' "$name" "$(sha256_file "$generation/$name")" || return
     done
   } | sha256_stream)" || return
-  active="$(secret_value "$HOME/.local/state/dev-server/active/skid.runtime.sha256" \
+  active="$(secret_value "$HOME/.local/state/dev-server/active/herdr-mobile.runtime.sha256" \
     '^[0-9a-f]{64}$')" || return
   [[ "$active" == "$expected" ]]
 }
 
 candidate_release_digest() {
   local checkout="$1"
-  local pin="$checkout/assets/skidbladnir/release-pin.json"
+  local pin="$checkout/assets/herdr-mobile/release-pin.json"
   local platform="$2"
   local platform_key value bytes identity version source
   case "$platform" in
@@ -243,7 +243,7 @@ candidate_release_digest() {
   Linux) platform_key=linux-amd64 ;;
   *) return 64 ;;
   esac
-  tracked_file_at_head "$checkout" assets/skidbladnir/release-pin.json ||
+  tracked_file_at_head "$checkout" assets/herdr-mobile/release-pin.json ||
     die 'dev-server release pin must be tracked and byte-exact at checkout HEAD'
   bytes="$(LC_ALL=C wc -c <"$pin" | tr -d '[:space:]')"
   [[ "$bytes" =~ ^[1-9][0-9]*$ && "$bytes" -le 4096 ]] ||
@@ -256,8 +256,8 @@ candidate_release_digest() {
     def exact_artifact($name; $version):
       type == "object" and keys == ["sha256", "url"] and
       (.sha256 | type == "string" and test("^[0-9a-f]{64}$")) and
-      .url == ("https://github.com/NielsdaWheelz/skidbladnir/releases/download/" +
-        $version + "/skidbladnir-" + $name + ".tar.gz");
+      .url == ("https://github.com/NielsdaWheelz/herdr-mobile/releases/download/" +
+        $version + "/herdr-mobile-" + $name + ".tar.gz");
     .version as $version |
     if type == "object" and keys == ["artifacts", "schemaVersion", "sourceSha", "version"] and
       .schemaVersion == 1 and
@@ -270,17 +270,17 @@ candidate_release_digest() {
     else error("invalid release pin") end
   ' 2>/dev/null)" || die 'dev-server release pin schema is invalid'
   IFS=$'\t' read -r version source <<<"$identity"
-  printf 'skidbladnir-fleet-release-v3\0%s\0%s\0%s' \
+  printf 'herdr-mobile-fleet-release-v3\0%s\0%s\0%s' \
     "$version" "$source" "$platform_key" | sha256_stream
 }
 
 service_definition_is_current() {
   local platform="$1"
-  local launcher="$HOME/.local/bin/skidbladnir-launch"
+  local launcher="$HOME/.local/bin/herdr-mobile-launch"
   local definition active expected fragment launcher_digest definition_digest
   case "$platform" in
-  Darwin) definition="$HOME/Library/LaunchAgents/dev.niels.skidbladnir.plist" ;;
-  Linux) definition="$HOME/.config/systemd/user/skidbladnir.service" ;;
+  Darwin) definition="$HOME/Library/LaunchAgents/dev.niels.herdr-mobile.plist" ;;
+  Linux) definition="$HOME/.config/systemd/user/herdr-mobile.service" ;;
   *) return 64 ;;
   esac
   [[ -f "$launcher" && ! -L "$launcher" && -O "$launcher" &&
@@ -291,11 +291,11 @@ service_definition_is_current() {
   definition_digest="$(sha256_file "$definition")" || return
   expected="$(printf 'launcher\0%s\nunit\0%s\n' \
     "$launcher_digest" "$definition_digest" | sha256_stream)" || return
-  active="$(secret_value "$HOME/.local/state/dev-server/active/skid.unit.sha256" \
+  active="$(secret_value "$HOME/.local/state/dev-server/active/herdr-mobile.unit.sha256" \
     '^[0-9a-f]{64}$')" || return
   [[ "$active" == "$expected" ]] || return 1
   if [[ "$platform" == Linux ]]; then
-    fragment="$(systemctl --user show skidbladnir.service \
+    fragment="$(systemctl --user show herdr-mobile.service \
       --property=FragmentPath --value 2>/dev/null)" || return
     [[ "$fragment" == "$definition" ]]
   fi
@@ -306,16 +306,16 @@ service_is_active() {
   service_definition_is_current "$platform" || return
   case "$platform" in
   Darwin)
-    local definition="$HOME/Library/LaunchAgents/dev.niels.skidbladnir.plist"
+    local definition="$HOME/Library/LaunchAgents/dev.niels.herdr-mobile.plist"
     local state
-    state="$(launchctl print "gui/$(id -u)/dev.niels.skidbladnir" 2>/dev/null)" || return
+    state="$(launchctl print "gui/$(id -u)/dev.niels.herdr-mobile" 2>/dev/null)" || return
     [[ "$(grep -Fc "path = $definition" <<<"$state")" == 1 ]] &&
       [[ "$(grep -Ec '^[[:space:]]*state = running$' <<<"$state")" == 1 ]]
     ;;
   Linux)
     local output bytes
-    systemctl --user is-enabled --quiet skidbladnir.service || return
-    output="$(systemctl --user show skidbladnir.service \
+    systemctl --user is-enabled --quiet herdr-mobile.service || return
+    output="$(systemctl --user show herdr-mobile.service \
       --property=LoadState --property=ActiveState 2>&1)" || return
     bytes="$(LC_ALL=C printf '%s' "$output" | wc -c | tr -d '[:space:]')"
     [[ "$bytes" =~ ^[1-9][0-9]*$ && "$bytes" -le 4096 &&
@@ -359,18 +359,18 @@ private_serve_origin() {
       (.Self.DNSName | type == "string" and test("^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+\\.$"))
     then .Self.DNSName | rtrimstr(".") else error("invalid Tailscale status") end
   ' 2>/dev/null)" || return
-  key="$dns_name:8443"
+  key="$dns_name:8444"
   printf '%s' "$serve" | jq -e --arg key "$key" '
-    type == "object" and .TCP["8443"] == {"HTTPS":true} and
-    ([((.Web // {}) | to_entries[]) | select(.key | endswith(":8443"))] as $owned |
+    type == "object" and .TCP["8444"] == {"HTTPS":true} and
+    ([((.Web // {}) | to_entries[]) | select(.key | endswith(":8444"))] as $owned |
       ($owned | length == 1) and
       ($owned[0].key == $key) and
-      ($owned[0].value.Handlers == {"/v1":{"Proxy":"http://127.0.0.1:7341/v1"}}) and
+      ($owned[0].value.Handlers == {"/v1":{"Proxy":"http://127.0.0.1:7342/v1"}}) and
       (((.AllowFunnel // {})[$key] // false) == false) and
       ([((.AllowFunnel // {}) | to_entries[]) |
-        select((.key | endswith(":8443")) and .value == true)] | length == 0))
+        select((.key | endswith(":8444")) and .value == true)] | length == 0))
   ' >/dev/null 2>&1 || return
-  printf 'https://%s:8443/\n' "$dns_name"
+  printf 'https://%s:8444/\n' "$dns_name"
 }
 
 validate_host_platform() {
@@ -389,11 +389,11 @@ verify_host() {
     printf 'error: %s runtime platform does not match %s\n' "$label" "$platform" >&2
     return 1
   }
-  expected_handle="$(secret_value "$HOME/.config/skidbladnir/machine-handle" '^mh-[0-9a-f]{32}$')" || {
+  expected_handle="$(secret_value "$HOME/.config/herdr-mobile/machine-handle" '^mh-[0-9a-f]{32}$')" || {
     printf 'error: %s machine handle is invalid\n' "$label" >&2
     return 1
   }
-  secret_value "$HOME/.config/skidbladnir/bearer" \
+  secret_value "$HOME/.config/herdr-mobile/bearer" \
     '^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$' >/dev/null || {
     printf 'error: %s bearer is invalid\n' "$label" >&2
     return 1
@@ -456,7 +456,7 @@ host_main() {
   local action="${1:-}"
   local platform="${2:-}"
   local label="${3:-}"
-  [[ "${SKIDBLADNIR_FLEET_TRANSPORT:-}" == fleet-host-v1 ]] || return 64
+  [[ "${HERDR_MOBILE_FLEET_TRANSPORT:-}" == fleet-host-v1 ]] || return 64
   [[ $# -eq 3 ]] || return 64
   validate_host_platform "$platform" "$label" || return 64
   [[ "$action" == verify ]] || return 64
@@ -487,7 +487,7 @@ remote_verify() {
   local label="$1"
   [[ $# -eq 1 ]] || return 64
   [[ -f "$fleet_source" && ! -L "$fleet_source" ]] || die 'fleet operator source is unavailable'
-  fleet_ssh "$label" env SKIDBLADNIR_FLEET_TRANSPORT=fleet-host-v1 \
+  fleet_ssh "$label" env HERDR_MOBILE_FLEET_TRANSPORT=fleet-host-v1 \
     bash -s -- _host verify Linux "$label" <"$fleet_source"
 }
 
@@ -510,9 +510,9 @@ verify_fleet() {
       "$failures" "$([[ "$failures" == 1 ]] || printf s)" >&2
     return 1
   fi
-  [[ "$local_result" =~ ^mh-[0-9a-f]{32}${identity_separator}Darwin${identity_separator}[0-9a-f]{64}${identity_separator}https://[a-z0-9.-]+:8443/${identity_separator}[0-9a-f]{64}$ &&
-    "$devbox_result" =~ ^mh-[0-9a-f]{32}${identity_separator}Linux${identity_separator}[0-9a-f]{64}${identity_separator}https://[a-z0-9.-]+:8443/${identity_separator}[0-9a-f]{64}$ &&
-    "$arch_result" =~ ^mh-[0-9a-f]{32}${identity_separator}Linux${identity_separator}[0-9a-f]{64}${identity_separator}https://[a-z0-9.-]+:8443/${identity_separator}[0-9a-f]{64}$ ]] ||
+  [[ "$local_result" =~ ^mh-[0-9a-f]{32}${identity_separator}Darwin${identity_separator}[0-9a-f]{64}${identity_separator}https://[a-z0-9.-]+:8444/${identity_separator}[0-9a-f]{64}$ &&
+    "$devbox_result" =~ ^mh-[0-9a-f]{32}${identity_separator}Linux${identity_separator}[0-9a-f]{64}${identity_separator}https://[a-z0-9.-]+:8444/${identity_separator}[0-9a-f]{64}$ &&
+    "$arch_result" =~ ^mh-[0-9a-f]{32}${identity_separator}Linux${identity_separator}[0-9a-f]{64}${identity_separator}https://[a-z0-9.-]+:8444/${identity_separator}[0-9a-f]{64}$ ]] ||
     die 'fixed-fleet verification returned invalid host identity'
   IFS=$'\t' read -r local_handle local_platform local_release local_origin local_herdr <<<"$local_result"
   IFS=$'\t' read -r devbox_handle devbox_platform devbox_release devbox_origin devbox_herdr <<<"$devbox_result"
@@ -560,11 +560,11 @@ invite_response_is_valid() {
 
 invite() (
   set +x
-  local config_file="$HOME/.config/skidbladnir/client.json"
+  local config_file="$HOME/.config/herdr-mobile/client.json"
   local config peers label origin handle bearer display_label platform response
   local machines='[]' payload bytes
   [[ -f "$config_file" && ! -L "$config_file" && "$(file_mode "$config_file")" == 600 ]] ||
-    die 'invite requires the private peer credentials in ~/.config/skidbladnir/client.json with mode 0600'
+    die 'invite requires the private peer credentials in ~/.config/herdr-mobile/client.json with mode 0600'
   config="$(cat "$config_file")" || return
   json_is_single_and_duplicate_free "$config" 2>/dev/null || die 'client configuration is invalid'
   peers="$(printf '%s' "$config" | jq -er '
@@ -575,7 +575,7 @@ invite() (
       all(.[];
         (.machine | type == "string" and test("^mh-[0-9a-f]{32}$")) and
         (.bearer | type == "string" and test("^[A-Za-z0-9_-]{42}[AEIMQUYcgkosw048]$")) and
-        (.origin | test("^https://([a-z0-9.-]+|\\[[0-9a-f:.]+\\]):8443/$"))) and
+        (.origin | test("^https://([a-z0-9.-]+|\\[[0-9a-f:.]+\\]):8444/$"))) and
       (map(.machine) | unique | length) == 3 and
       (map(.origin) | unique | length) == 3
     then .[] | [.label, .origin, .machine, .bearer] | @tsv
@@ -603,7 +603,7 @@ invite() (
         printf 'silent\nfail\nconnect-timeout = 5\nmax-time = 10\nmax-filesize = 4096\n'
         printf 'request = "POST"\nwrite-out = "\\n%%{http_code}"\n'
         printf 'header = "Authorization: Bearer %s"\n' "$bearer"
-        printf 'header = "Skidbladnir-Machine: %s"\n' "$handle"
+        printf 'header = "Herdr-Mobile-Machine: %s"\n' "$handle"
         printf 'url = "%sv1/pairing-invites"\n' "$origin"
       } | curl -q --noproxy '*' --config - 2>/dev/null | LC_ALL=C head -c 4101
     )" || die "$label invitation failed; check its connection and client credentials, then rerun scripts/fleet invite"
@@ -617,7 +617,7 @@ invite() (
           pairingInviteToken:.[1].pairingInviteToken}]
       ')" || return
   done <<<"$peers"
-  payload="$(printf '%s' "$machines" | jq -c '{kind:"skidbladnir.fleet-invite.v1", machines:.}')" || return
+  payload="$(printf '%s' "$machines" | jq -c '{kind:"herdr-mobile.fleet-invite.v1", machines:.}')" || return
   printf '%s' "$payload" | jq -e '
     (.machines | map(.machineHandle) | unique | length) == 3 and
     (.machines | map(.pairingInviteToken) | unique | length) == 3
@@ -635,12 +635,12 @@ usage() {
 usage: scripts/fleet <verify|invite>
 
 invite reads the three peers' private credentials from
-~/.config/skidbladnir/client.json (mode 0600); requires jq, curl, qrencode, and
+~/.config/herdr-mobile/client.json (mode 0600); requires jq, curl, qrencode, and
 a tailnet connection. it prints one qr and exits.
 
 verify runs on the macbook and uses the managed devbox ssh config.
 
-verify requires SKIDBLADNIR_DEV_SERVER_CHECKOUT naming the exact local dev-server
+verify requires HERDR_MOBILE_DEV_SERVER_CHECKOUT naming the exact local dev-server
 checkout with its release pin tracked and byte-exact at HEAD.
 each host must also run the supervised herdr named by its current host config;
 verify pings that socket for the tested version and protocol and compares the
@@ -649,9 +649,9 @@ EOF
 }
 
 require_checkout() {
-  local declared="${SKIDBLADNIR_DEV_SERVER_CHECKOUT:-}"
+  local declared="${HERDR_MOBILE_DEV_SERVER_CHECKOUT:-}"
   [[ "$declared" == /* && -d "$declared" && ! -L "$declared" ]] ||
-    die 'SKIDBLADNIR_DEV_SERVER_CHECKOUT must name an absolute, non-symlink directory'
+    die 'HERDR_MOBILE_DEV_SERVER_CHECKOUT must name an absolute, non-symlink directory'
   dev_server_checkout="$(cd "$declared" && pwd -P)"
 }
 

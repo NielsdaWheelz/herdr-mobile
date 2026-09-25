@@ -1,5 +1,12 @@
 # Public Fleet Distribution And Connect
 
+2026-09-25: the [separation spec](herdr-mobile-separation.md) supersedes this
+historical design's product identities. current installation inputs and wire
+values are in the [deployment contract](dev-server-handoff.md): herdr-mobile
+artifacts, the separately signed `dev.niels.herdr.mobile` app, fresh pairing,
+and `7342`/`8444`. herdr owns the terminal runtime; there is no product cli.
+the old identities and retired proof plan below describe their original scope.
+
 historical v0.2.29 acceptance follows; current release and rollout status live
 in [the roadmap](roadmap.md). this remains the accepted contract with the
 Skíðblaðnir side of the host-installer/operator hard cut implemented. The complete upstream pin names

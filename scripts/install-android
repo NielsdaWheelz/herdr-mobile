@@ -42,8 +42,8 @@ fi
 
 ANDROID_HOME="$android_sdk" "$repo_dir/scripts/check-android-signing" --public-apk "$apk"
 package="$("$aapt" dump badging "$apk" | awk -F "'" '/^package: / { print $2 }')"
-[[ "$package" == 'dev.niels.skidbladnir' ]] || {
-  printf 'apk must contain package dev.niels.skidbladnir\n' >&2
+[[ "$package" == 'dev.niels.herdr.mobile' ]] || {
+  printf 'apk must contain package dev.niels.herdr.mobile\n' >&2
   exit 1
 }
 

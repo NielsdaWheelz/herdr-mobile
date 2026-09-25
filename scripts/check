@@ -83,7 +83,7 @@ for name in sys.argv[1:]:
     done
     gh auth status >/dev/null 2>&1 ||
       not_run published-release 'GitHub authentication is unavailable'
-    published_repo='NielsdaWheelz/skidbladnir'
+    published_repo='NielsdaWheelz/herdr-mobile'
     [[ "$(gh repo view "$published_repo" --json nameWithOwner,visibility \
       --jq '[.nameWithOwner,.visibility] | join(" ")')" == "$published_repo PUBLIC" ]] || {
       printf 'Published-release repository is not the exact public repository.\n' >&2
@@ -98,9 +98,9 @@ for name in sys.argv[1:]:
       ([.assets[].name] | sort) == [
         "SHA256SUMS",
         "android-signing-cert.sha256",
-        "skidbladnir-android.apk",
-        "skidbladnir-darwin-arm64.tar.gz",
-        "skidbladnir-linux-amd64.tar.gz"
+        "herdr-mobile-android.apk",
+        "herdr-mobile-darwin-arm64.tar.gz",
+        "herdr-mobile-linux-amd64.tar.gz"
       ]
     ' <<<"$published_metadata" >/dev/null || {
       printf 'Public release is not immutable, final, exact-SHA, and exact-five-assets.\n' >&2
@@ -115,9 +115,9 @@ for name in sys.argv[1:]:
       printf 'Public Git tag does not resolve to the declared exact source SHA.\n' >&2
       exit 1
     }
-    published_staging="$(mktemp -d /tmp/skidbladnir-published-release.XXXXXX)"
+    published_staging="$(mktemp -d /tmp/herdr-mobile-published-release.XXXXXX)"
     case "$published_staging" in
-      /tmp/skidbladnir-published-release.* | /private/tmp/skidbladnir-published-release.*) ;;
+      /tmp/herdr-mobile-published-release.* | /private/tmp/herdr-mobile-published-release.*) ;;
       *) printf 'Unexpected published-release staging directory\n' >&2; exit 1 ;;
     esac
     trap 'rm -R -- "$published_staging"' EXIT HUP INT TERM
@@ -163,10 +163,10 @@ for name in sys.argv[1:]:
       jq -nS \
         --arg version "$published_tag" \
         --arg sourceSha "$published_sha" \
-        --arg androidApkSha256 "$(awk '$2 == "skidbladnir-android.apk" { print $1 }' "$published_assets/SHA256SUMS")" \
+        --arg androidApkSha256 "$(awk '$2 == "herdr-mobile-android.apk" { print $1 }' "$published_assets/SHA256SUMS")" \
         --arg androidSigningCertAssetSha256 "$(awk '$2 == "android-signing-cert.sha256" { print $1 }' "$published_assets/SHA256SUMS")" \
-        --arg darwinArm64Sha256 "$(awk '$2 == "skidbladnir-darwin-arm64.tar.gz" { print $1 }' "$published_assets/SHA256SUMS")" \
-        --arg linuxAmd64Sha256 "$(awk '$2 == "skidbladnir-linux-amd64.tar.gz" { print $1 }' "$published_assets/SHA256SUMS")" \
+        --arg darwinArm64Sha256 "$(awk '$2 == "herdr-mobile-darwin-arm64.tar.gz" { print $1 }' "$published_assets/SHA256SUMS")" \
+        --arg linuxAmd64Sha256 "$(awk '$2 == "herdr-mobile-linux-amd64.tar.gz" { print $1 }' "$published_assets/SHA256SUMS")" \
         --arg sha256SumsAssetSha256 "$("${digest_command[@]}" "$published_assets/SHA256SUMS" | awk '{ print $1 }')" \
         '{
           androidApkSha256: $androidApkSha256,
