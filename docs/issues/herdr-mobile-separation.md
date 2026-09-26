@@ -37,6 +37,13 @@ concurrent operation and independent restart/reinstall/rollback/removal.
 the new android signer has a same-host backup; the owner still needs an
 off-machine copy for disk-loss recovery.
 
+the subsequent source/history audit challenges three remaining choices:
+[original skid's fresh provider homes](skid-provider-continuity.md) and the
+[mandatory upstream reset](unnecessary-herdr-reset.md), plus
+[skid setup coupled to shared shell maintenance](skid-shell-install-coupling.md).
+resolve these with
+the owning agents before following those parts of the cutover plan.
+
 coordination evidence: original skid's handoff and fleet verifier agree on
 the ten-file receipt. dev-server committed admission mode/digest-suffix checks,
 contract acknowledgment and the real mobile pin in `94931a1`. its later
