@@ -98,8 +98,8 @@ permission flags. manually typed bare/account commands must use the same
 existing homes. personal claude keeps its normal `.claude` home; it is not a
 fifth phone profile. preserve the existing command and environment-override
 semantics. the owner withdrew the proposed private herdr homes and global
-router. dev-server `1296309` restores the existing mapping. original skid's
-subsequent shared-account correction still needs installer adoption.
+router. dev-server `ae70f2b` preserves existing accounts for both products and
+adopts original skid's scoped launch/hook contract.
 provider state, configuration and histories
 stay in place. the published gateway accepts
 these configured homes; changing them requires no new app release. a fresh,
@@ -197,15 +197,16 @@ change this source contract merely by writing its own handoff.
 
 ## current continuation point
 
-2026-09-25: pushed dev-server `1296309` retains the ten-file receipt agreement,
-admission fixes and mobile pin while restoring ordinary/herdr accounts.
-original skid `3bd0ae4` adopts existing accounts, removes codex hooks and scopes
-its claude plugin at provider exec. the deployment owner must consume that
-contract and move skid shell setup out of shared provider installation.
-the final original release source needs its own successful hosted check.
+2026-09-25: pushed dev-server `ae70f2b` adopts existing accounts for both
+products, removes skid codex hooks, scopes the claude plugin and owns skid
+startup setup separately from shared provider installation. the six app-owned
+templates match original skid's source; shared `ai-tools.sh` is byte-identical
+to baseline `8498933`. root source review and the owner's disposable evidence
+close installer convergence. the spec and deployment runbook both preserve
+herdr's runtime/workers/snapshot. no private-home or reset plan remains active.
 
-the current separation spec withdraws private homes for either product and
-the mandatory upstream reset. align the dev-server runbook before live use;
-source changes and disposable probes are not live qualification. publication
-precedes host namespace handback. phone inspection and installation still
-require the applicable current-turn authorization.
+original skid `0bb7e2a` passed hosted verification; the final release source
+must retain an exact successful check. its release/pin, live provider behavior
+and fleet/phone cutover remain pending. source changes and disposable probes
+are not live qualification. publication precedes host namespace handback.
+phone inspection and installation require current-turn authorization.

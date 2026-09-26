@@ -28,12 +28,12 @@ and repository ids preserved; known clone remotes are retargeted. herdr-mobile
 and phone installation remain pending. gateway replacement requires no
 upstream herdr reset. all fleet and phone
 coexistence acceptance remains pending. the
-[ordinary/herdr correction](issues/provider-home-preservation.md) is committed
-in dev-server `1296309`. original skid `3bd0ae4` now selects existing accounts
-too; [installer convergence](issues/skid-provider-continuity.md),
-[shell ownership](issues/skid-shell-install-coupling.md) and live qualification
-remain pending. reconcile the [cutover runbook](issues/unnecessary-herdr-reset.md)
-with the unchanged-runtime plan before activation.
+[ordinary/herdr correction](issues/provider-home-preservation.md) and original
+skid's existing-account/scoped-hook contract are adopted by dev-server
+`ae70f2b`. shared provider installation matches its pre-separation baseline;
+skid owns startup setup and the runbook preserves the upstream runtime.
+original `0bb7e2a` passed hosted verification. [provider qualification](issues/skid-provider-continuity.md),
+original publication and coordinated live cutover remain pending.
 
 ## herdr pr 5
 

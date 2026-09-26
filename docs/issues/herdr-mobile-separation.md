@@ -37,18 +37,21 @@ concurrent operation and independent restart/reinstall/rollback/removal.
 the new android signer has a same-host backup; the owner still needs an
 off-machine copy for disk-loss recovery.
 
-the source/history audit produced three accepted corrections:
-[existing accounts for original skid](skid-provider-continuity.md),
-[no mandatory upstream reset](unnecessary-herdr-reset.md), and
-[skid-owned shell setup](skid-shell-install-coupling.md). root contracts are
-aligned; deployment implementation/runbook convergence remains pending.
+the source/history audit's three corrections are implemented: existing
+accounts for original skid, no mandatory upstream reset, and skid-owned shell
+setup. their source/runbook convergence is complete; actual provider and
+worker continuity remains live acceptance, not an inferred pass.
 
-coordination evidence: pushed dev-server `1296309` retains the ten-file
-receipt/admission agreement and real mobile pin while restoring ordinary/herdr
-accounts. original skid `3bd0ae4` now selects existing accounts, removes codex
-hooks and scopes its claude plugin at provider exec. its owner reports
-engineering and disposable probes passing; the final release source still
-needs an exact successful hosted check and reviewed installer adoption.
+coordination evidence: pushed dev-server `ae70f2b` adopts the corrected
+original contract while retaining the ten-file receipt agreement and mobile
+pin. root compared all six app-owned templates and confirmed shared
+`ai-tools.sh` matches baseline `8498933`; obsolete account provisioning and
+codex hook assets are absent. the deployment owner records disposable
+state-preservation, shell, hook-boundary and static/ansible checks passing.
+original `0bb7e2a` passed hosted verification; any later release source needs
+its own exact successful check.
+the final original release candidate is `580e0992d1ee0d7334cefc6561e7f55a5836baf5`;
+its owner is completing exact-source release preflight against run `36212743764`.
 local original signing preflight passed according to its handoff; phone
 version/signer observation remains pending under the applicable device rules.
 

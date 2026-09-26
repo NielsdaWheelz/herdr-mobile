@@ -68,16 +68,14 @@ stale; await that owner's new pin. its source contract now exists at
 `/Users/nnandal/Documents/code/skid-v1/docs/dev-server-handoff.md`.
 
 owner correction, 2026-09-25: both products use existing provider accounts.
-your pushed `1296309` preserves ordinary/herdr commands, homes, integrations,
-service defaults, gate and mobile mappings. it retains the ten-file receipt
-agreement, generation admission fix and real mobile pin. original skid
-`3bd0ae4` now preserves existing accounts too, removes codex hooks, and scopes
-its claude plugin at provider exec. adopt that handoff and move skid shell
-setup out of shared provider maintenance. neither product provisions fresh
-provider homes. no further account-relocation decision is pending here.
+your pushed `ae70f2b` implements the corrected account/hook contract and
+skid-owned startup setup while preserving the ten-file receipt agreement,
+admission fix and mobile pin. root compared the six deployment templates with
+original source and confirmed shared `ai-tools.sh` matches baseline `8498933`.
+your validation document records corrected account-preservation, routing,
+startup and hook-boundary disposable probes. no fresh homes or codex hooks are
+provisioned. the runbook preserves the existing upstream herdr runtime.
 
-your earlier disposable/static evidence does not cover the revised skid
-contract; qualify its actual shell paths and preserve unrelated edits.
 original skid's published pin and live provider/hook/lifecycle qualification
 remain pending. live activation and namespace handback are separate operations.
 

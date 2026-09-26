@@ -1,12 +1,12 @@
-# original skid's account correction awaits installer convergence
+# original skid's existing-account behavior awaits live qualification
 
-problem: original skid `3bd0ae4` and the corrected separation spec now select
-existing accounts, but dev-server `1296309` still provisions private skid
-homes. those revisions do not yet form a deployable pair.
+problem: original skid and dev-server `ae70f2b` now agree on existing accounts
+and scoped hooks. actual provider/history continuity and concurrent runtime
+behavior remain unqualified; installer fixtures cannot establish them.
 
-impact: skid launches, including bare provider commands in marked skid shells,
-would lose normal access to existing authentication, configuration, trust,
-history and memories. those files remain intact in the existing homes.
+impact of the withdrawn design: skid launches, including manually typed
+provider commands, would have hidden existing auth/config/history behind
+fresh homes. the corrected design preserves access to those existing accounts.
 
 source audit, 2026-09-25:
 
@@ -26,8 +26,12 @@ accepted correction: preserve existing provider homes for skid too. its
 needed. claude retains its explicitly loaded plugin, guarded at provider exec
 before reading input/config. personal claude keeps its native unset home
 variable. the owner reports engineering and disposable probes passing.
-dev-server must adopt this source handoff, remove account provisioning and
-codex hook replacement, and qualify actual hook/runtime coexistence.
+dev-server `ae70f2b` adopts this handoff and removes account provisioning and
+codex hook replacement. root confirmed six deployment templates match app
+source and shared `ai-tools.sh` matches its pre-separation baseline. the owner
+reports 21 account sentinels preserved through the real provider callback,
+five command routes and startup/hook-boundary probes passing. actual
+authenticated hook/runtime coexistence still needs qualification.
 
 resolved when the shared-home launch/integration contract preserves ordinary
 commands and provider state, and concurrent products are qualified at home

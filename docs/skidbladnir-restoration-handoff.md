@@ -7,13 +7,12 @@ names below describe the pre-transfer investigation. immutable releases are
 enabled for both repositories. herdr-mobile `v0.9.0` is published and pinned;
 your independent release and live namespace handback remain pending.
 
-coordination follow-up: dev-server `1296309` preserves ordinary/herdr accounts
-and retains the ten-file receipt/admission agreement. original skid `3bd0ae4`
-now selects the existing accounts too, removes codex hooks and scopes its
-claude plugin at provider exec. dev-server must adopt that corrected contract
-and move skid shell prerequisites out of shared provider installation.
-obtain exact-source hosted checks before publication; source and disposable
-probe results do not establish live provider coexistence.
+coordination follow-up: dev-server `ae70f2b` adopts your existing-account and
+scoped-hook contract, moves shell prerequisites out of shared provider
+installation and retains the ten-file receipt agreement. root review confirmed
+six deployment templates match your source and shared `ai-tools.sh` matches its
+pre-separation baseline. `0bb7e2a` passed hosted verification. any later release
+source needs its own exact check; live provider coexistence remains unqualified.
 
 local signing preflight passed per your handoff; fresh phone version/signer
 observation still needs applicable current-turn authorization before selecting
