@@ -98,8 +98,9 @@ permission flags. manually typed bare/account commands must use the same
 existing homes. personal claude keeps its normal `.claude` home; it is not a
 fifth phone profile. preserve the existing command and environment-override
 semantics. the owner withdrew the proposed private herdr homes and global
-router. dev-server's working tree now restores the existing mapping; it must
-be committed before deployment. provider state, configuration and histories
+router. dev-server `1296309` restores the existing mapping. original skid's
+subsequent shared-account correction still needs installer adoption.
+provider state, configuration and histories
 stay in place. the published gateway accepts
 these configured homes; changing them requires no new app release. a fresh,
 digest-verified download of `v0.9.0` passed `validate-host-config` with all four
@@ -182,11 +183,11 @@ provider home or runtime state; they do not prove live provider readiness.
 jarvis's proposed worker-home change was reverted at `e6a6d20` and
 [pr 42](https://github.com/NielsdaWheelz/jarvis/pull/42) is closed. its existing
 worker map, spec and gate contract are retained; there is no jarvis home
-migration to activate. pending work still needs settlement before resetting
-herdr panes. cognition declarations and services were not changed. the reverted
+migration to activate. gateway replacement needs no upstream reset or jarvis
+quiescence. cognition declarations and services were not changed. the reverted
 source/spec match the pre-separation baseline; local `scripts/verify` passed.
 
-preserved normal/herdr routing, original-skid login/trust, the original
+preserved provider accounts in both products, the original
 published pin, host namespace handback, tailnet `8444` access, and phone
 coexistence remain deployment dependencies. the new signing key has a
 mode-restricted same-host backup at `~/.local/share/herdr-mobile/signing-backup`;
@@ -196,17 +197,15 @@ change this source contract merely by writing its own handoff.
 
 ## current continuation point
 
-2026-09-25: dev-server's local `94931a1` owns the ten-file acknowledgment,
-generation mode/digest admission correction and real mobile pin. its provider
-preservation correction is still uncommitted; do not deploy `94931a1` alone.
-the owner reports eight disposable shell paths and static checks passing, and
-read-only root review confirms the restored declarations. original skid's last
-reported hosted-verified source is `4eeba152bc4e37cc36eaa9a367c27efcb47aba20`;
-its final provider-contract documentation corrections are uncommitted.
+2026-09-25: pushed dev-server `1296309` retains the ten-file receipt agreement,
+admission fixes and mobile pin while restoring ordinary/herdr accounts.
+original skid `3bd0ae4` adopts existing accounts, removes codex hooks and scopes
+its claude plugin at provider exec. the deployment owner must consume that
+contract and move skid shell setup out of shared provider installation.
+the final original release source needs its own successful hosted check.
 
-git write and network access are restored. each owner is finalizing its
-reviewed slice in the existing checkout, preserving unrelated changes. record
-the resulting revisions and the final original source's hosted result before
-publication. a fresh explicitly authorized phone version/signer observation
-is still needed before finalizing the original release version. publication precedes host namespace handback; live apply
-waits for the existing cutover prerequisites and authorization.
+the current separation spec withdraws private homes for either product and
+the mandatory upstream reset. align the dev-server runbook before live use;
+source changes and disposable probes are not live qualification. publication
+precedes host namespace handback. phone inspection and installation still
+require the applicable current-turn authorization.

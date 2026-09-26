@@ -30,38 +30,27 @@ completed source/release work:
 
 remaining work: original skid's release/pin; reviewed dev-server deployment;
 the [provider-home correction](provider-home-preservation.md), existing
-provider continuity and hook-discovery qualification; original-skid login/trust
-and native-helper live compatibility; jarvis action settlement; `8444` reachability;
+provider continuity and hook-discovery qualification; original-skid
+native-helper live compatibility; preserved jarvis work; `8444` reachability;
 old host generation retirement and namespace handback; phone reset/re-pairing;
 concurrent operation and independent restart/reinstall/rollback/removal.
 the new android signer has a same-host backup; the owner still needs an
 off-machine copy for disk-loss recovery.
 
-the subsequent source/history audit challenges three remaining choices:
-[original skid's fresh provider homes](skid-provider-continuity.md) and the
-[mandatory upstream reset](unnecessary-herdr-reset.md), plus
-[skid setup coupled to shared shell maintenance](skid-shell-install-coupling.md).
-resolve these with
-the owning agents before following those parts of the cutover plan.
+the source/history audit produced three accepted corrections:
+[existing accounts for original skid](skid-provider-continuity.md),
+[no mandatory upstream reset](unnecessary-herdr-reset.md), and
+[skid-owned shell setup](skid-shell-install-coupling.md). root contracts are
+aligned; deployment implementation/runbook convergence remains pending.
 
-coordination evidence: original skid's handoff and fleet verifier agree on
-the ten-file receipt. dev-server committed admission mode/digest-suffix checks,
-contract acknowledgment and the real mobile pin in `94931a1`. its later
-provider-routing correction is still uncommitted; that older commit alone must
-not be deployed. read-only source review confirms the correction, and the
-owner records disposable/static results in its validation document.
-
-original skid is at `4eeba152bc4e37cc36eaa9a367c27efcb47aba20`, reported as
-hosted-verified in run `36204088437`. six corrected documentation files remain
-uncommitted; the final release source needs its own exact hosted check. current
-local signing preflight passed according to its handoff; a fresh phone
-version/signer observation remains required before finalizing `v0.9.0`/`9000`.
-
-git write and network access are restored. each owner is finalizing its
-reviewed separation changes in the existing checkout. record the final commits
-and obtain the exact original-source hosted check before publication. the
-user has relayed both handoffs; connector messaging is not a prerequisite.
-an old checked commit does not cover later corrections.
+coordination evidence: pushed dev-server `1296309` retains the ten-file
+receipt/admission agreement and real mobile pin while restoring ordinary/herdr
+accounts. original skid `3bd0ae4` now selects existing accounts, removes codex
+hooks and scopes its claude plugin at provider exec. its owner reports
+engineering and disposable probes passing; the final release source still
+needs an exact successful hosted check and reviewed installer adoption.
+local original signing preflight passed according to its handoff; phone
+version/signer observation remains pending under the applicable device rules.
 
 original publication, original-skid setup, host namespace handback and live
 fleet/phone acceptance remain pending. device/tmux checks need their applicable

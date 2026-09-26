@@ -67,23 +67,19 @@ belongs to the old shared identity. original skid's old `v0.6.0` pin is also
 stale; await that owner's new pin. its source contract now exists at
 `/Users/nnandal/Documents/code/skid-v1/docs/dev-server-handoff.md`.
 
-owner correction, 2026-09-25: herdr uses the normal existing providers and
-account homes. the private herdr-home plan and jarvis pr 42 are withdrawn.
-the working tree now restores ordinary/herdr commands, homes, integrations,
-service defaults, gate and mobile mappings; original-skid isolation remains
-scoped. your validation document records eight disposable shell paths and
-static checks passing. this correction is still uncommitted.
+owner correction, 2026-09-25: both products use existing provider accounts.
+your pushed `1296309` preserves ordinary/herdr commands, homes, integrations,
+service defaults, gate and mobile mappings. it retains the ten-file receipt
+agreement, generation admission fix and real mobile pin. original skid
+`3bd0ae4` now preserves existing accounts too, removes codex hooks, and scopes
+its claude plugin at provider exec. adopt that handoff and move skid shell
+setup out of shared provider maintenance. neither product provisions fresh
+provider homes. no further account-relocation decision is pending here.
 
-the ten-file contract acknowledgment, generation mode/digest admission
-correction and real mobile pin are recorded in local commit `94931a1`. those
-items no longer need implementation. that commit still has the rejected
-provider routing: it must not be deployed without the working-tree correction.
-
-git write and network access are restored. review/commit only your correction
-slice, preserve unrelated edits, push it, and report the final revision.
-original skid's published pin and actual provider/hook/lifecycle qualification
-remain pending. no live activation or namespace reclamation is implied. the
-user has relayed both owners' handoffs; connector messaging is not a blocker.
+your earlier disposable/static evidence does not cover the revised skid
+contract; qualify its actual shell paths and preserve unrelated edits.
+original skid's published pin and live provider/hook/lifecycle qualification
+remain pending. live activation and namespace handback are separate operations.
 
 ## fixed identities
 
@@ -165,7 +161,7 @@ paths while leaving signing files untouched.
 
 ## provider homes, commands, and helper
 
-herdr uses the existing provider binaries and account homes: `.codex`,
+both products use the existing provider binaries and account homes: `.codex`,
 `.codex-work`, `.codex-work2`, `.claude`, `.claude-work`. preserve ordinary
 shell and account-command behavior, explicit environment overrides, auth,
 configuration, history, memories, project trust, instructions, plugins and mcp.
@@ -179,8 +175,8 @@ revert the separation changes that relocate or globally reroute herdr:
 - `assets/herdr-mobile/host-config.json`, herdr service environment, integration
   targets, admission checks and `assets/herdr/herdr-gate`: use the existing
   homes. retain unrelated runtime-context scrubbing and gateway separation.
-- remove herdr's call to `provider_homes_prepare`; no new herdr provider home
-  is needed. keep original-skid provisioning scoped to its own installation.
+- remove product provider-home provisioning; neither product needs new account
+  trees. installing gateways must not replace provider instructions/settings.
 - correct spec, runbook and issue prose that reclassifies the existing homes
   as cognition-only. jarvis's worker map and cognition configuration stay as
   they were before this separation. pr 42 is closed and its source reverted.
@@ -192,20 +188,28 @@ only specifically verified obsolete skid registrations may be removed, without
 changing user hooks, settings or trust. project hook discovery is a boundary to
 qualify, not evidence that provider homes must move.
 
-original skid's separate homes remain under
-`.local/share/skidbladnir/providers/` for its own forge and marked shell
-terminals only. its scoped launcher selects native executables, required
-arguments/plugin and the private home, and clears inherited `HERDR_*`.
-no ordinary or herdr shell is rerouted there. authenticate/trust these new
-original-skid homes separately; existing user history remains in normal homes.
-do not copy whole account trees or discovery state. preserve explicit profile
-selection and existing permission policy. never alter unrelated tmux sessions
-or the default server environment.
+original skid selects `.codex`, `.codex-work`, `.codex-work2` and `.claude-work`
+through its forge and marked-shell launchers. manual personal claude leaves
+`CLAUDE_CONFIG_DIR` unset, retaining native `~/.claude.json` behavior. consume
+the original repo's exact provider-command/shell-init contract; preserve
+account state, explicit profile selection and existing permission policy.
+ordinary/herdr shell behavior remains unchanged. never alter unrelated tmux
+sessions or the default server environment.
+
+remove the unused skid codex hook template/writer. do not install or replace
+codex `hooks.json`; no merger is required. stage the explicitly loaded claude
+plugin with its provider-exec guard and exact process checks. shared user
+settings and native herdr integrations remain intact.
+
+skid apply owns its shell startup prerequisite. shared `ai_install` and
+ordinary managed dotfiles must not install skid-specific sources or fail
+because skid is absent. preserve startup symlinks and user content; any
+unsupported skid startup path is resolved within skid setup.
 
 qualify command resolution before apply with disposable shell fixtures and
 fake provider executables: ordinary and herdr bare/account commands retain
 existing homes; an explicit forge profile survives shell startup; original
-skid selects its private home only in its own scope. check the linux and macos
+skid uses those same accounts through its scoped launcher. check the linux and macos
 entry paths. report actual provider/history/hook coexistence separately; no
 credential or history contents belong in logs.
 
@@ -215,7 +219,7 @@ uv `0.11.28`, python `3.12.13`, claude sdk `0.2.130`. the original agent owns
 current compatibility qualification; you own reproducible installation and
 config wiring. use a skid-owned command such as
 `skidbladnir-provider-runtime-control`. verify its claude subprocess resolves
-the intended executable and private home. herdr-mobile never consumes it.
+the intended executable and existing account. herdr-mobile never consumes it.
 
 ## staged delivery and recovery
 
@@ -225,12 +229,11 @@ dependencies; source preparation can proceed while they are pending.
 
 1. stage herdr-mobile in its new namespace, with fresh credentials and `8444`
    ingress, preserving the old deployment until the new inputs are ready.
-2. the root operator coordinates jarvis quiescence and the herdr reset from
-   outside the discarded panes. settling pending actions remains required.
-   stop the intended runtime before discarding its old session snapshot;
-   restarting alone can restore old shells. activate the new gateway while
-   preserving existing provider homes, command defaults, jarvis map/gate and
-   herdr configuration/runtime identity. report exact results for each host.
+2. activate the new gateway against the unchanged supervised herdr runtime.
+   preserve its session snapshot, workers, provider accounts and jarvis map/gate.
+   absent renamed mobile metadata is acceptable; no compatibility reader or
+   reset is required. a separately necessary runtime/service restart requires
+   its own stated reason and worker coordination. report results for each host.
 3. after all new gateways and the new phone app work, retire the old
    herdr-backed skid services, ingress, credentials, launchers, receipts, and
    obsolete generations. inventory removal precisely; preserve original

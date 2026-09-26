@@ -15,8 +15,9 @@ its failure; `ai_install_skid_shell_source` returns 2 for a symlinked target.
 these paths were introduced after baseline `8498933`. source inspection only;
 no user startup files were read or modified during this audit.
 
-recommendation: make skid own its required shell integration and avoid making
-unrelated provider maintenance depend on it. preserve normal shell startup and
+accepted correction: skid owns its required shell integration. the original
+repo's `3bd0ae4` handoff and root deployment assignment now require this;
+dev-server implementation is pending. preserve normal shell startup and
 account selection; do not work around the coupling by replacing user dotfiles.
 
 resolved when ordinary provider maintenance has no skid-specific prerequisite,

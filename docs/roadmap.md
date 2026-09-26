@@ -11,10 +11,10 @@ this index records present scope and open work, not a release diary.
 rename to herdr-mobile and the original repo's reclamation of skidbladnir.
 both products must coexist independently on all three hosts and android.
 existing herdr panes are disposable; existing provider homes and state are not.
-herdr and ordinary commands retain their current providers, account homes and
-histories. github names, gateway ownership, credentials and phone packages
-separate explicitly; original-skid provider isolation stays scoped to its own
-launches. the earlier global router/private herdr-home plan is withdrawn.
+both products and ordinary commands retain existing providers, account homes
+and histories. github names, gateway ownership, credentials and phone packages
+separate explicitly; runtime integration stays scoped to each product's own
+launches. private provider homes and global command rerouting are withdrawn.
 the [original-repo handoff](skidbladnir-restoration-handoff.md) and
 [dev-server handoff](dev-server-separation-handoff.md) scope those agents'
 work; [the issue](issues/herdr-mobile-separation.md) tracks delivery.
@@ -25,11 +25,15 @@ android parser probes passed. the [deployment contract](dev-server-handoff.md)
 records exact interfaces and remaining inputs. github names are transferred
 and repository ids preserved; known clone remotes are retargeted. herdr-mobile
 `v0.9.0` is published and pinned. original skid publication, fleet cutover,
-pane reset, and phone installation remain pending. all fleet and phone
+and phone installation remain pending. gateway replacement requires no
+upstream herdr reset. all fleet and phone
 coexistence acceptance remains pending. the
-[provider-home correction](issues/provider-home-preservation.md) is present
-in dev-server's working tree but still requires commit and live qualification;
-its older `94931a1` commit alone must not be deployed.
+[ordinary/herdr correction](issues/provider-home-preservation.md) is committed
+in dev-server `1296309`. original skid `3bd0ae4` now selects existing accounts
+too; [installer convergence](issues/skid-provider-continuity.md),
+[shell ownership](issues/skid-shell-install-coupling.md) and live qualification
+remain pending. reconcile the [cutover runbook](issues/unnecessary-herdr-reset.md)
+with the unchanged-runtime plan before activation.
 
 ## herdr pr 5
 

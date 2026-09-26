@@ -7,17 +7,13 @@ names below describe the pre-transfer investigation. immutable releases are
 enabled for both repositories. herdr-mobile `v0.9.0` is published and pinned;
 your independent release and live namespace handback remain pending.
 
-coordination follow-up: dev-server's ten-file acknowledgment and generation
-mode/digest admission correction are recorded in its local `94931a1` commit.
-its provider-preservation correction is present but uncommitted; that older
-commit alone must not be deployed. your last reported hosted-verified source
-is `4eeba152bc4e37cc36eaa9a367c27efcb47aba20`, run `36204088437`; final
-provider-contract documentation corrections remain uncommitted.
-
-git write and network access are restored. continue from the existing checkout:
-review/commit those corrections, preserve unrelated edits, push, and obtain
-that exact final source's hosted check. no further message relay is needed:
-the user has supplied both owners' acknowledgment and status.
+coordination follow-up: dev-server `1296309` preserves ordinary/herdr accounts
+and retains the ten-file receipt/admission agreement. original skid `3bd0ae4`
+now selects the existing accounts too, removes codex hooks and scopes its
+claude plugin at provider exec. dev-server must adopt that corrected contract
+and move skid shell prerequisites out of shared provider installation.
+obtain exact-source hosted checks before publication; source and disposable
+probe results do not establish live provider coexistence.
 
 local signing preflight passed per your handoff; fresh phone version/signer
 observation still needs applicable current-turn authorization before selecting
@@ -27,9 +23,9 @@ host namespace handback. live installation still waits for that handback.
 implement the original tmux-backed product's side of the split below. inspect
 your repository's architecture, roadmap, and agent rules first. this is a
 bounded restoration and coexistence task; preserve the original architecture.
-owner correction: your isolation must remain scoped to your product. herdr and
-ordinary provider commands keep their existing binaries, homes and histories;
-the earlier private herdr-home proposal is withdrawn.
+owner correction: your isolation must remain scoped to your product. both
+products and ordinary provider commands use existing binaries, account homes
+and histories. private provider homes for either product are withdrawn.
 
 ## identity and scope
 
@@ -85,26 +81,28 @@ independently. obey current-turn tmux/device authorization and logging rules.
    handback. no copied/symlinked credentials or old herdr-backed generations
    in your rollback chain. your installer and verifier must work with the
    other product absent and must not inspect its signing files or state.
-4. keep four profiles, with private homes under
-   `~/.local/share/skidbladnir/providers/`: `codex-personal`, `codex-work`,
-   `codex-work2`, `claude-work`, plus `claude-personal` for manual shell use.
-   invoke absolute native providers with explicit
-   home environment, original permission arguments, and your claude identity
-   plugin. shared work wrappers override homes and are unsuitable. install
-   your hooks only in these homes. authenticate/trust normally; do not copy
-   existing account trees, discovery sockets, caches, or credentials.
-   cover shell terminals too: typing bare/account provider commands after
-   login-shell startup must select your homes. supply product-scoped defaults
-   and minimal wrappers where required, active only in your own marked shells;
-   ordinary and herdr commands must retain their existing account homes.
-   explicit profile selection wins. do not mutate existing user tmux sessions
-   or invent a general runtime-selection framework.
+4. keep four profiles using `.codex`, `.codex-work`, `.codex-work2` and
+   `.claude-work`. manual personal claude leaves `CLAUDE_CONFIG_DIR` unset;
+   preserve its native default and `~/.claude.json` behavior. invoke absolute
+   native providers with the selected account, existing permission arguments
+   and the explicitly loaded claude identity plugin. do not provision account
+   trees or replace instructions, settings, trust, credentials or histories.
+   install no codex hooks; its projection already uses foreground processes
+   and terminal controls. the claude hook must reject non-skid/foreign-runtime
+   invocation before reading input or host config, retaining exact process
+   identity checks. no shared hook merger or dispatcher is needed.
+   cover manual provider commands after login-shell startup with the scoped
+   launcher in your handoff. skid owns this shell prerequisite; ordinary
+   provider maintenance must not depend on it. preserve user dotfiles and
+   symlinks. explicit profile selection wins inside marked skid shells;
+   ordinary/herdr account-command behavior stays unchanged. do not mutate
+   existing user tmux sessions or invent a runtime-selection framework.
 5. restore and pin the required `nativeControlPath` helper. historical inputs:
    `llm-calling@ec97adeb9ddd0f91b141f89cc42cff7cc7efdb8f`, uv `0.11.28`,
    python `3.12.13`, claude sdk `0.2.130`. inspect and qualify rather than
    assuming compatibility with current providers. use a skid-owned helper
    installation/command, e.g. `skidbladnir-provider-runtime-control`; verify
-   its claude subprocess resolves the intended executable and private home.
+   its claude subprocess resolves the intended executable and existing account.
 6. prevent inherited `HERDR_*` context entering your gateway, tmux startup,
    or provider children. never modify unrelated live tmux sessions/server
    environment. the owner rejected herdr provider-home relocation: herdr and
@@ -133,8 +131,8 @@ must not become a new retained harness.
 
 after namespace handback, prove on all three hosts: both products active;
 your forge profiles and manually typed provider commands in your marked
-terminals use your private homes, while ordinary/herdr commands retain existing
-homes and histories; invites and
+terminals use the existing accounts, as do ordinary/herdr commands, with
+configuration and histories intact; invites and
 credentials cannot cross products; independent restart, reinstall and rollback
 preserve the other's workers/attachments/files. prove scoped removal on a
 disposable installation. tmux probes may mutate only their own isolated `-L`
@@ -142,6 +140,6 @@ socket resources. prove both phone apps pair, launch, attach, and control their
 own workers, with distinct icons and independent data. return content-free
 results and remaining blockers to the integrator.
 
-the owner permits existing HERDR panes to die. this does not permit killing
-unrelated tmux sessions or changing jarvis's cognition services. the root
-operator owns the herdr reset and the live phone/package transition.
+the owner permits existing herdr panes to die, but this split requires no
+upstream reset. preserve the running herdr runtime and jarvis work. the root
+operator owns namespace handback and the live phone/package transition.

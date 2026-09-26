@@ -1,9 +1,8 @@
-# original skid's private homes unnecessarily fork provider state
+# original skid's account correction awaits installer convergence
 
-problem: the separation spec still gives original skid five fresh provider
-homes. the correction for ordinary/herdr commands leaves this scoped version
-of the same disruption intact. separate homes have not been established as a
-requirement for independent apps.
+problem: original skid `3bd0ae4` and the corrected separation spec now select
+existing accounts, but dev-server `1296309` still provisions private skid
+homes. those revisions do not yet form a deployable pair.
 
 impact: skid launches, including bare provider commands in marked skid shells,
 would lose normal access to existing authentication, configuration, trust,
@@ -22,13 +21,15 @@ source audit, 2026-09-25:
   each codex `hooks.json` with the skid file. pointed at an existing home,
   that would discard other hooks. the claude plugin is loaded explicitly.
 
-recommendation: preserve existing provider homes for skid too; isolate owned
-runtime state and integrations. the original-app and dev-server owners must
-first establish hook coexistence without replacing user/herdr settings.
-this finding does not silently change their current implementation contract.
+accepted correction: preserve existing provider homes for skid too. its
+`3bd0ae4` removes the unused codex hook writer/template entirely; no merger is
+needed. claude retains its explicitly loaded plugin, guarded at provider exec
+before reading input/config. personal claude keeps its native unset home
+variable. the owner reports engineering and disposable probes passing.
+dev-server must adopt this source handoff, remove account provisioning and
+codex hook replacement, and qualify actual hook/runtime coexistence.
 
 resolved when the shared-home launch/integration contract preserves ordinary
 commands and provider state, and concurrent products are qualified at home
-and a shared project. actual provider behavior remains `NOT_RUN`. alternatively,
-document a demonstrated provider limitation and an explicitly accepted bounded
-trade-off. fresh homes alone do not prove hook isolation.
+and a shared project. actual provider behavior remains `NOT_RUN`; neither
+fresh homes nor source checks alone establish hook isolation.

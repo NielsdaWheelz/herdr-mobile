@@ -22,9 +22,10 @@ back, or removing either product does not change the other's owned files,
 credentials, services, workers, ingress, or phone data. neither repository
 builds, downloads releases from, or executes the other product.
 
-the owner permits all existing herdr panes to die. preserve no old pane
-metadata, terminal references, or live attachments; add no migration reader or
-compatibility alias. new herdr-mobile pairings and host credentials are fresh.
+the owner permits existing herdr panes to die but the split does not require
+it. retain the running upstream runtime; accept absent old mobile metadata
+without adding a migration reader or compatibility alias. old phone gateway
+attachments are not migrated. new pairings and host credentials are fresh.
 original skid also gets fresh gateway credentials when it reclaims its paths.
 the phone cutover explicitly resets obsolete pairings in the old package.
 
@@ -153,8 +154,8 @@ herdr-mobile's source change must include:
    metadata expectations, certificate checks, notes, and fleet verification
    together. update the pin only from the resulting published artifacts.
 4. rename metadata producers/readers directly. prove new key/source spellings
-   are accepted by pinned herdr 0.9.1; no legacy fallback. reset old runtime
-   state at cutover rather than retaining `skid_*` compatibility.
+   are accepted by pinned herdr 0.9.1; no legacy fallback. existing panes remain
+   usable without their old mobile name/profile/objective decoration.
 5. update active docs and historical links according to which repository owns
    the referenced commit/release. keep historical prose truthful; do not
    rewrite immutable release assets or pretend past skid releases were built
@@ -162,12 +163,12 @@ herdr-mobile's source change must include:
 
 ## 5. preserve existing providers; scope runtime integrations
 
-owner correction, 2026-09-25: herdr uses the normal existing providers and
-account homes. the earlier relocation into `.local/share/herdr/providers/`
-and global command rerouting are withdrawn. disposable panes do not imply
+owner correction, 2026-09-25: both products use the normal existing providers
+and account homes. private provider homes for either product and global
+command rerouting are withdrawn. disposable panes do not imply
 disposable provider history, configuration, authentication or user workflow.
 
-ordinary shells, herdr terminals, herdr-mobile profiles and jarvis workers
+ordinary shells, both products' terminals/profiles and jarvis workers
 retain the existing provider binaries and account-home selection:
 
 | account | existing home relative to the host user's home |
@@ -189,8 +190,8 @@ account declarations and command implementation instead of adding a registry.
 herdr-mobile's four host profiles and the existing jarvis map/gate select those
 same established homes. personal claude stays the normal `.claude` default;
 it is not a fifth phone profile. withdraw jarvis pr 42 and adr 0050's unshipped
-home change. jarvis cognition and worker contracts otherwise remain unchanged;
-settle pending work before the separately scoped herdr pane reset.
+home change. jarvis cognition and worker contracts remain unchanged; gateway
+replacement itself requires no worker quiescence or upstream reset.
 
 herdr needs its native runtime identity and integrations, not fresh provider
 homes. retain its existing native integration targets and upstream guards;
@@ -199,15 +200,22 @@ ordinary provider homes as part of this split. retire only proven obsolete
 skid registrations, preserving unrelated settings, hooks and trust. routine
 gateway maintenance does not own provider configuration or install integrations.
 
-original skid's already planned private homes remain scoped to its own forge
-and newly created skid terminals under `.local/share/skidbladnir/providers/`:
-`codex-personal`, `codex-work`, `codex-work2`, `claude-personal`, `claude-work`.
-they must never replace normal shell or herdr account defaults. original skid
-uses absolute native providers and its required identity plugin/helper there;
-its scoped shell launcher must remain inactive in unmarked and herdr shells.
-fresh login/trust is a prerequisite for those separate original-skid homes
-only. they do not contain existing provider history; that remains available in
-the unchanged normal homes. do not copy whole account trees or discovery state.
+original skid's four forge profiles select `.codex`, `.codex-work`,
+`.codex-work2` and `.claude-work`. manual personal claude leaves
+`CLAUDE_CONFIG_DIR` unset, preserving native default behavior including
+`~/.claude.json`; setting it to `.claude` is not assumed equivalent.
+its scoped launcher selects absolute native providers and existing permission
+arguments. it remains inactive in ordinary and herdr shells. skid owns its
+shell integration prerequisite; shared provider installation must not depend
+on skid or replace user dotfiles/symlinks to install it.
+
+skid installs no codex hooks: its codex projection uses the foreground process
+and terminal controls. leave existing codex hook files untouched. its claude
+identity plugin is loaded explicitly and checks a skid provider-exec marker
+and foreign-runtime context before reading input/config; exact pane/tty/process
+checks still bind registration. preserve user settings and native herdr hooks.
+the original repo's deployment handoff owns the executable details. qualify
+actual shared-account behavior; do not require fresh accounts or reset trust.
 
 scrub foreign runtime context at launch: `HERDR_*` from original skid and
 tmux context from herdr. never mutate unrelated live tmux sessions or their
@@ -299,16 +307,14 @@ provision herdr-mobile's fresh handle/bearer, config, service, pin, and ingress.
 prepare a private fleet operator config containing only its three gateways.
 its installation never reads old skid credentials as defaults.
 
-run the cutover controller outside the herdr panes being discarded.
-coordinate with jarvis before resetting herdr: stop new worker dispatch and
-settle or explicitly fail pending work under jarvis's existing cutover rules.
-the owner waived pane survival, not truthful action accounting. stop the old
-phone gateway, close/reset only the intended herdr runtime, and discard its
-old session snapshot through the supported stopped-runtime path. a restart
-alone may restore shells from `~/.config/herdr/session.json`; confirm old panes
-and metadata are absent before reopening launches. retain herdr's config,
-binary, socket identity, and jarvis gate. restart and verify the runtime, then
-the new gateway. no global process-name kill.
+activate the new gateway against the existing supervised herdr runtime while
+the old gateway remains available. preserve herdr's config, binary, socket,
+session snapshot and jarvis gate. existing panes need no metadata migration;
+the new gateway omits old mobile decorations and observes current native state.
+verify that workers and direct herdr/jarvis use remain usable. if a separate
+runtime/service change actually requires restart, document its reason and
+coordinate pending jarvis actions before that interruption. the product split
+itself requires neither a reset nor deletion of the session snapshot.
 
 after herdr-mobile works on all three hosts, install and pair its new phone
 app. only then decommission the former herdr-backed skid gateway services,
@@ -357,19 +363,19 @@ unexecuted boundaries are `NOT_RUN`.
 | --- | --- |
 | repositories and releases | final names resolve to intended ids; clean independent builds and hosted checks; each release/pin/installer uses only its own source, assets, signer, and package |
 | both gateways, each host | both services and serve handlers active concurrently; distinct handles/bearers; wrong-product invite, auth header, and credential rejected before mutation |
-| runtime isolation, each host | exercise all four forge profiles plus manually typed bare/account provider commands in new shell terminals; existing normal/herdr homes and scoped original-skid homes, integration targets, and runtime context; codex and claude run concurrently in both products; repeat from `$HOME` and a shared project; neither product observes or controls the other's worker |
+| runtime isolation, each host | exercise all four forge profiles plus manually typed bare/account provider commands in new shell terminals; existing account homes with scoped integration targets and runtime context; codex and claude run concurrently in both products; repeat from `$HOME` and a shared project; neither product observes or controls the other's worker |
 | ownership lifecycle | while one product has a live worker and phone attachment, restart/reinstall the other gateway and exercise its rollback; worker and attachment remain usable and unrelated owned files/ingress remain unchanged; repeat in reverse |
 | removal | each scoped removal preserves the other product's credentials, service, runtime, ingress and provider homes; exercise on disposable installations before live fleet use |
 | phone | both signed packages, labels and distinct icons present; independent pairing to all three hosts, inventory, launch, attach/input/detach, interrupt/stop; restarting/updating one app preserves the other's data and use |
-| provider continuity | ordinary and herdr bare/account commands retain the existing home selection; existing configuration, authentication and resumable histories remain accessible; gateway apply/remove does not move, replace or hide provider state |
-| jarvis | unchanged herdr targeting semantics, worker home map/gate and working codex/claude launch; cognition services, account-home declarations, discovery, credentials, and unrelated settings unchanged; only inventoried old integration entries/scripts removed; no pending action replay across the reset |
+| provider continuity | ordinary, herdr and skid bare/account commands select the existing accounts; configuration, authentication and resumable histories remain accessible; gateway apply/remove does not move, replace or hide provider state |
+| jarvis | unchanged herdr targeting semantics, worker home map/gate and working codex/claude launch; cognition services, account-home declarations, discovery, credentials, and unrelated settings unchanged; only inventoried old integration entries/scripts removed; gateway replacement preserves pending work |
 | repeat apply | neither product's ordinary apply reclaims or deletes the other's namespace; gateway apply remains possible with the other's installation absent |
 
 only test-created tmux resources on an isolated `-L` socket may be killed,
 resized, or retargeted. if legacy tooling cannot target that socket, resolve
 the temporary probe method before running it; do not turn the user's default
-tmux server into a test fixture. herdr reset is the separately scoped cutover
-operation authorized by the owner's disposable-pane decision.
+tmux server into a test fixture. permission to lose old herdr panes does not
+make an upstream reset a cutover prerequisite.
 
 record source/artifact identity, platform, typed result, and any blocker.
 never record terminal bytes, prompts, objectives, credentials, account details,
@@ -395,7 +401,7 @@ external contract references:
 - [pinned herdr hook runtime guard](https://github.com/herdrdev/herdr/blob/065ef9d6a531c49fb8bee7e818ef837065b21ee9/src/integration/assets/codex/herdr-agent-state.sh).
 
 remaining preflight: prove the product-hook discovery boundary, confirm
-provider continuity, original-skid authentication/trust and native-helper compatibility, qualify `8444`
+provider continuity and original-skid native-helper compatibility, qualify `8444`
 through tailnet policy from the phone, inventory obsolete host generations and
 all publishing clones, and verify separated rollback/removal. these are tracked
 work, not claims of completed acceptance.
