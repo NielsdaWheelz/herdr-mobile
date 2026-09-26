@@ -165,6 +165,29 @@ credentials, provider/signing files, cognition and ingress were unchanged.
 focused original phone input passed afterward. this is idempotent live apply,
 not a forced reinstall.
 
+a later desktop audit found that the original `skid` command was absent on all
+three hosts and only macbook had the three-peer client config. original source
+`5e0bcb` corrected the provisioning script's obsolete jarvis write, and its
+current `scripts/fleet provision-clients` installed the private mode-`0600`
+client config on macbook, devbox and arch. dev-server `223bc5f` restored the
+required `skid` alias in original-only selected apply, rollback and removal;
+original source `bbe9619` made both public links and complete desktop fleet
+inventory required by `scripts/fleet verify`. neither change modifies the
+immutable app release or ten-file runtime generation. the trade-off is a copy
+of each original gateway's client credentials on all three trusted hosts.
+
+selected original apply installed `skid` on all three hosts; repeat apply was
+up to date. each login shell resolved the exact current-runtime alias, and
+`skid list --json` returned all three available peers without partial failure.
+bare `skid` rendered the three-host browser in a private login pty on every
+host; sending only `q` exited successfully. the tightened original fleet
+verifier passed all three. original, mobile and upstream herdr process ids,
+generation receipts and provider files were unchanged. no live session was
+created, attached or controlled by these desktop checks. the herdr native
+desktop `--machine` path was not exercised from this agent's shell because it
+is outside a herdr-managed pane; phone-to-herdr operation on every host and
+the preserved herdr runtimes are the evidence recorded above.
+
 mobile has no prior
 separated release generation; none was invented for a live rollback.
 disposable installer recovery/removal and operation with the other product
