@@ -3,12 +3,14 @@
 2026-09-25. implementation plan from the owner's requested product split.
 this document changes scope and acceptance; this repo's source implementation
 and immutable `v0.9.0` release are complete. github names have transferred;
-coordinated fleet and phone cutover remains pending. the
-[deployment contract](dev-server-handoff.md) records implementation evidence
-and the published pin. the [original-repo handoff](skidbladnir-restoration-handoff.md) and
-[dev-server handoff](dev-server-separation-handoff.md) are self-contained agent
+both releases are published and both apps are installed and independently
+paired across the fleet. [live evidence](separation-qualification.md) records
+the deployed identities, coexistence results and explicit limits, including
+first-release rollback and previously waived usability checks.
+the [deployment contract](dev-server-handoff.md) records implementation evidence
+and the published pin. the [original-repo handoff](skidbladnir-restoration-handoff.md)
+and [dev-server handoff](dev-server-separation-handoff.md) retain the agent
 assignments derived from this shared contract.
-[delivery tracking](issues/herdr-mobile-separation.md) owns remaining work.
 
 ## 1. outcome and boundaries
 
@@ -404,8 +406,7 @@ external contract references:
 - [original native helper boundary](https://github.com/NielsdaWheelz/skidbladnir/blob/927c55412eec7fa129a3325fb8f5ebf8051b6ea0/internal/agentcontrol/native.go).
 - [pinned herdr hook runtime guard](https://github.com/herdrdev/herdr/blob/065ef9d6a531c49fb8bee7e818ef837065b21ee9/src/integration/assets/codex/herdr-agent-state.sh).
 
-remaining preflight: prove the product-hook discovery boundary, confirm
-provider continuity and original-skid native-helper compatibility, qualify `8444`
-through tailnet policy from the phone, inventory obsolete host generations and
-all publishing clones, and verify separated rollback/removal. these are tracked
-work, not claims of completed acceptance.
+the preflight and cutover results now live in the
+[qualification record](separation-qualification.md). its unavailable or
+unperformed boundaries remain explicit; implementation does not turn them
+into passes.

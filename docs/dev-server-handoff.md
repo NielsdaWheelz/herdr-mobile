@@ -3,7 +3,9 @@
 2026-09-25. this checkout owns the herdr phone app and gateway. the shared
 [separation spec](herdr-mobile-separation.md) owns cutover order and acceptance;
 the [dev-server assignment](dev-server-separation-handoff.md) owns deployment.
-source and release preparation are complete. live activation remains pending.
+source and release preparation are complete. herdr-mobile is installed on all
+three hosts and paired on the phone; [live evidence](separation-qualification.md)
+records both live installations and their coexistence qualification.
 
 ## release inputs
 
@@ -140,12 +142,13 @@ paths and binary member change. fleet invite reads only
 `~/.config/herdr-mobile/client.json`. upstream herdr's pin and identity remain
 under `assets/herdr/` and the existing herdr roots.
 
-## source qualification and pending delivery
+## source qualification and delivery
 
 the github name swap succeeded on 2026-09-25. original repository id
 `1386409483` now owns `NielsdaWheelz/skidbladnir`; known publishing clones on
 macbook, devbox, and arch use the corresponding canonical remotes. checkout
-directory names remain stable while agent work is in progress.
+directory names remain stable to preserve existing provider project paths,
+trust and history lookup; canonical remotes distinguish the repositories.
 immutable releases are enabled in both repositories. old `v0.8.0` recovery
 assets were downloaded through the new herdr-mobile repository name and
 verified against their historical pin; private local recovery directory:
@@ -187,15 +190,15 @@ migration to activate. gateway replacement needs no upstream reset or jarvis
 quiescence. cognition declarations and services were not changed. the reverted
 source/spec match the pre-separation baseline; local `scripts/verify` passed.
 
-preserved provider accounts in both products, the original
-published pin, host namespace handback, tailnet `8444` access, and phone
-coexistence remain deployment dependencies. the new signing key has a
-mode-restricted same-host backup at `~/.local/share/herdr-mobile/signing-backup`;
-an off-machine backup
-remains an owner follow-up. no other repo's running agent is authorized to
+both published pins are installed. provider preservation, namespace handback
+and phone coexistence are recorded in [live qualification](separation-qualification.md).
+the new signing key has a mode-restricted same-host backup at
+`~/.local/share/herdr-mobile/signing-backup` and a verified private off-machine
+backup at devbox's `~/.local/state/herdr-mobile/signing-backup/`.
+no other repo's running agent is authorized to
 change this source contract merely by writing its own handoff.
 
-## current continuation point
+## deployed revisions
 
 2026-09-25: pushed dev-server `ae70f2b` adopts existing accounts for both
 products, removes skid codex hooks, scopes the claude plugin and owns skid
@@ -205,8 +208,18 @@ to baseline `8498933`. root source review and the owner's disposable evidence
 close installer convergence. the spec and deployment runbook both preserve
 herdr's runtime/workers/snapshot. no private-home or reset plan remains active.
 
-original skid `0bb7e2a` passed hosted verification; the final release source
-must retain an exact successful check. its release/pin, live provider behavior
-and fleet/phone cutover remain pending. source changes and disposable probes
-are not live qualification. publication precedes host namespace handback.
-phone inspection and installation require current-turn authorization.
+original skid's immutable `v0.9.0` is published from
+`580e0992d1ee0d7334cefc6561e7f55a5836baf5`, with exact successful hosted run
+`36212743764` and a passing published-release check. dev-server `ce6b96b`
+records its public host pin; `1570b60` repairs the devbox ingress privilege
+boundary discovered during live activation. the owner authorized this
+session's fleet/phone work. [qualification](separation-qualification.md)
+records actual results and remaining blockers; source and disposable probes
+do not establish unperformed live behavior.
+
+original source `ca9bcf67ddc771368f9d44052a2bdbc775a71ec8` corrects the
+claude plugin's direct-exec command; dev-server `7c4500d` installs the matching
+asset in a new verified generation. the published binary, apk and release pin
+are unchanged. live native binding and bounded history passed on all three
+hosts. the original source also removed its obsolete jarvis-config writer;
+that command was never invoked during cutover.

@@ -7,33 +7,26 @@ this index records present scope and open work, not a release diary.
 
 ## independent herdr-mobile and skidbladnir
 
-2026-09-25: the [separation spec](herdr-mobile-separation.md) plans this repo's
-rename to herdr-mobile and the original repo's reclamation of skidbladnir.
-both products must coexist independently on all three hosts and android.
-existing herdr panes are disposable; existing provider homes and state are not.
-both products and ordinary commands retain existing providers, account homes
-and histories. github names, gateway ownership, credentials and phone packages
-separate explicitly; runtime integration stays scoped to each product's own
-launches. private provider homes and global command rerouting are withdrawn.
-the [original-repo handoff](skidbladnir-restoration-handoff.md) and
-[dev-server handoff](dev-server-separation-handoff.md) scope those agents'
-work; [the issue](issues/herdr-mobile-separation.md) tracks delivery.
-this repo's source split is implemented: command/module, android package and
-signer, wire, metadata, ports, generated mark, and release/fleet tooling.
-engineering checks, signed candidate build, and temporary isolated gateway and
-android parser probes passed. the [deployment contract](dev-server-handoff.md)
-records exact interfaces and remaining inputs. github names are transferred
-and repository ids preserved; known clone remotes are retargeted. herdr-mobile
-`v0.9.0` is published and pinned. original skid publication, fleet cutover,
-and phone installation remain pending. gateway replacement requires no
-upstream herdr reset. all fleet and phone
-coexistence acceptance remains pending. the
-[ordinary/herdr correction](issues/provider-home-preservation.md) and original
-skid's existing-account/scoped-hook contract are adopted by dev-server
-`ae70f2b`. shared provider installation matches its pre-separation baseline;
-skid owns startup setup and the runbook preserves the upstream runtime.
-original `0bb7e2a` passed hosted verification. [provider qualification](issues/skid-provider-continuity.md),
-original publication and coordinated live cutover remain pending.
+2026-09-25/26: the [separation spec](herdr-mobile-separation.md) is implemented.
+`NielsdaWheelz/herdr-mobile` and `NielsdaWheelz/skidbladnir` retain their
+original repository ids and publish independent immutable `v0.9.0` releases.
+both gateways run on macbook, devbox and arch; both signed android packages
+are installed and independently paired to all three hosts.
+
+both products retain existing provider binaries, accounts, configuration and
+histories. shared-home launch routing and concurrent codex/claude isolation
+passed on every host. native claude registration and bounded history passed
+after the original plugin's direct-exec quoting fix, deployed by dev-server
+`7c4500d`. jarvis's existing map, gate and running workers are preserved;
+upstream herdr was never reset. no private-home plan remains active.
+
+[the qualification record](separation-qualification.md) owns exact release,
+deployment, phone, lifecycle and provider evidence, including truthful partial
+stop results and unavailable history boundaries. herdr-mobile has no prior
+separated release for live version rollback; disposable installer recovery is
+qualified. [the phone's tailscale dns issue](issues/phone-tailscale-dns.md)
+remains an external follow-up. broader terminal usability and historical
+waivers below retain their own scope.
 
 ## herdr pr 5
 
@@ -134,7 +127,7 @@ release, `v0.9.0` at `68a652d7ccbeaaf472ef1c5f3a4ea6949808bca4`, and all five
 artifact digests. the old skid-named `v0.8.0` pin remains in git history at
 `d8bb9c4`; it is not a separated rollback target. a release pin does not assert
 any host or phone's installed version. the [deployment contract](dev-server-handoff.md)
-records source/release qualification and outstanding cutover work.
+records the deployment contract and links the completed cutover evidence.
 
 `dev-server` owns machine-local installation, services and configuration.
 `scripts/fleet` owns `verify` and direct `invite`; `invite` reads the peers'

@@ -42,7 +42,7 @@ a focus broker.
 | state | herdr panes, workspaces, agents and reserved `herdr_mobile_*` pane metadata (name flag, launch profile, objective) are runtime truth; android persists encrypted pairings and local presentation preferences |
 | host app | go gateway over the local public herdr socket, platform pressure and directory observation |
 | clients | the phone only; humans and jarvis call herdr directly |
-| delivery | immutable `v0.9.0` is published and pinned; coordinated host/phone activation remains pending; source changes install or update nothing |
+| delivery | immutable `v0.9.0` is installed on all three hosts and paired on android; both products coexist independently ([evidence](separation-qualification.md)) |
 | trust | agents run as the host user; same-uid adversarial containment is out of scope |
 
 callers choose only a declared profile and a validated cwd; they cannot supply
@@ -248,8 +248,10 @@ secrecy guarantee.
 herdr-mobile and original skidbladnir installations, and permits existing
 herdr panes to be discarded. the [separation spec](herdr-mobile-separation.md)
 owns the target identities, provider boundaries, ordered cutover and acceptance.
-source uses the separated identities and `v0.9.0` is published; coordinated
-cutover remains pending. old `skid_*` pane metadata is not read or migrated.
+source uses the separated identities and `v0.9.0` is installed and paired;
+the [qualification record](separation-qualification.md) records the coordinated
+cutover and the limits of its live checks. old `skid_*` pane metadata is not
+read or migrated.
 
 [pr 5](herdr-pr5.md#8-delivery) established the reduced phone gateway. the
 separation cutover installs independent gateway services while preserving the
