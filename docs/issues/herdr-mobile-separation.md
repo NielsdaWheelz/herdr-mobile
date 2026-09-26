@@ -37,20 +37,29 @@ concurrent operation and independent restart/reinstall/rollback/removal.
 the new android signer has a same-host backup; the owner still needs an
 off-machine copy for disk-loss recovery.
 
-coordination evidence: original skid's handoff and fleet verifier now agree on
-the ten-file receipt. dev-server's adoption notes are stale, and its generation
-admission still omits the specified directory mode and computed digest-suffix
-checks; that owner must resolve the original repo's
-`docs/issues/restoration-receipt-validation.md`. the corrected deployment
-handoff derives the host-only pin from the upstream five-asset pin instead of
-copying its incompatible schema. publication must not wait on live namespace
-handback; doing so would invert the cutover dependencies.
+coordination evidence: original skid's handoff and fleet verifier agree on
+the ten-file receipt. dev-server committed admission mode/digest-suffix checks,
+contract acknowledgment and the real mobile pin in `94931a1`. its later
+provider-routing correction is still uncommitted; that older commit alone must
+not be deployed. read-only source review confirms the correction, and the
+owner records disposable/static results in its validation document.
 
-known blockers to claiming completion: original publication, live deployment,
-correction of dev-server's provider routing, original-skid setup and fleet/phone
-acceptance remain pending. device/tmux checks
-need the applicable current-turn authorization. acceptance is `NOT_RUN`;
-isolated probes and published artifacts do not prove deployed behavior.
+original skid is at `4eeba152bc4e37cc36eaa9a367c27efcb47aba20`, reported as
+hosted-verified in run `36204088437`. six corrected documentation files remain
+uncommitted; the final release source needs its own exact hosted check. current
+local signing preflight passed according to its handoff; a fresh phone
+version/signer observation remains required before finalizing `v0.9.0`/`9000`.
+
+git write and network access are restored. each owner is finalizing its
+reviewed separation changes in the existing checkout. record the final commits
+and obtain the exact original-source hosted check before publication. the
+user has relayed both handoffs; connector messaging is not a prerequisite.
+an old checked commit does not cover later corrections.
+
+original publication, original-skid setup, host namespace handback and live
+fleet/phone acceptance remain pending. device/tmux checks need their applicable
+current-turn authorization. acceptance is `NOT_RUN`; artifacts and disposable
+fixtures do not prove deployed behavior.
 
 resolved when: every acceptance row in the spec passes for both products,
 on all applicable hosts and the phone, and neither ordinary installation nor

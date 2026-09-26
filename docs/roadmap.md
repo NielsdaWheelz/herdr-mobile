@@ -27,8 +27,9 @@ and repository ids preserved; known clone remotes are retargeted. herdr-mobile
 `v0.9.0` is published and pinned. original skid publication, fleet cutover,
 pane reset, and phone installation remain pending. all fleet and phone
 coexistence acceptance remains pending. the
-[provider-home correction](issues/provider-home-preservation.md) blocks any
-apply of the conflicting dev-server working tree.
+[provider-home correction](issues/provider-home-preservation.md) is present
+in dev-server's working tree but still requires commit and live qualification;
+its older `94931a1` commit alone must not be deployed.
 
 ## herdr pr 5
 

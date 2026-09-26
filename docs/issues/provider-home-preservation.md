@@ -1,44 +1,35 @@
-# provider relocation must be withdrawn before apply
+# provider preservation correction awaits commit and live qualification
 
-problem: the separation's dev-server working tree makes global `~/bin`
-provider commands select new `.local/share/herdr/providers/` homes. herdr
-services, integrations, gate and mobile profiles select the same new homes.
-`provider_homes_prepare` creates instructions/settings, not the existing user
-configuration, authentication, histories, memories or project trust.
+problem: dev-server's working tree now restores ordinary/herdr providers, but
+that correction is uncommitted. its local commit `94931a1` still contains the
+withdrawn global router and private herdr-home plan. it is not an acceptable
+deployment candidate by itself. git write access is now restored; the owner
+is finalizing the corrected revision.
 
-impact: an apply would strand normal command access to existing provider state
-despite leaving its files on disk. the owner explicitly rejected this design:
-herdr must use the normal existing providers and homes. disposable herdr panes
-do not authorize provider relocation. do not apply the conflicting source.
+impact: deploying the older commit would hide existing provider configuration,
+authentication, histories and memories behind fresh homes. keeping the files
+on disk would not preserve normal command access to them.
 
-evidence (2026-09-25): dev-server working-tree `assets/routers/ai-profile`,
-`ai_install_profiles` in `lib/ai-tools.sh`, `lib/provider-homes.sh`,
-`assets/herdr-mobile/host-config.json`, `lib/herdr.sh`, herdr service assets
-and `assets/herdr/herdr-gate` implement the rejected mapping. its committed
-`8498933` baseline uses the existing account homes. pinned native herdr
-`065ef9d` resolves the normal home or provider environment override; it has
-no requirement for new homes. its hooks guard on herdr runtime context.
+source correction (2026-09-25): read-only inspection confirms the restored
+`ai-profile`, baseline account launcher installation, normal herdr integration
+targets/service defaults, gate and mobile profiles. herdr no longer calls
+private-home provisioning. original-skid isolation remains scoped. the
+owner's `docs/gateway-separation-validation.md` records eight disposable shell
+paths, state-preservation fixtures and static checks; those were not rerun by
+the root operator. no live apply or provider-state change is reported.
 
-correction owned here: the spec and handoffs now retain `.codex`, `.codex-work`,
-`.codex-work2`, `.claude`, `.claude-work`, existing binaries and ordinary
-command semantics. jarvis's unshipped remap was reverted at `e6a6d20`; pr 42
-is closed. no account-home migration or provider-state repair was performed.
-the restored jarvis source/spec match the baseline and `scripts/verify` passed.
-the digest-verified published herdr-mobile `v0.9.0` binary accepted the four
-existing-home profile paths through `validate-host-config`; no provider ran.
+herdr-mobile's published `v0.9.0` already accepts the existing-home profile
+config. jarvis's unnecessary remap is reverted at `e6a6d20`, pr 42 is closed,
+and its source/spec match the baseline; local `scripts/verify` passed.
 
-dev-server owns the remaining source correction: restore its existing global
-commands/account declaration, integration targets, service environment and
-gate; correct the mobile template; remove herdr private-home provisioning and
-the proposed removal of its normal-home integrations. preserve unrelated
-gateway separation and context scrubbing. do not delete any newly created
-directory, copy account trees, rewrite user configuration or log user content.
-original-skid isolation remains scoped to its own launches and terminals.
+remaining: finalize and push only the corrected deployment slice, preserving
+unrelated edits. qualify actual
+provider/history continuity and cross-runtime hooks at home and a shared
+project under the normal cutover rules; source/fixture success is not that
+live evidence. do not relocate homes or replace user configuration to make
+qualification pass.
 
-resolved when disposable routing checks prove ordinary/herdr commands retain
-their previous homes and explicit account/environment behavior, the published
-gateway accepts the corrected profile config, and no apply path relocates or
-reinitializes normal provider state. real cross-runtime hook behavior at home
-and a shared project remains a separate live acceptance boundary; possible
-project-hook discovery does not prove that relocation is necessary. verify
-existing login/config/history continuity without recording their contents.
+resolved when the corrected deployment revision is committed and selected,
+ordinary/herdr commands retain their existing homes and account/override
+behavior, and actual login/config/history continuity is verified without
+recording user content. gateway maintenance must not own provider state.

@@ -7,16 +7,22 @@ names below describe the pre-transfer investigation. immutable releases are
 enabled for both repositories. herdr-mobile `v0.9.0` is published and pinned;
 your independent release and live namespace handback remain pending.
 
-coordination follow-up: the original handoff and fleet verifier now adopt the
-ten-file receipt contract. dev-server owns the remaining directory-mode and
-computed-digest-suffix admission correction; its stale six-file notes need
-updating. finalize and commit your reviewed source, push it for exact-source
-hosted checks, and give the root operator the clean release source and current
-blockers. update the old github-name/immutable-release blocker observations:
-the reclaimed repository id is verified and immutable releases are enabled.
-publication is a root-owned preparation step and does not wait for host
-namespace handback. keep signer/version preflight and contract agreement;
-live installation waits for handback.
+coordination follow-up: dev-server's ten-file acknowledgment and generation
+mode/digest admission correction are recorded in its local `94931a1` commit.
+its provider-preservation correction is present but uncommitted; that older
+commit alone must not be deployed. your last reported hosted-verified source
+is `4eeba152bc4e37cc36eaa9a367c27efcb47aba20`, run `36204088437`; final
+provider-contract documentation corrections remain uncommitted.
+
+git write and network access are restored. continue from the existing checkout:
+review/commit those corrections, preserve unrelated edits, push, and obtain
+that exact final source's hosted check. no further message relay is needed:
+the user has supplied both owners' acknowledgment and status.
+
+local signing preflight passed per your handoff; fresh phone version/signer
+observation still needs applicable current-turn authorization before selecting
+`v0.9.0`/`9000`. publication is root-owned preparation and does not wait for
+host namespace handback. live installation still waits for that handback.
 
 implement the original tmux-backed product's side of the split below. inspect
 your repository's architecture, roadmap, and agent rules first. this is a

@@ -98,8 +98,9 @@ permission flags. manually typed bare/account commands must use the same
 existing homes. personal claude keeps its normal `.claude` home; it is not a
 fifth phone profile. preserve the existing command and environment-override
 semantics. the owner withdrew the proposed private herdr homes and global
-router; dev-server must correct its working tree before applying it. provider
-state, configuration and histories stay in place. the published gateway accepts
+router. dev-server's working tree now restores the existing mapping; it must
+be committed before deployment. provider state, configuration and histories
+stay in place. the published gateway accepts
 these configured homes; changing them requires no new app release. a fresh,
 digest-verified download of `v0.9.0` passed `validate-host-config` with all four
 existing-home profile paths on macbook. no provider or service was invoked.
@@ -192,3 +193,20 @@ mode-restricted same-host backup at `~/.local/share/herdr-mobile/signing-backup`
 an off-machine backup
 remains an owner follow-up. no other repo's running agent is authorized to
 change this source contract merely by writing its own handoff.
+
+## current continuation point
+
+2026-09-25: dev-server's local `94931a1` owns the ten-file acknowledgment,
+generation mode/digest admission correction and real mobile pin. its provider
+preservation correction is still uncommitted; do not deploy `94931a1` alone.
+the owner reports eight disposable shell paths and static checks passing, and
+read-only root review confirms the restored declarations. original skid's last
+reported hosted-verified source is `4eeba152bc4e37cc36eaa9a367c27efcb47aba20`;
+its final provider-contract documentation corrections are uncommitted.
+
+git write and network access are restored. each owner is finalizing its
+reviewed slice in the existing checkout, preserving unrelated changes. record
+the resulting revisions and the final original source's hosted result before
+publication. a fresh explicitly authorized phone version/signer observation
+is still needed before finalizing the original release version. publication precedes host namespace handback; live apply
+waits for the existing cutover prerequisites and authorization.

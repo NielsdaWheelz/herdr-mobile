@@ -69,25 +69,21 @@ stale; await that owner's new pin. its source contract now exists at
 
 owner correction, 2026-09-25: herdr uses the normal existing providers and
 account homes. the private herdr-home plan and jarvis pr 42 are withdrawn.
-restore ordinary command behavior and the existing herdr/jarvis mappings before
-any apply. the provider section below replaces the earlier relocation mandate;
-this is an activation blocker until the working tree conforms.
+the working tree now restores ordinary/herdr commands, homes, integrations,
+service defaults, gate and mobile mappings; original-skid isolation remains
+scoped. your validation document records eight disposable shell paths and
+static checks passing. this correction is still uncommitted.
 
-2026-09-25 coordination follow-up: original skid's handoff and `scripts/fleet`
-now implement the ten-file receipt order, encoding and modes. replace your
-stale six-file/pending-adoption notes after inspecting that source. the original
-owner's `docs/issues/restoration-receipt-validation.md` identifies the remaining
-deployment defect: `gateway_generation_owned` does not require directory mode
-`0700` or equality between the computed runtime digest and basename suffix.
-fix this at generation admission for both products, retaining the existing
-digest function and explicit product file lists. qualify intact admission,
-wrong directory mode, wrong digest suffix and prior-generation rollback with
-disposable fixtures; report native lifecycle proof separately.
+the ten-file contract acknowledgment, generation mode/digest admission
+correction and real mobile pin are recorded in local commit `94931a1`. those
+items no longer need implementation. that commit still has the rejected
+provider routing: it must not be deployed without the working-tree correction.
 
-after that correction, acknowledge the original app's contract in the runbook
-and commit the reviewed deployment slice, including the real herdr-mobile pin.
-keep original skid's pin pending its own publication. this does not authorize
-live activation or old namespace reclamation.
+git write and network access are restored. review/commit only your correction
+slice, preserve unrelated edits, push it, and report the final revision.
+original skid's published pin and actual provider/hook/lifecycle qualification
+remain pending. no live activation or namespace reclamation is implied. the
+user has relayed both owners' handoffs; connector messaging is not a blocker.
 
 ## fixed identities
 
