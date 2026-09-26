@@ -24,7 +24,7 @@ allowed; their upgrades are separate operations from gateway maintenance.
 you own dev-server source, service/config templates, pins, scoped installation
 and removal, provider integration provisioning, and the host cutover runbook.
 edit only dev-server. coordinate app/helper requirements with the original
-skid agent and worker-home changes with the jarvis agent. deliver reviewed
+skid agent; preserve jarvis's existing worker-home map. deliver reviewed
 source and a concrete runbook; the root operator coordinates live namespace
 handback. github renames, app code/releases, jarvis code, and phone installs
 belong to their respective owners. do not activate unfinished app releases.
@@ -67,12 +67,11 @@ belongs to the old shared identity. original skid's old `v0.6.0` pin is also
 stale; await that owner's new pin. its source contract now exists at
 `/Users/nnandal/Documents/code/skid-v1/docs/dev-server-handoff.md`.
 
-jarvis's matching worker map is `bada736` in
-[draft pr 42](https://github.com/NielsdaWheelz/jarvis/pull/42) and
-`/Users/nnandal/Documents/code/jarvis`; static/build checks passed. activate it
-only after settling pending incompatible worker actions. private provider
-homes, authentication/trust, host handback and phone proof are still required;
-publication alone does not authorize skipping that sequence.
+owner correction, 2026-09-25: herdr uses the normal existing providers and
+account homes. the private herdr-home plan and jarvis pr 42 are withdrawn.
+restore ordinary command behavior and the existing herdr/jarvis mappings before
+any apply. the provider section below replaces the earlier relocation mandate;
+this is an activation blocker until the working tree conforms.
 
 2026-09-25 coordination follow-up: original skid's handoff and `scripts/fleet`
 now implement the ten-file receipt order, encoding and modes. replace your
@@ -170,42 +169,49 @@ paths while leaving signing files untouched.
 
 ## provider homes, commands, and helper
 
-both runtimes get five private interactive homes:
+herdr uses the existing provider binaries and account homes: `.codex`,
+`.codex-work`, `.codex-work2`, `.claude`, `.claude-work`. preserve ordinary
+shell and account-command behavior, explicit environment overrides, auth,
+configuration, history, memories, project trust, instructions, plugins and mcp.
+these homes are shared user state, not herdr-owned or cognition-only state.
 
-| runtime | root | children |
-| --- | --- | --- |
-| herdr | `~/.local/share/herdr/providers/` | `codex-personal`, `codex-work`, `codex-work2`, `claude-personal`, `claude-work` |
-| original skid | `~/.local/share/skidbladnir/providers/` | the same five child names |
+revert the separation changes that relocate or globally reroute herdr:
 
-the phone still offers four existing forge profiles; personal claude is a
-manual/native default. provision fresh homes and required instructions/settings;
-authenticate and trust hooks through normal provider setup. do not copy whole
-account trees, credentials, plugin caches, trust records, history, or discovery
-sockets. missing authentication/trust is an explicit prerequisite.
+- `assets/routers/ai-profile`, `ai_install_profiles` and global aliases: retain
+  the established command implementation/account declaration. do not install
+  new bare-command wrappers that shadow the native provider binaries.
+- `assets/herdr-mobile/host-config.json`, herdr service environment, integration
+  targets, admission checks and `assets/herdr/herdr-gate`: use the existing
+  homes. retain unrelated runtime-context scrubbing and gateway separation.
+- remove herdr's call to `provider_homes_prepare`; no new herdr provider home
+  is needed. keep original-skid provisioning scoped to its own installation.
+- correct spec, runbook and issue prose that reclassifies the existing homes
+  as cognition-only. jarvis's worker map and cognition configuration stay as
+  they were before this separation. pr 42 is closed and its source reverted.
 
-install herdr's own pinned native integrations only in herdr homes; restore
-skid integrations only in skid homes. once ready, remove precisely inventoried
-old product entries/scripts from ordinary `~/.codex*`/`~/.claude*`, preserving
-user hooks/settings and credentials. no recurring product installer owns those
-ordinary homes or project settings. codex can load `~/.codex/hooks.json` as
-project config at `cwd=$HOME`; audit inline/plugin sources as well.
+preserve existing native herdr integrations and upstream runtime guards in
+those normal homes. gateway maintenance does not migrate or own provider
+state. do not run the proposed cleanup of herdr hooks from ordinary homes;
+only specifically verified obsolete skid registrations may be removed, without
+changing user hooks, settings or trust. project hook discovery is a boundary to
+qualify, not evidence that provider homes must move.
 
-keep jarvis COGNITION services, existing account-home declarations, discovery,
-and unrelated settings intact. jarvis WORKERS move to herdr's new homes. update
-mobile host profiles, herdr integration targets, scoped shell/account command
-resolution, and `assets/herdr/herdr-gate`'s environment allowlist together.
-give the jarvis agent the exact matching map for `src/jarvis/agent_tools.py`,
-including explicit personal claude default. do not widen the gate's commands.
+original skid's separate homes remain under
+`.local/share/skidbladnir/providers/` for its own forge and marked shell
+terminals only. its scoped launcher selects native executables, required
+arguments/plugin and the private home, and clears inherited `HERDR_*`.
+no ordinary or herdr shell is rerouted there. authenticate/trust these new
+original-skid homes separately; existing user history remains in normal homes.
+do not copy whole account trees or discovery state. preserve explicit profile
+selection and existing permission policy. never alter unrelated tmux sessions
+or the default server environment.
 
-forge and manually typed commands in new terminals must select the same
-product-owned homes after login-shell startup. current work wrappers force
-old homes and cannot be reused unchanged. preserve explicit profile selection
-and each product's existing permission policy; original skid profiles use
-absolute native providers and their own arguments/plugin. use minimal scoped
-wrappers only where needed, and coordinate shell environment creation with
-the original skid agent. scrub foreign `HERDR_*` context from skid creation
-paths and tmux context from herdr; never rewrite unrelated live tmux sessions
-or default-server environment. keep upstream hook guards intact.
+qualify command resolution before apply with disposable shell fixtures and
+fake provider executables: ordinary and herdr bare/account commands retain
+existing homes; an explicit forge profile survives shell startup; original
+skid selects its private home only in its own scope. check the linux and macos
+entry paths. report actual provider/history/hook coexistence separately; no
+credential or history contents belong in logs.
 
 restore original skid's native helper as its separately pinned dependency.
 historical inputs are `llm-calling@ec97adeb9ddd0f91b141f89cc42cff7cc7efdb8f`,
@@ -218,17 +224,17 @@ the intended executable and private home. herdr-mobile never consumes it.
 ## staged delivery and recovery
 
 prepare source and a host-by-host runbook without prematurely claiming live
-completion. app release inputs and the jarvis worker mapping are dependencies;
-source preparation can proceed while they are pending.
+completion. app release inputs and restoration of existing provider routing are
+dependencies; source preparation can proceed while they are pending.
 
 1. stage herdr-mobile in its new namespace, with fresh credentials and `8444`
    ingress, preserving the old deployment until the new inputs are ready.
 2. the root operator coordinates jarvis quiescence and the herdr reset from
    outside the discarded panes. settling pending actions remains required.
    stop the intended runtime before discarding its old session snapshot;
-   restarting alone can restore old shells. activate matching provider-home,
-   gate, worker-map, and gateway changes. preserve herdr configuration/runtime
-   identity and cognition. report exact results for each host.
+   restarting alone can restore old shells. activate the new gateway while
+   preserving existing provider homes, command defaults, jarvis map/gate and
+   herdr configuration/runtime identity. report exact results for each host.
 3. after all new gateways and the new phone app work, retire the old
    herdr-backed skid services, ingress, credentials, launchers, receipts, and
    obsolete generations. inventory removal precisely; preserve original

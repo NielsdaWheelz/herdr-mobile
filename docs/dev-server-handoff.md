@@ -86,17 +86,23 @@ json members are case-sensitive and unknown/duplicate members are rejected.
 
 | key | provider | variable | value relative to the service user's home |
 | --- | --- | --- | --- |
-| `personal` | `Codex` | `CODEX_HOME` | `.local/share/herdr/providers/codex-personal` |
-| `work` | `Codex` | `CODEX_HOME` | `.local/share/herdr/providers/codex-work` |
-| `work2` | `Codex` | `CODEX_HOME` | `.local/share/herdr/providers/codex-work2` |
-| `claude-work` | `Claude` | `CLAUDE_CONFIG_DIR` | `.local/share/herdr/providers/claude-work` |
+| `personal` | `Codex` | `CODEX_HOME` | `.codex` |
+| `work` | `Codex` | `CODEX_HOME` | `.codex-work` |
+| `work2` | `Codex` | `CODEX_HOME` | `.codex-work2` |
+| `claude-work` | `Claude` | `CLAUDE_CONFIG_DIR` | `.claude-work` |
 
 no `nativeControlPath`, provider command/arguments, tmux fields, hooks, or
 identity plugin are consumed here. native herdr receives bare `codex` or
 `claude`; deployment-owned shell resolution selects the executable and existing
 permission flags. manually typed bare/account commands must use the same
-private homes. personal claude defaults to `claude-personal` under that root;
-it is not a fifth phone profile. explicit profile homes take precedence.
+existing homes. personal claude keeps its normal `.claude` home; it is not a
+fifth phone profile. preserve the existing command and environment-override
+semantics. the owner withdrew the proposed private herdr homes and global
+router; dev-server must correct its working tree before applying it. provider
+state, configuration and histories stay in place. the published gateway accepts
+these configured homes; changing them requires no new app release. a fresh,
+digest-verified download of `v0.9.0` passed `validate-host-config` with all four
+existing-home profile paths on macbook. no provider or service was invoked.
 
 start the gateway with explicit deployment paths:
 
@@ -167,24 +173,22 @@ binary with the old skid binary and recomputed checksums: validation rejected
 the foreign go command identity. no behavioral harness is retained.
 the published linux archive was also downloaded and digest-verified separately
 on devbox and arch. its native version and the dev-server template rendered
-for each owner's home passed config validation on both hosts. those checks
+for each owner's home passed config validation on both hosts using the earlier
+home-map proposal. those checks
 used automatically removed temporary directories and changed no service,
 provider home or runtime state; they do not prove live provider readiness.
 
-jarvis's worker map, spec and adr 0050 are prepared at `bada736` in
-[draft pr 42](https://github.com/NielsdaWheelz/jarvis/pull/42), also present in
-`/Users/nnandal/Documents/code/jarvis`; `scripts/verify` passed. that commit
-is not merged or deployed. the existing policy-input mechanism captures the changed
-homes, so pending incompatible actions must be settled before activation.
-cognition declarations and services were not changed.
-hosted jarvis checks did not start because of the account billing/spending-limit
-restriction already recorded in its `docs/issues/github-actions-billing.md`;
-pr run `36197656947` supplies the current annotation. hosted verification is
-`NOT_RUN`, independent of the passing local checks.
+jarvis's proposed worker-home change was reverted at `e6a6d20` and
+[pr 42](https://github.com/NielsdaWheelz/jarvis/pull/42) is closed. its existing
+worker map, spec and gate contract are retained; there is no jarvis home
+migration to activate. pending work still needs settlement before resetting
+herdr panes. cognition declarations and services were not changed. the reverted
+source/spec match the pre-separation baseline; local `scripts/verify` passed.
 
-fresh provider login/trust, original skid's published pin, host namespace
-handback, tailnet `8444` access, jarvis activation, and phone coexistence remain
-deployment dependencies. the new signing key has a mode-restricted same-host
-backup at `~/.local/share/herdr-mobile/signing-backup`; an off-machine backup
+preserved normal/herdr routing, original-skid login/trust, the original
+published pin, host namespace handback, tailnet `8444` access, and phone
+coexistence remain deployment dependencies. the new signing key has a
+mode-restricted same-host backup at `~/.local/share/herdr-mobile/signing-backup`;
+an off-machine backup
 remains an owner follow-up. no other repo's running agent is authorized to
 change this source contract merely by writing its own handoff.

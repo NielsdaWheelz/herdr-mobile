@@ -10,8 +10,11 @@ this index records present scope and open work, not a release diary.
 2026-09-25: the [separation spec](herdr-mobile-separation.md) plans this repo's
 rename to herdr-mobile and the original repo's reclamation of skidbladnir.
 both products must coexist independently on all three hosts and android.
-existing herdr panes are disposable; provider integration homes, github names,
-deployment ownership, credentials, and phone packages separate explicitly.
+existing herdr panes are disposable; existing provider homes and state are not.
+herdr and ordinary commands retain their current providers, account homes and
+histories. github names, gateway ownership, credentials and phone packages
+separate explicitly; original-skid provider isolation stays scoped to its own
+launches. the earlier global router/private herdr-home plan is withdrawn.
 the [original-repo handoff](skidbladnir-restoration-handoff.md) and
 [dev-server handoff](dev-server-separation-handoff.md) scope those agents'
 work; [the issue](issues/herdr-mobile-separation.md) tracks delivery.
@@ -23,7 +26,9 @@ records exact interfaces and remaining inputs. github names are transferred
 and repository ids preserved; known clone remotes are retargeted. herdr-mobile
 `v0.9.0` is published and pinned. original skid publication, fleet cutover,
 pane reset, and phone installation remain pending. all fleet and phone
-coexistence acceptance remains pending.
+coexistence acceptance remains pending. the
+[provider-home correction](issues/provider-home-preservation.md) blocks any
+apply of the conflicting dev-server working tree.
 
 ## herdr pr 5
 

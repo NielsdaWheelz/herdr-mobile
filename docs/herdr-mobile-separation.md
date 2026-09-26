@@ -160,86 +160,71 @@ herdr-mobile's source change must include:
    rewrite immutable release assets or pretend past skid releases were built
    under the new package identity.
 
-## 5. provider and runtime separation
+## 5. preserve existing providers; scope runtime integrations
 
-provider home selection is an installation contract shared by the host
-configuration, shell command resolution, integration installer, and jarvis's
-gate. a private gateway directory alone does not establish it.
+owner correction, 2026-09-25: herdr uses the normal existing providers and
+account homes. the earlier relocation into `.local/share/herdr/providers/`
+and global command rerouting are withdrawn. disposable panes do not imply
+disposable provider history, configuration, authentication or user workflow.
 
-move herdr's interactive provider configuration into
-`~/.local/share/herdr/providers/`, with five explicit homes: `codex-personal`,
-`codex-work`, `codex-work2`, `claude-personal`, and `claude-work`. the phone
-still offers its existing four profiles; personal claude remains the native
-herdr/jarvis default, with an explicit private home. herdr's upstream binary
-and native integration installer own this configuration; herdr-mobile gains
-no hook implementation.
+ordinary shells, herdr terminals, herdr-mobile profiles and jarvis workers
+retain the existing provider binaries and account-home selection:
 
-original skid gets fresh homes under
-`~/.local/share/skidbladnir/providers/`: `codex-personal`, `codex-work`,
-`codex-work2`, `claude-personal`, and `claude-work`. personal claude is a shell
-default, not an added forge profile. no symlinks or shared mutable credential,
-history, plugin, hook, cache, socket, or discovery files between product homes.
-authenticate and trust integrations through the providers' normal setup.
-do not copy whole existing account homes; devbox's existing homes also contain
-jarvis discovery state. fresh setup is required on each host for the profiles
-used there; record missing login/trust as a prerequisite, not a passing launch.
+| account | existing home relative to the host user's home |
+| --- | --- |
+| codex personal | `.codex` |
+| codex work | `.codex-work` |
+| codex work2 | `.codex-work2` |
+| claude personal | `.claude` |
+| claude work | `.claude-work` |
 
-update herdr-mobile's host profiles, jarvis's worker profile/default mapping,
-the herdr gate's explicit environment allowlist, desktop command defaults,
-instruction provisioning, and herdr integration targets together. command
-resolution inside herdr must select the new default homes and preserve the
-pane's explicit profile environment and existing permission policy. account
-wrappers must select the corresponding new interactive home. keep jarvis's
-separate cognition services, account-home declaration, discovery sockets,
-history, and credentials at their existing locations; do not move cognition
-because its home declaration currently also feeds interactive wrappers.
+these are existing user provider homes, not herdr-owned or cognition-only
+state. preserve their auth, configuration, trusted projects, hooks, mcp servers,
+plugins, instructions, histories, memories and discovery data in place.
+no copying, symlinking, migration, reset or reconciliation is needed. the
+separation must not install new global `codex`/`claude` routers or alter ordinary
+account-command and explicit environment-override behavior. use the existing
+account declarations and command implementation instead of adding a registry.
 
-remove only verified product-owned integration entries and scripts from the
-ordinary `~/.codex*` and `~/.claude*` homes once the new setup is ready.
-preserve unrelated settings, user hooks, credentials, and cognition discovery.
-no recurring product installer writes those ordinary homes or project hook
-files. shared user-selected project settings remain user-owned inputs.
+herdr-mobile's four host profiles and the existing jarvis map/gate select those
+same established homes. personal claude stays the normal `.claude` default;
+it is not a fifth phone profile. withdraw jarvis pr 42 and adr 0050's unshipped
+home change. jarvis cognition and worker contracts otherwise remain unchanged;
+settle pending work before the separately scoped herdr pane reset.
 
-original profile rows must use absolute native provider executables and their
-explicit environment/arguments, or a skid-owned wrapper only where necessary.
-the shared `codex-work`, `codex-work2`, and `claude-work` wrappers force the old
-homes and cannot implement this contract. preserve the legacy explicit claude
-identity plugin and verify its loaded origin. provider configuration and
-helper discovery must resolve the same claude home.
+herdr needs its native runtime identity and integrations, not fresh provider
+homes. retain its existing native integration targets and upstream guards;
+herdr-mobile still installs no hooks. do not remove herdr integrations from
+ordinary provider homes as part of this split. retire only proven obsolete
+skid registrations, preserving unrelated settings, hooks and trust. routine
+gateway maintenance does not own provider configuration or install integrations.
 
-apply that ownership to manually started agents too. every newly created skid
-shell must resolve bare `codex`/`claude` and account-specific commands to skid
-homes, including after login-shell startup; every herdr shell resolves them
-to herdr homes. establish product-scoped shell defaults and, where required,
-simple product-scoped wrappers with native executable targets. explicitly
-selected profile homes take precedence. a shared account wrapper that forces
-the other product's home fails this contract even when forge launches work.
-do not rewrite the environment of existing user tmux sessions or install a
-general runtime-selection framework.
+original skid's already planned private homes remain scoped to its own forge
+and newly created skid terminals under `.local/share/skidbladnir/providers/`:
+`codex-personal`, `codex-work`, `codex-work2`, `claude-personal`, `claude-work`.
+they must never replace normal shell or herdr account defaults. original skid
+uses absolute native providers and its required identity plugin/helper there;
+its scoped shell launcher must remain inactive in unmarked and herdr shells.
+fresh login/trust is a prerequisite for those separate original-skid homes
+only. they do not contain existing provider history; that remains available in
+the unchanged normal homes. do not copy whole account trees or discovery state.
 
-restore original skid's native helper as a separately pinned skid dependency.
-historical evidence identifies `llm-calling` at
-`ec97adeb9ddd0f91b141f89cc42cff7cc7efdb8f`, uv `0.11.28`, python `3.12.13`,
-and claude sdk `0.2.130`; these are investigation inputs, not proof of current
-compatibility. the original agent must inspect the exact helper boundary and
-qualify it with current provider binaries. prefer a skid-owned helper command
-such as `skidbladnir-provider-runtime-control`. do not restore an old whole
-dev-server revision, which would reclaim shared hooks and wrappers.
+scrub foreign runtime context at launch: `HERDR_*` from original skid and
+tmux context from herdr. never mutate unrelated live tmux sessions or their
+server environment. qualify explicit profile selection and manual commands
+from ordinary and opposite-runtime shells, at `$HOME` and a shared project.
 
-scrub foreign runtime context at process creation, including `HERDR_*` from
-skid's gateway, tmux startup, and provider launches, and tmux context from the
-herdr server. inspect existing tmux server environment without changing it;
-do not mutate unrelated existing tmux sessions to make a test pass. test
-launches from a shell inside the opposite runtime as well as ordinary shells.
-native hook guards remain intact; add no general hook dispatcher.
+provider project settings may load integrations beyond the selected home.
+that is an integration-boundary question, not permission to relocate user
+state. verify that hooks act only for their intended runtime and that neither
+product's installation/removal breaks the other. an actual provider limitation
+blocks the affected acceptance row and needs an explicit bounded correction;
+do not assume isolation merely from different home paths or add a hook router.
 
-project settings are also configuration inputs. test `cwd=$HOME` and a real
-shared project: codex can discover `$HOME/.codex/hooks.json` as project config
-when another `CODEX_HOME` is selected. this is why both products get homes
-outside those ordinary project-config locations. audit inline and plugin hook
-sources too. section 7 cannot pass on environment guards alone if the other
-product's hook or trust changes still affect startup. record any genuine
-provider limitation in the tracking issue.
+original skid retains the separately pinned native helper described in its
+handoff (`llm-calling@ec97adeb9ddd0f91b141f89cc42cff7cc7efdb8f`, uv `0.11.28`,
+python `3.12.13`, claude sdk `0.2.130`). its owner qualifies current native
+compatibility. no helper or provider history implementation returns here.
 
 ## 6. ordered delivery and rollback
 
@@ -372,11 +357,12 @@ unexecuted boundaries are `NOT_RUN`.
 | --- | --- |
 | repositories and releases | final names resolve to intended ids; clean independent builds and hosted checks; each release/pin/installer uses only its own source, assets, signer, and package |
 | both gateways, each host | both services and serve handlers active concurrently; distinct handles/bearers; wrong-product invite, auth header, and credential rejected before mutation |
-| runtime isolation, each host | exercise all four forge profiles plus manually typed bare/account provider commands in new shell terminals; correct private homes, integration targets, and runtime context; codex and claude run concurrently in both products; repeat from `$HOME` and a shared project; neither product observes or controls the other's worker |
+| runtime isolation, each host | exercise all four forge profiles plus manually typed bare/account provider commands in new shell terminals; existing normal/herdr homes and scoped original-skid homes, integration targets, and runtime context; codex and claude run concurrently in both products; repeat from `$HOME` and a shared project; neither product observes or controls the other's worker |
 | ownership lifecycle | while one product has a live worker and phone attachment, restart/reinstall the other gateway and exercise its rollback; worker and attachment remain usable and unrelated owned files/ingress remain unchanged; repeat in reverse |
 | removal | each scoped removal preserves the other product's credentials, service, runtime, ingress and provider homes; exercise on disposable installations before live fleet use |
 | phone | both signed packages, labels and distinct icons present; independent pairing to all three hosts, inventory, launch, attach/input/detach, interrupt/stop; restarting/updating one app preserves the other's data and use |
-| jarvis | unchanged herdr targeting semantics and working codex/claude launch after profile-home/gate updates; cognition services, account-home declarations, discovery, credentials, and unrelated settings unchanged; only inventoried old integration entries/scripts removed; no pending action replay across the reset |
+| provider continuity | ordinary and herdr bare/account commands retain the existing home selection; existing configuration, authentication and resumable histories remain accessible; gateway apply/remove does not move, replace or hide provider state |
+| jarvis | unchanged herdr targeting semantics, worker home map/gate and working codex/claude launch; cognition services, account-home declarations, discovery, credentials, and unrelated settings unchanged; only inventoried old integration entries/scripts removed; no pending action replay across the reset |
 | repeat apply | neither product's ordinary apply reclaims or deletes the other's namespace; gateway apply remains possible with the other's installation absent |
 
 only test-created tmux resources on an isolated `-L` socket may be killed,
@@ -409,7 +395,7 @@ external contract references:
 - [pinned herdr hook runtime guard](https://github.com/herdrdev/herdr/blob/065ef9d6a531c49fb8bee7e818ef837065b21ee9/src/integration/assets/codex/herdr-agent-state.sh).
 
 remaining preflight: prove the product-hook discovery boundary, confirm
-fresh provider authentication/trust and native-helper compatibility, qualify `8444`
+provider continuity, original-skid authentication/trust and native-helper compatibility, qualify `8444`
 through tailnet policy from the phone, inventory obsolete host generations and
 all publishing clones, and verify separated rollback/removal. these are tracked
 work, not claims of completed acceptance.

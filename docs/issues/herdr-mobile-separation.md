@@ -24,13 +24,14 @@ completed source/release work:
 - engineering checks, signed artifact checks, isolated native gateway/metadata
   probes and compiled android origin/invitation probes passed. the
   [deployment contract](../dev-server-handoff.md) records their limits.
-- jarvis's four worker homes, spec and adr are prepared at `bada736` in
-  [draft pr 42](https://github.com/NielsdaWheelz/jarvis/pull/42); static/build
-  checks passed. no jarvis service or cognition state changed.
+- the unnecessary jarvis worker-home remap was reverted at `e6a6d20` and
+  [pr 42](https://github.com/NielsdaWheelz/jarvis/pull/42) closed. existing
+  worker homes/spec are restored; no live provider state changed.
 
 remaining work: original skid's release/pin; reviewed dev-server deployment;
-fresh provider login/trust and hook-discovery qualification; native-helper live
-compatibility; jarvis action settlement and activation; `8444` reachability;
+the [provider-home correction](provider-home-preservation.md), existing
+provider continuity and hook-discovery qualification; original-skid login/trust
+and native-helper live compatibility; jarvis action settlement; `8444` reachability;
 old host generation retirement and namespace handback; phone reset/re-pairing;
 concurrent operation and independent restart/reinstall/rollback/removal.
 the new android signer has a same-host backup; the owner still needs an
@@ -46,7 +47,8 @@ copying its incompatible schema. publication must not wait on live namespace
 handback; doing so would invert the cutover dependencies.
 
 known blockers to claiming completion: original publication, live deployment,
-provider setup and fleet/phone acceptance remain pending. device/tmux checks
+correction of dev-server's provider routing, original-skid setup and fleet/phone
+acceptance remain pending. device/tmux checks
 need the applicable current-turn authorization. acceptance is `NOT_RUN`;
 isolated probes and published artifacts do not prove deployed behavior.
 

@@ -51,7 +51,9 @@ pane with the profile's environment and asks herdr to start the provider's
 bare `codex` or `claude` there. the pane shell resolves that name: the
 deployment's `codex` wrapper respects a preset `CODEX_HOME`, and the
 deployment's shell aliases add the permission flags. herdr-mobile passes no arguments,
-because codex refuses a repeated `--yolo`. a zero-profile host still has
+because codex refuses a repeated `--yolo`. herdr and ordinary commands use the
+existing provider binaries and account homes; the gateway does not own or move
+authentication, configuration, history or memories. a zero-profile host still has
 terminal creation and herdr's agent detection. launch metadata names a
 candidate profile, never proves the account of a running process.
 
@@ -246,12 +248,12 @@ secrecy guarantee.
 herdr-mobile and original skidbladnir installations, and permits existing
 herdr panes to be discarded. the [separation spec](herdr-mobile-separation.md)
 owns the target identities, provider boundaries, ordered cutover and acceptance.
-source uses the separated identities; release publication and coordinated
-cutover remain pending. old `skid_*` pane metadata is not read or migrated.
+source uses the separated identities and `v0.9.0` is published; coordinated
+cutover remains pending. old `skid_*` pane metadata is not read or migrated.
 
 [pr 5](herdr-pr5.md#8-delivery) established the reduced phone gateway. the
-separation cutover now installs independent services and private provider
-homes before pairing the new phone package. neither source implementation nor
+separation cutover installs independent gateway services while preserving the
+existing normal/herdr provider homes before pairing the new phone package. neither source implementation nor
 a synthetic probe is fleet acceptance. [the roadmap](roadmap.md) records remaining live and phone proofs.
 
 push, unread-result attention, provenance, copied provider history, durable

@@ -21,6 +21,9 @@ live installation waits for handback.
 implement the original tmux-backed product's side of the split below. inspect
 your repository's architecture, roadmap, and agent rules first. this is a
 bounded restoration and coexistence task; preserve the original architecture.
+owner correction: your isolation must remain scoped to your product. herdr and
+ordinary provider commands keep their existing binaries, homes and histories;
+the earlier private herdr-home proposal is withdrawn.
 
 ## identity and scope
 
@@ -86,9 +89,10 @@ independently. obey current-turn tmux/device authorization and logging rules.
    existing account trees, discovery sockets, caches, or credentials.
    cover shell terminals too: typing bare/account provider commands after
    login-shell startup must select your homes. supply product-scoped defaults
-   and minimal wrappers where required; shared wrappers forcing herdr homes
-   are unacceptable. explicit profile selection wins. do not mutate existing
-   user tmux sessions or invent a general runtime-selection framework.
+   and minimal wrappers where required, active only in your own marked shells;
+   ordinary and herdr commands must retain their existing account homes.
+   explicit profile selection wins. do not mutate existing user tmux sessions
+   or invent a general runtime-selection framework.
 5. restore and pin the required `nativeControlPath` helper. historical inputs:
    `llm-calling@ec97adeb9ddd0f91b141f89cc42cff7cc7efdb8f`, uv `0.11.28`,
    python `3.12.13`, claude sdk `0.2.130`. inspect and qualify rather than
@@ -97,10 +101,11 @@ independently. obey current-turn tmux/device authorization and logging rules.
    its claude subprocess resolves the intended executable and private home.
 6. prevent inherited `HERDR_*` context entering your gateway, tmux startup,
    or provider children. never modify unrelated live tmux sessions/server
-   environment. herdr's interactive homes are moving under
-   `~/.local/share/herdr/providers/`; its own agent owns that work. the
-   integrator removes old product hook registrations from ordinary
-   `~/.codex*`/`~/.claude*` while preserving user config and jarvis cognition.
+   environment. the owner rejected herdr provider-home relocation: herdr and
+   ordinary shells keep `.codex`, `.codex-work`, `.codex-work2`, `.claude`,
+   `.claude-work` and their existing provider state. preserve native herdr
+   integrations there. the integrator may remove only proven obsolete skid
+   registrations, preserving user configuration, hooks, trust and cognition.
    prove hook isolation at `cwd=$HOME` and a shared project, including inline
    and plugin sources. do not add a shared hook dispatcher or modify upstream
    herdr integrations.
@@ -121,8 +126,9 @@ behavior as passing. follow your repo's retired-test policy; temporary probes
 must not become a new retained harness.
 
 after namespace handback, prove on all three hosts: both products active;
-all forge profiles and manually typed provider commands use the correct private
-homes and runtimes; invites and
+your forge profiles and manually typed provider commands in your marked
+terminals use your private homes, while ordinary/herdr commands retain existing
+homes and histories; invites and
 credentials cannot cross products; independent restart, reinstall and rollback
 preserve the other's workers/attachments/files. prove scoped removal on a
 disposable installation. tmux probes may mutate only their own isolated `-L`
