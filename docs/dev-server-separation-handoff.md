@@ -201,10 +201,15 @@ codex `hooks.json`; no merger is required. stage the explicitly loaded claude
 plugin with its provider-exec guard and exact process checks. shared user
 settings and native herdr integrations remain intact.
 
-skid apply owns its shell startup prerequisite. shared `ai_install` and
-ordinary managed dotfiles must not install skid-specific sources or fail
-because skid is absent. preserve startup symlinks and user content; any
-unsupported skid startup path is resolved within skid setup.
+skid apply owns startup validation and edits. shared `ai_install` must not
+inspect or edit startup files for skid, or fail because skid is absent.
+the fully managed `.zshrc` may retain one optional source guard, requiring
+`SKIDBLADNIR_SHELL=1` and `HERDR_ENV!=1` before any skid file access. this small
+static dependency preserves skid support when ordinary dotfile maintenance
+replaces the whole managed file; it adds no ordinary-shell provider routing or
+shared installation prerequisite. preserve startup symlinks and user content;
+any unsupported skid startup path is resolved within skid setup. re-source
+after later startup overrides rather than suppressing it with a once-only flag.
 
 qualify command resolution before apply with disposable shell fixtures and
 fake provider executables: ordinary and herdr bare/account commands retain

@@ -208,6 +208,10 @@ its scoped launcher selects absolute native providers and existing permission
 arguments. it remains inactive in ordinary and herdr shells. skid owns its
 shell integration prerequisite; shared provider installation must not depend
 on skid or replace user dotfiles/symlinks to install it.
+the fully managed `.zshrc` may retain an optional skid source guard, inactive
+outside marked skid shells and inside herdr panes. this static dependency
+keeps ordinary whole-file dotfile updates from erasing skid integration;
+startup validation and other edits remain skid-owned.
 
 skid installs no codex hooks: its codex projection uses the foreground process
 and terminal controls. leave existing codex hook files untouched. its claude

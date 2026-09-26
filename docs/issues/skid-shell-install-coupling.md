@@ -16,9 +16,17 @@ these paths were introduced after baseline `8498933`. source inspection only;
 no user startup files were read or modified during this audit.
 
 accepted correction: skid owns its required shell integration. the original
-repo's `3bd0ae4` handoff and root deployment assignment now require this;
-dev-server implementation is pending. preserve normal shell startup and
-account selection; do not work around the coupling by replacing user dotfiles.
+repo's `0bb7e2a` handoff and root deployment assignment require this.
+dev-server's working tree removes the shared `ai_install` call, and its owner
+reports disposable before/after, symlink, mode, idempotence and late-override
+checks passing. final reviewed deployment source remains pending.
+
+bounded trade-off: fully managed `.zshrc` retains an optional source guard,
+checking the skid marker and absence of herdr context before any skid file
+access. otherwise ordinary whole-file updates erase the integration. this
+static dependency neither reroutes ordinary commands nor adds a shared
+provider-installation prerequisite. preserve normal startup and account
+selection; do not replace user dotfiles to resolve skid-specific requirements.
 
 resolved when ordinary provider maintenance has no skid-specific prerequisite,
 and skid's supported login/interactive launch paths still load their own
