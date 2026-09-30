@@ -5,6 +5,16 @@ accepted feature specifications own detailed product contracts.
 [the codebase map](codebase-map.md) locates their implementation.
 this index records present scope and open work, not a release diary.
 
+## skid only retirement
+
+2026-09-29: herdr/mobile are removed from all three hosts and android. skid
+v0.10.6 supplies current desktop/phone control and captured conversation inspection.
+jarvis's nine-tool adapter/archive cut and production worker-client qualification
+are delivered; jarvis stays disabled and paused pending separate shared-cognition
+repair. [the retirement contract](herdr-retirement.md) owns the requirements;
+[qualification](herdr-retirement-qualification.md) records exact boundaries.
+the remaining sections are historical delivery records, not active herdr work.
+
 ## independent herdr-mobile and skidbladnir
 
 2026-09-25/26: the [separation spec](herdr-mobile-separation.md) is implemented.

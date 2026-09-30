@@ -1,5 +1,11 @@
 # herdr-mobile: product and architecture
 
+2026-09-29: this product is retired. [skid-only retirement](herdr-retirement.md)
+owns the cutover; [qualification](herdr-retirement-qualification.md) owns its
+observed boundaries. herdr/mobile are removed from all three hosts and android;
+jarvis's worker source uses skid while its shared cognition may stay down.
+the remainder describes the former product and authorizes no new installation.
+
 this document describes herdr-mobile: the herdr android app and one
 phone gateway per host. the [separation spec](herdr-mobile-separation.md) owns
 its independent identity and coordinated deployment. it is not a claim that any host or phone has been

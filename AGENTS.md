@@ -2,16 +2,14 @@
 
 Before changing this repository, read [the architecture](docs/architecture.md),
 [the roadmap](docs/roadmap.md), and
-[the codebase rules](docs/rules/index.md). herdr owns terminals, panes,
-workspaces, agent detection and lifecycle; providers own execution and history.
-herdr-mobile is the android app and one phone gateway per host over its local herdr;
-humans and jarvis use herdr directly. [pr 5](docs/herdr-pr5.md) removed the skid
-cli, peer and attach clients, identity hook and notifier; do not reintroduce
-them or anything else herdr already provides, nor retired machinery:
-generalized hook runtimes, provenance, sqlite lifecycle facts, contract codegen
-or proof ledgers. herdr-mobile installs and runs no hooks. architecture §8 governs
-further upgrades: a new capability requires an explicit scope and
-acceptance-criterion change.
+[the codebase rules](docs/rules/index.md). this repository is retired;
+[the retirement contract](docs/herdr-retirement.md) supersedes its historical
+herdr ownership and coexistence instructions. skid owns the current phone,
+desktop and worker control; providers retain execution and history. jarvis uses
+the installed skid cli and retains its separate shared cognition contract.
+do not reinstall herdr/mobile or introduce compatibility paths, generalized
+hook runtimes, provenance, sqlite lifecycle facts, contract codegen or proof
+ledgers. use `skid --help` for current commands and automation guidance.
 
 2026-09-17 test retirement: behavioral suites and their harnesses are removed.
 `scripts/check verify` retains engineering checks only. cleanup uses temporary
